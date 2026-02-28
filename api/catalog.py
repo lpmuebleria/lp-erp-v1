@@ -6,12 +6,24 @@ from xhtml2pdf import pisa
 from io import BytesIO
 import os
 import datetime
+import base64
 
 router = APIRouter()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "api", "templates")
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+
+def get_image_base64(path):
+    try:
+        with open(path, "rb") as image_file:
+            ext = path.split('.')[-1].lower()
+            mime = 'image/jpeg' if ext in ['jpg', 'jpeg'] else 'image/png'
+            encoded = base64.b64encode(image_file.read()).decode('utf-8')
+            return f"data:{mime};base64,{encoded}"
+    except Exception as e:
+        print(f"Error loading image {path}:", e)
+        return ""
 
 @router.get("/catalog/pdf")
 def generate_catalog_pdf(include_stock: str = "false"):
@@ -44,12 +56,21 @@ def generate_catalog_pdf(include_stock: str = "false"):
         show_stock = include_stock.lower() == "true"
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
 
+        # Load Branding Images as Base64
+        logo_path = "C:/Users/Lpmue/OneDrive/Desktop/Muebleria/marketing/LP Mueblería Jalisco logo.jpeg"
+        social_path = "C:/Users/Lpmue/OneDrive/Desktop/Muebleria/marketing/Redes sociales.png"
+        
+        logo_b64 = get_image_base64(logo_path)
+        socials_b64 = get_image_base64(social_path)
+
         # Load Jinja Template
         template = env.get_template("catalog.html")
         html_out = template.render(
             products=products,
             show_stock=show_stock,
             current_date=current_date,
+            logo_b64=logo_b64,
+            socials_b64=socials_b64,
             base_url="http://localhost:8000" # fallback if required for static resolution
         )
 
