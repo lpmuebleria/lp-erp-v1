@@ -217,6 +217,30 @@ function Settings() {
                                 </div>
                             ))}
                         </div>
+
+                        <div className="mt-8 pt-8 border-t border-white/5">
+                            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                                <Truck className="text-premium-gold" size={20} />
+                                Costo Base Logístico (Flete Global)
+                            </h2>
+                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-premium-gold/20 max-w-lg">
+                                <div>
+                                    <div className="font-bold text-slate-300">Flete Maestros a Fábrica</div>
+                                    <div className="text-xs text-slate-500 mt-1">Se sumará automáticamente a todos los cálculos de catálogo de productos</div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                        <input
+                                            type="number"
+                                            value={globalFlete}
+                                            onChange={(e) => setGlobalFlete(parseFloat(e.target.value) || 0)}
+                                            className="bg-black/40 border border-white/10 rounded-lg pl-6 pr-3 py-2 w-32 text-right text-premium-gold font-mono focus:border-premium-gold outline-none transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </section>
                 )}
 

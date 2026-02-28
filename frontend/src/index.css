@@ -34,3 +34,38 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
+
+/* Fix generic <select> elements and ensure their child <option>s are legible */
+select {
+  cursor: pointer;
+  /* Premium custom dropdown arrow */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23eab308' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.5rem !important;
+  /* Ensure text doesn't overlap arrow */
+}
+
+select option {
+  background-color: #1e293b;
+  /* Tailwind slate-800 for solid contrast */
+  color: #ffffff;
+  padding: 12px;
+  font-weight: 600;
+}
+
+select option:checked {
+  background-color: #0f172a;
+  /* Dark slate for selected option */
+  color: #eab308;
+}
+
+select option:hover {
+  background-color: #334155;
+  /* Lighter slate for hovered option */
+  color: #ffffff;
+}

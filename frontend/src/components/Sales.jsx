@@ -48,12 +48,15 @@ function Sales({ vendedor }) {
     });
 
     // Shipping State
-    const [shipping, setShipping] = useState({
-        cp: '',
-        colonia: '',
-        costo: 0,
-        isCustom: false,
-        errorMsg: ''
+    const [shipping, setShipping] = useState(() => {
+        const saved = localStorage.getItem('lp_erp_shipping');
+        return saved ? JSON.parse(saved) : {
+            cp: '',
+            colonia: '',
+            costo: 0,
+            isCustom: false,
+            errorMsg: ''
+        };
     });
 
     // Delivery State
@@ -82,6 +85,11 @@ function Sales({ vendedor }) {
     useEffect(() => {
         localStorage.setItem('lp_erp_customer', JSON.stringify(customer));
     }, [customer]);
+
+    // Persist shipping
+    useEffect(() => {
+        localStorage.setItem('lp_erp_shipping', JSON.stringify(shipping));
+    }, [shipping]);
 
     useEffect(() => {
         if (searchTerm.length > 2) {
@@ -238,10 +246,34 @@ function Sales({ vendedor }) {
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
             setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
+            setShipping({ cp: '', colonia: '', costo: 0, isCustom: false, errorMsg: '' });
+            localStorage.removeItem('lp_erp_cart');
+            localStorage.removeItem('lp_erp_customer');
+            localStorage.removeItem('lp_erp_shipping');
         } catch (error) {
             alert("Error al guardar: " + (error.response?.data?.detail || error.message));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleClearAll = () => {
+        if (confirm("¿Estás seguro de que deseas limpiar toda la información (carrito, cliente, envío, etc)?")) {
+            setCart([]);
+            setCustomer({ nombre: '', tel: '', email: '' });
+            setShipping({ cp: '', colonia: '', costo: 0, isCustom: false, errorMsg: '' });
+            setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
+            setBilling({
+                requiere_factura: false,
+                rfc: '', razon: '', cp: '', regimen: '', uso_cfdi: '',
+                metodo_pago: 'PUE', forma_pago: '01'
+            });
+            setDelivery({ fecha: '', turno: 'MANANA' });
+            setStatus('COTIZACION');
+            setSelectedPromoId('');
+            localStorage.removeItem('lp_erp_cart');
+            localStorage.removeItem('lp_erp_customer');
+            localStorage.removeItem('lp_erp_shipping');
         }
     };
 
@@ -698,16 +730,25 @@ function Sales({ vendedor }) {
                             </div>
                         )}
 
-                        <button
-                            disabled={loading || cart.length === 0}
-                            onClick={handleSave}
-                            className="w-full bg-premium-gold text-black font-black py-4 rounded-[20px] flex items-center justify-center space-x-3 hover:bg-yellow-400 transition-all disabled:opacity-30 shadow-xl shadow-premium-gold/20 active:scale-[0.97]"
-                        >
-                            {loading ? <Loader2 className="animate-spin" /> : <Plus size={20} />}
-                            <span className="text-sm tracking-tight uppercase">
-                                Generar {status.replace('_', ' ')}
-                            </span>
-                        </button>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={handleClearAll}
+                                className="w-1/3 bg-white/5 border border-white/10 text-slate-300 font-black py-4 rounded-[20px] flex items-center justify-center space-x-2 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all"
+                            >
+                                <Trash2 size={20} />
+                                <span className="text-sm tracking-tight uppercase">Limpiar</span>
+                            </button>
+                            <button
+                                disabled={loading || cart.length === 0}
+                                onClick={handleSave}
+                                className="w-2/3 bg-premium-gold text-black font-black py-4 rounded-[20px] flex items-center justify-center space-x-3 hover:bg-yellow-400 transition-all disabled:opacity-30 shadow-xl shadow-premium-gold/20 active:scale-[0.97]"
+                            >
+                                {loading ? <Loader2 className="animate-spin" /> : <Plus size={20} />}
+                                <span className="text-sm tracking-tight uppercase">
+                                    Generar {status.replace('_', ' ')}
+                                </span>
+                            </button>
+                        </div>
                     </section>
                 </div>
             </div>
