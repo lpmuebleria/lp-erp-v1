@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LP ERP | Iniciar sesión</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --card:#151515;
+      --gold:#D4AF37;
+      --gold2:#c9a227;
+      --text:#f3f3f3;
+      --muted:#b8b8b8;
+      --input:#1f1f1f;
+      --line:#2a2a2a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(212,175,55,.14), transparent 60%),
+                  radial-gradient(900px 500px at 80% 30%, rgba(212,175,55,.10), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .wrap{
+      width: min(920px, 100%);
+      display:grid;
+      grid-template-columns: 1fr 420px;
+      gap:24px;
+      align-items:center;
+    }
+    .brand{
+      padding:18px;
+    }
+    .brand img{height:72px}
+    .brand h1{
+      margin:18px 0 8px;
+      font-size:28px;
+      letter-spacing:.3px;
+    }
+    .brand p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), transparent 55%), var(--card);
+      border:1px solid rgba(212,175,55,.25);
+      border-radius:16px;
+      padding:26px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.55);
+    }
+    .card h2{
+      margin:0 0 16px;
+      color:var(--gold);
+      font-size:22px;
+    }
+    .tabs{
+      display:flex;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .tab{
+      flex:1;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:#101010;
+      color:var(--muted);
+      cursor:pointer;
+      font-weight:600;
+    }
+    .tab.active{
+      border-color: rgba(212,175,55,.45);
+      color:var(--text);
+      box-shadow: inset 0 0 0 1px rgba(212,175,55,.25);
+    }
+    .field{
+      margin:10px 0;
+    }
+    label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin:0 0 6px;
+    }
+    input{
+      width:100%;
+      padding:12px 12px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:var(--input);
+      color:var(--text);
+      outline:none;
+    }
+    input:focus{
+      border-color: rgba(212,175,55,.55);
+      box-shadow: 0 0 0 3px rgba(212,175,55,.12);
+    }
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .btn{
+      width:100%;
+      margin-top:12px;
+      padding:12px 14px;
+      border-radius:12px;
+      border:none;
+      background:var(--gold);
+      color:#111;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btn:hover{background:var(--gold2)}
+    .hint{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .err{
+      margin:10px 0 0;
+      color:#ffb3b3;
+      font-size:12px;
+    }
+    @media (max-width: 920px){
+      .wrap{grid-template-columns:1fr; }
+      .brand{display:none;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="/static/logo.jpg" alt="LP Mueblería de Jalisco">
+      <h1>LP ERP</h1>
+      <p><b>Hecho en Jalisco, hecho para durar</b><br>
+      Acceso seguro para ventas y administración.</p>
+    </div>
+
+    <div class="card">
+      <h2>Iniciar sesión</h2>
+
+      <div class="tabs">
+        <button class="tab active" id="tab-admin" type="button" onclick="showAdmin()">Administrador</button>
+        <button class="tab" id="tab-vend" type="button" onclick="showVendedor()">Vendedor (PIN)</button>
+      </div>
+
+      <!-- Admin -->
+      <form method="post" action="/login" id="form-admin">
+        <input type="hidden" name="mode" value="admin">
+        <div class="field">
+          <label>Usuario</label>
+          <input name="username" placeholder="admin" required>
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input name="password" type="password" placeholder="••••••••" required>
+        </div>
+        <button class="btn" type="submit">Ingresar</button>
+      </form>
+
+      <!-- Vendedor -->
+      <form method="post" action="/login" id="form-vend" style="display:none;">
+        <input type="hidden" name="mode" value="pin">
+        <div class="field">
+          <label>PIN rápido (4 dígitos)</label>
+          <input name="pin" inputmode="numeric" maxlength="4" placeholder="0000" required>
+        </div>
+        <button class="btn" type="submit">Ingresar</button>
+        <div class="hint">Solo acceso a cotizaciones y ventas. No muestra costos ni reportes.</div>
+      </form>
+
+      {% if error %}
+        <div class="err">{{ error }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+<script>
+  function showAdmin(){
+    document.getElementById('tab-admin').classList.add('active');
+    document.getElementById('tab-vend').classList.remove('active');
+    document.getElementById('form-admin').style.display = 'block';
+    document.getElementById('form-vend').style.display = 'none';
+  }
+  function showVendedor(){
+    document.getElementById('tab-vend').classList.add('active');
+    document.getElementById('tab-admin').classList.remove('active');
+    document.getElementById('form-vend').style.display = 'block';
+    document.getElementById('form-admin').style.display = 'none';
+  }
+</script>
+
+</body>
+</html>

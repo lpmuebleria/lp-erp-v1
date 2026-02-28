@@ -1,0 +1,83 @@
+{% extends "_layout.html" %}
+{% block title %}Configuración comercial - {{ APP_NAME }}{% endblock %}
+
+{% block header %}
+  <h2 style="margin:0;">Configuración comercial</h2>
+{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <form method="post" action="/config/comercial" style="display:grid; gap:14px; max-width:900px;">
+      <div>
+        <label style="display:block; margin-bottom:6px; color:#caa64a; font-weight:800;">Flete unitario</label>
+        <input name="flete_unitario" value="{{ flete_unitario }}"
+               style="padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5; width:220px;">
+      </div>
+
+      <div style="border-top:1px solid #2a2a2a; padding-top:14px;">
+        <h3 style="margin:0 0 10px 0;">Indirectos por tipo de mueble</h3>
+
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid #2a2a2a;">
+              <th style="text-align:left; padding:10px; color:#caa64a;">Tamaño</th>
+              <th style="text-align:left; padding:10px; color:#caa64a;">Maniobras</th>
+              <th style="text-align:left; padding:10px; color:#caa64a;">Empaque</th>
+              <th style="text-align:left; padding:10px; color:#caa64a;">Comisión</th>
+              <th style="text-align:left; padding:10px; color:#caa64a;">Garantías</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set map = {} %}
+            {% for r in cost_rows %}
+              {% set _ = map.update({ r["tamano"]: r }) %}
+            {% endfor %}
+
+            {% for t in ["Chico","Mediano","Grande"] %}
+            {% set r = map.get(t) %}
+            <tr style="border-bottom:1px solid #1e1e1e;">
+              <td style="padding:10px; font-weight:800;">{{ t }}</td>
+              <td style="padding:10px;"><input name="maniobras_{{ t|lower }}" value="{{ r["maniobras"] if r else 0 }}" style="width:120px; padding:8px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;"></td>
+              <td style="padding:10px;"><input name="empaque_{{ t|lower }}" value="{{ r["empaque"] if r else 0 }}" style="width:120px; padding:8px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;"></td>
+              <td style="padding:10px;"><input name="comision_{{ t|lower }}" value="{{ r["comision"] if r else 0 }}" style="width:120px; padding:8px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;"></td>
+              <td style="padding:10px;"><input name="garantias_{{ t|lower }}" value="{{ r["garantias"] if r else 0 }}" style="width:120px; padding:8px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="border-top:1px solid #2a2a2a; padding-top:14px;">
+        <h3 style="margin:0 0 10px 0;">Utilidad</h3>
+
+        {% set umap = {} %}
+        {% for u in util_rows %}
+          {% set _ = umap.update({ u["nivel"]: u["multiplicador"] }) %}
+        {% endfor %}
+
+        <div style="display:flex; gap:14px; flex-wrap:wrap;">
+          <div>
+            <label style="display:block; margin-bottom:6px; color:#caa64a; font-weight:800;">Baja</label>
+            <input name="mult_baja" value="{{ umap.get('baja', 1.30) }}" style="width:140px; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+          </div>
+          <div>
+            <label style="display:block; margin-bottom:6px; color:#caa64a; font-weight:800;">Media</label>
+            <input name="mult_media" value="{{ umap.get('media', 1.45) }}" style="width:140px; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+          </div>
+          <div>
+            <label style="display:block; margin-bottom:6px; color:#caa64a; font-weight:800;">Alta</label>
+            <input name="mult_alta" value="{{ umap.get('alta', 1.60) }}" style="width:140px; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button type="submit"
+                style="padding:10px 14px; border-radius:10px; border:0; background:#caa64a; color:#0b0b0b; font-weight:900; cursor:pointer;">
+          Guardar cambios
+        </button>
+        <a class="btn" href="/">Volver</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

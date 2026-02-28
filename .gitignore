@@ -1,0 +1,38 @@
+# Entornos Virtuales
+venv/
+env/
+.env
+
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bases de datos SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# Archivos Excel y de Datos (opcional, lo ignoramos para evitar subir datos sensibles por error)
+*.xlsx
+*.csv
+
+# Archivos PDF generados dinámicamente
+*.pdf
+
+# Backups y Scripts de prueba temporales
+*backup*.py
+*BACKUP*.py
+*BACKUP*.sqlite
+apply_fix*.py
+test*.pdf
+out.pdf
+
+# Frontend Node.js (aunque tenga el suyo, lo reforzamos aquí)
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+
+# IDEs
+.vscode/
+.idea/

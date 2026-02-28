@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Comprobante</title>
+    <style>
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #D4AF37;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            max-width: 150px;
+            margin-bottom: 10px;
+        }
+
+        .info-table td {
+            padding: 5px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .items-table th,
+        .items-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .items-table th {
+            background-color: #f2f2f2;
+            color: #555;
+        }
+
+        .totals {
+            text-align: right;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .totals p {
+            margin: 5px 0;
+        }
+
+        .footer {
+            font-size: 10px;
+            color: #777;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+
+        .gold {
+            color: #D4AF37;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            background-color: #eee;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .badge-cotizacion {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .badge-apartado {
+            background-color: #cce5ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+
+        .badge-venta {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .badge-fabricacion {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1 class="gold">Mueblería LP</h1>
+        <p>Blvd. Independencia 1234, Centro, Torreón, Coah.</p>
+        <p>Tel: (871) 123-4567 | WhatsApp: (871) 987-6543</p>
+    </div>
+
+    <table class="info-table" style="width: 100%;">
+        <tr>
+            <td style="width: 50%;">
+                <strong>Cliente:</strong> {{ cliente_nombre }}<br>
+                <strong>Teléfono:</strong> {{ cliente_tel }}<br>
+                <strong>Email:</strong> {{ cliente_email }}
+            </td>
+            <td style="width: 50%; text-align: right;">
+                <strong>Folio:</strong> <span style="font-family: monospace; font-size: 16px;">{{ folio }}</span><br>
+                <strong>Fecha:</strong> {{ fecha }}<br>
+                <strong>Vendedor:</strong> <span style="text-transform: capitalize;">{{ vendedor }}</span><br>
+                <br>
+                <div class="badge badge-{{ tipo_clase }}">{{ tipo_display }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 10%;">CÓDIGO</th>
+                <th style="width: 40%;">DESCRIPCIÓN</th>
+                <th style="width: 10%; text-align: center;">CANT.</th>
+                <th style="width: 15%; text-align: right;">PRECIO U.</th>
+                {% if status == 'COTIZACION' %}
+                <th style="width: 10%; text-align: right;">DESC.</th>
+                {% endif %}
+                <th style="width: 15%; text-align: right;">SUBTOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in lineas %}
+            <tr>
+                <td style="font-family: monospace; font-size: 12px;">{{ item.codigo }}</td>
+                <td>{{ item.modelo }}</td>
+                <td style="text-align: center;">{{ item.cantidad }}</td>
+                <td style="text-align: right;">${{ "{:,.2f}".format(item.precio_unit) }}</td>
+                {% if status == 'COTIZACION' %}
+                <td style="text-align: right; color: red;">-${{ "{:,.2f}".format(item.descuento_val) }}</td>
+                {% endif %}
+                <td style="text-align: right; font-weight: bold;">${{ "{:,.2f}".format(item.total_linea) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        {% if sum_desc_manual > 0 %}
+        <p style="font-size: 12px; color: #777;">Descuentos (Artículos): -${{ "{:,.2f}".format(sum_desc_manual) }}</p>
+        {% endif %}
+        {% if descuento_global_val > 0 %}
+        <p style="font-size: 12px; color: #777;">Descuento Promoción: -${{ "{:,.2f}".format(descuento_global_val) }}</p>
+        {% endif %}
+
+        <p style="font-size: 20px; border-top: 1px solid #ccc; padding-top: 5px; margin-top: 10px;">
+            TOTAL: <span class="gold">${{ "{:,.2f}".format(total) }}</span>
+        </p>
+        {% if costo_envio and costo_envio > 0 %}
+        <p style="font-size: 14px; color: #555; margin-top: 5px;">
+            Envío a Domicilio (Pago sólo en efectivo): <span style="font-weight:bold;">${{ "{:,.2f}".format(costo_envio) }}</span>
+        </p>
+        {% endif %}
+
+        {% if status != 'COTIZACION' %}
+        <table style="width: 100%; margin-top: 20px; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px;">
+            <tr>
+                <td style="text-align: left;">
+                    {% if entrega_estimada %}
+                    <strong>Entrega Estimada:</strong> {{ entrega_estimada }}
+                    {% endif %}
+                </td>
+                <td style="text-align: right;">
+                    <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado)
+                        }}</p>
+                    <p style="margin: 2px 0;"><strong>Saldo Restante:</strong> ${{ "{:,.2f}".format(saldo) }}</p>
+                </td>
+            </tr>
+        </table>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        <p>Los precios en esta {{ 'cotización' if status == 'COTIZACION' else 'nota' }} pueden estar sujetos a cambios
+            sin previo aviso.</p>
+        {% if status == 'APARTADO' %}
+        <p><strong>Nota Apartado:</strong> Tiene usted 30 días para liquidar el saldo total de este apartado o perderá
+            su anticipo según nuestras políticas.</p>
+        {% endif %}
+        {% if status == 'PEDIDO_FABRICACION' %}
+        <p><strong>Nota Fabricación:</strong> El tiempo estimado de fabricación es de 25 días hábiles a partir de la
+            confirmación de su anticipo.</p>
+        {% endif %}
+        <p>LP Mueblería - Sistema ERP V1</p>
+    </div>
+</body>
+
+</html>

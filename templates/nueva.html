@@ -1,0 +1,88 @@
+{% extends "_layout.html" %}
+{% block title %}Nueva cotización - {{ APP_NAME }}{% endblock %}
+
+{% block header %}
+  <h2 style="margin:0;">Nueva cotización</h2>
+{% endblock %}
+
+{% block actions %}
+  <a class="btn" href="/inventario">Inventario</a>
+  <a class="btn" href="/venta">Ventas</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+
+  <form method="post" action="/vendedor/cotizar">
+
+    <!-- DATOS DEL CLIENTE -->
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+
+      <div style="flex:1; min-width:220px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Nombre *</label>
+        <input name="cliente_nombre" required
+               placeholder="Nombre del cliente"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+      <div style="flex:1; min-width:180px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Teléfono *</label>
+        <input name="cliente_tel" required
+               placeholder="Teléfono"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+      <div style="flex:1; min-width:220px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Email (opcional)</label>
+        <input name="cliente_email"
+               placeholder="correo@ejemplo.com"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+    </div>
+
+    <!-- PRODUCTO -->
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+
+      <div style="flex:1; min-width:160px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Código *</label>
+        <input name="codigo" required
+               placeholder="LP0001"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+      <div style="flex:1; min-width:120px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Cantidad</label>
+        <input name="cantidad" type="number" min="1" value="1"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+      <div style="flex:1; min-width:120px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Descuento</label>
+        <select name="descuento_tipo"
+                style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+          <option value="">(sin)</option>
+          <option value="%">%</option>
+          <option value="$">$</option>
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:120px;">
+        <label style="display:block; font-size:12px; color:#caa64a; margin-bottom:6px;">Valor</label>
+        <input name="descuento_val" type="number" step="0.01" value="0"
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #2a2a2a; background:#0f0f0f; color:#f5f5f5;">
+      </div>
+
+    </div>
+
+    <button type="submit"
+            style="padding:12px 18px; border-radius:10px; border:0; background:#caa64a; color:#0b0b0b; font-weight:800; cursor:pointer;">
+      Crear cotización
+    </button>
+
+  </form>
+
+</div>
+
+{% endblock %}

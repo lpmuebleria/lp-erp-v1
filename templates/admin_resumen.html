@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Admin resumen</title></head>
+<body style="font-family: Arial; margin: 24px;">
+<h2>Admin – Resumen</h2>
+
+<form method="get" action="/admin/resumen">
+  <label>Desde:</label><input name="desde" value="{{desde}}" />
+  <label>Hasta:</label><input name="hasta" value="{{hasta}}" />
+  <button type="submit">Filtrar</button>
+</form>
+
+<h3>Totales</h3>
+<ul>
+  <li>Ventas (total pedidos): <b>{{money(total_ventas)}}</b></li>
+  <li>Anticipos cobrados: <b>{{money(total_anticipo)}}</b></li>
+</ul>
+
+<h3>Acumulado por bolsas (estimado)</h3>
+<ul>
+  <li>Maniobras: {{money(bols_tot.maniobras)}}</li>
+  <li>Empaque: {{money(bols_tot.empaque)}}</li>
+  <li>Comisión: {{money(bols_tot.comision)}}</li>
+  <li>Garantías: {{money(bols_tot.garantias)}}</li>
+  <li>Utilidad bruta: <b>{{money(bols_tot.utilidad_bruta)}}</b></li>
+</ul>
+
+<h3>Pedidos</h3>
+<table border="1" cellpadding="6" cellspacing="0">
+<tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Total</th><th>Anticipo</th><th>Saldo</th><th>Entrega</th></tr>
+{% for r in rows %}
+<tr>
+  <td>{{r.created_at[:10]}}</td>
+  <td><a href="/pedido/{{r.id}}">{{r.folio}}</a></td>
+  <td>{{r.cliente or ""}}</td>
+  <td style="text-align:right">{{money(r.total)}}</td>
+  <td style="text-align:right">{{money(r.anticipo_pagado)}}</td>
+  <td style="text-align:right">{{money(r.saldo)}}</td>
+  <td>{{r.entrega_estimada}}</td>
+</tr>
+{% endfor %}
+</table>
+
+<p><a href="/">Inicio</a></p>
+</body></html>

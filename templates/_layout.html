@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LP ERP{% endblock %}</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --card:#111;
+      --line:#2a2a2a;
+      --gold:#caa64a;
+      --text:#f5f5f5;
+      --muted:#bdbdbd;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Arial, sans-serif; background:var(--bg); color:var(--text);}
+    .app{display:flex; min-height:100vh;}
+
+    /* Sidebar */
+    .side{
+      width:260px;
+      border-right:1px solid rgba(202,166,74,.22);
+      background:linear-gradient(180deg, rgba(202,166,74,.10), transparent 40%), #070707;
+      padding:18px 14px;
+      position:sticky; top:0; height:100vh;
+    }
+    .brand{display:flex; gap:10px; align-items:center; margin-bottom:14px;}
+    .brand img{height:44px}
+    .brand .t1{font-weight:800; font-size:14px;}
+    .brand .t2{color:var(--muted); font-size:12px; margin-top:2px;}
+
+    .nav{margin-top:14px; display:flex; flex-direction:column; gap:8px;}
+    .nav a{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:12px;
+      text-decoration:none; color:var(--text);
+      border:1px solid rgba(255,255,255,.06);
+      background:rgba(255,255,255,.03);
+      font-weight:700; font-size:13px;
+    }
+    .nav a:hover{border-color:rgba(202,166,74,.35)}
+    .nav a.active{border-color:rgba(202,166,74,.65); background:rgba(202,166,74,.12);}
+    .nav .sec{margin-top:10px; color:var(--muted); font-size:11px; padding:0 8px;}
+
+    .side .foot{
+      position:absolute; bottom:16px; left:14px; right:14px;
+      color:var(--muted); font-size:12px;
+      border-top:1px solid rgba(202,166,74,.14);
+      padding-top:12px;
+    }
+    .pill{
+      display:inline-block; padding:6px 10px; border-radius:999px;
+      border:1px solid rgba(202,166,74,.25);
+      background:rgba(255,255,255,.03);
+      margin-top:8px;
+    }
+
+    /* Main */
+    .main{flex:1; padding:18px 22px;}
+    .topbar{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px;}
+    .btn{
+      display:inline-block; padding:10px 12px; border-radius:12px;
+      text-decoration:none; font-weight:800;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+    }
+    .btn:hover{border-color:rgba(202,166,74,.35)}
+    .wrap{max-width:1200px;}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px;}
+    @media (max-width: 900px){
+      .side{display:none;}
+      .main{padding:14px;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">
+        <img src="/static/logo.jpg" alt="LP">
+        <div>
+          <div class="t1">{{ APP_NAME }}</div>
+          <div class="t2">{{ SLOGAN }}</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="/" class="{% if active=='dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/vendedor/nueva" class="{% if active=='cotizar' %}active{% endif %}">Nueva cotización</a>
+        <a href="/inventario" class="{% if active=='inventario' %}active{% endif %}">Inventario</a>
+        <a class="nav-item {{ 'active' if active=='pedidos' else '' }}" href="/pedidos">Pedidos</a>
+        {% if role == "admin" %}
+        <a class="nav-item {% if active=='config_comercial' %}active{% endif %}" href="/config/comercial">Config. comercial</a>
+        <a class="menu-item {% if active=='apartados' %}active{% endif %}" href="/apartados">
+  Apartados
+</a>
+        {% endif %}
+
+
+        {% if role == "admin" %}
+          <div class="sec">ADMIN</div>
+          <a href="/admin/resumen" class="{% if active=='resumen' %}active{% endif %}">Resumen</a>
+        {% endif %}
+
+        <div class="sec">CUENTA</div>
+        <a href="/logout">Cerrar sesión</a>
+      </nav>
+
+      <div class="foot">
+        <div>Tel/WhatsApp: <b style="color:#fff">{{ PHONE }}</b></div>
+        <div class="pill">Usuario: <b style="color:#fff">{{ user }}</b> · <b style="color:#fff">{{ role }}</b></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="wrap">
+        <div class="topbar">
+          <div>{% block header %}{% endblock %}</div>
+          <div>{% block actions %}{% endblock %}</div>
+        </div>
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>

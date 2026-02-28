@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Pedidos</title>
+    <style>
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            background-color: #0f172a;
+            /* premium-slate */
+            color: #f8fafc;
+            /* white */
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #D4AF37;
+            /* premium-gold */
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+
+        .gold {
+            color: #D4AF37;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            /* slate-400 */
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: -10px;
+        }
+
+        .filters-table {
+            width: 100%;
+            margin-bottom: 20px;
+            font-size: 12px;
+            background-color: #1e293b;
+            /* lighter slate */
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .filters-table td {
+            padding: 5px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .items-table th,
+        .items-table td {
+            border-bottom: 1px solid #334155;
+            /* slate-700 */
+            padding: 10px 5px;
+            text-align: left;
+        }
+
+        .items-table th {
+            color: #94a3b8;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background-color: #0f172a;
+        }
+
+        .items-table tr:nth-child(even) {
+            background-color: #1e293b;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Status Colors */
+        .status-entregado {
+            color: #4ade80;
+            background-color: rgba(74, 222, 128, 0.1);
+            border: 1px solid #4ade80;
+        }
+
+        .status-liquidado {
+            color: #60a5fa;
+            background-color: rgba(96, 165, 250, 0.1);
+            border: 1px solid #60a5fa;
+        }
+
+        .status-registrado {
+            color: #facc15;
+            background-color: rgba(250, 204, 21, 0.1);
+            border: 1px solid #facc15;
+        }
+
+        .status-fabricacion {
+            color: #818cf8;
+            background-color: rgba(129, 140, 248, 0.1);
+            border: 1px solid #818cf8;
+        }
+
+        .status-listo {
+            color: #c084fc;
+            background-color: rgba(192, 132, 252, 0.1);
+            border: 1px solid #c084fc;
+        }
+
+        .status-cancelado {
+            color: #f87171;
+            background-color: rgba(248, 113, 113, 0.1);
+            border: 1px solid #f87171;
+        }
+
+        .status-default {
+            color: #94a3b8;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid #94a3b8;
+        }
+
+        .text-right {
+            text-align: right !important;
+        }
+
+        .text-center {
+            text-align: center !important;
+        }
+
+        .font-mono {
+            font-family: monospace;
+        }
+
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 10px;
+            color: #64748b;
+            /* slate-500 */
+            border-top: 1px solid #334155;
+            padding-top: 10px;
+            letter-spacing: 1px;
+        }
+
+        .summary-box {
+            float: right;
+            margin-top: 20px;
+            background-color: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            width: 300px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1 class="gold" style="margin-bottom: 5px;">REPORTE DE PEDIDOS</h1>
+        <p class="subtitle">LP Mueblería V1</p>
+    </div>
+
+    {% if has_filters %}
+    <div class="filters-table">
+        <strong class="gold">Filtros Activos:</strong>
+        <table style="width: 100%; margin-top: 5px;">
+            <tr>
+                {% if filters.q %}<td><strong>Búsqueda:</strong> {{ filters.q }}</td>{% endif %}
+                {% if filters.estatus %}<td><strong>Estatus:</strong> {{ filters.estatus }}</td>{% endif %}
+                {% if filters.mueble %}<td><strong>Mueble:</strong> {{ filters.mueble }}</td>{% endif %}
+                {% if filters.desde %}<td><strong>Desde:</strong> {{ filters.desde }}</td>{% endif %}
+                {% if filters.hasta %}<td><strong>Hasta:</strong> {{ filters.hasta }}</td>{% endif %}
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Folio</th>
+                <th>Cliente / Vendedor</th>
+                <th>Estado</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Saldo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in orders %}
+            <tr>
+                <td>{{ o.fecha_str }}</td>
+                <td style="font-weight: bold; color: #D4AF37;">{{ o.folio }}</td>
+                <td>
+                    <div style="font-weight: bold;">{{ o.cliente_nombre or '---' }}</div>
+                    <div style="font-size: 9px; color: #94a3b8;">Vende: {{ o.vendedor }}</div>
+                </td>
+                <td>
+                    <span class="badge status-{{ o.status_class }}">{{ o.estatus }}</span>
+                </td>
+                <td class="text-right font-mono" style="font-weight: bold;">${{ "{:,.2f}".format(o.total) }}</td>
+                <td class="text-right font-mono" style="{{ 'color: #f87171;' if o.saldo > 0 else 'color: #94a3b8;' }}">
+                    ${{ "{:,.2f}".format(o.saldo) }}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not orders %}
+            <tr>
+                <td colspan="6" class="text-center" style="padding: 40px; color: #64748b; font-style: italic;">
+                    No se encontraron pedidos con estos filtros.
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if orders %}
+    <div class="summary-box">
+        <div class="summary-row">
+            <span style="color: #94a3b8;">Total de Pedidos:</span>
+            <span class="font-mono">{{ total_count }}</span>
+        </div>
+        <div class="summary-row" style="margin-top: 10px; border-top: 1px solid #334155; padding-top: 10px;">
+            <span style="color: #94a3b8;">Suma Total:</span>
+            <span class="font-mono gold" style="font-weight: bold; font-size: 16px;">${{ "{:,.2f}".format(sum_total)
+                }}</span>
+        </div>
+        <div class="summary-row">
+            <span style="color: #94a3b8;">Suma Saldos Pendientes:</span>
+            <span class="font-mono" style="color: #f87171; font-weight: bold;">${{ "{:,.2f}".format(sum_saldo) }}</span>
+        </div>
+    </div>
+    <div style="clear: both;"></div>
+    {% endif %}
+
+    <div class="footer">
+        Generado el {{ fecha_generacion }}
+    </div>
+</body>
+
+</html>
