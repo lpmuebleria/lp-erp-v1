@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Catálogo Mueblería Torreón</title>
+    <style>
+        @page {
+            size: a4;
+            margin: 15mm;
+
+            @frame header_frame {
+                /* Static Frame */
+                -pdf-frame-content: header_content;
+                left: 15mm;
+                width: 180mm;
+                top: 15mm;
+                height: 25mm;
+            }
+
+            @frame content_frame {
+                /* Content Frame */
+                left: 15mm;
+                width: 180mm;
+                top: 40mm;
+                height: 230mm;
+            }
+
+            @frame footer_frame {
+                /* Static Frame */
+                -pdf-frame-content: footer_content;
+                left: 15mm;
+                width: 180mm;
+                top: 280mm;
+                height: 10mm;
+            }
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            background-color: #ffffff;
+            font-size: 10pt;
+        }
+
+        /* HEADER */
+        .header-table {
+            width: 100%;
+            border-bottom: 2px solid #eab308;
+            padding-bottom: 5px;
+        }
+
+        .header-table td {
+            vertical-align: bottom;
+        }
+
+        .header-title {
+            color: #0f172a;
+            font-size: 24pt;
+            font-weight: bold;
+        }
+
+        .header-title span {
+            color: #eab308;
+        }
+
+        .header-subtitle {
+            font-size: 9pt;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .header-right {
+            text-align: right;
+            font-size: 10pt;
+            color: #475569;
+        }
+
+        /* FOOTER */
+        .footer-table {
+            width: 100%;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 5px;
+            font-size: 9pt;
+            color: #64748b;
+        }
+
+        /* CATALOG GRID USING TABLES */
+        .catalog-table {
+            width: 100%;
+        }
+
+        .card-cell {
+            width: 33%;
+            padding: 5px;
+            vertical-align: top;
+        }
+
+        .card-inner {
+            border: 1px solid #cbd5e1;
+            background-color: #f8fafc;
+            text-align: center;
+            padding-bottom: 10px;
+        }
+
+        .card-image-wrapper {
+            background-color: #e2e8f0;
+            height: 150px;
+            text-align: center;
+        }
+
+        .card-img {
+            max-width: 160px;
+            max-height: 150px;
+        }
+
+        .card-body {
+            padding: 5px;
+        }
+
+        .model-name {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+
+        .model-code {
+            font-size: 8pt;
+            color: #64748b;
+            font-family: monospace;
+            margin-bottom: 5px;
+        }
+
+        .price {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #eab308;
+        }
+
+        .stock {
+            font-size: 8pt;
+            color: #10b981;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .empty-image {
+            color: #94a3b8;
+            font-size: 9pt;
+            font-style: italic;
+            padding-top: 60px;
+            /* fake vertical center */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="header_content">
+        <table class="header-table">
+            <tr>
+                <td>
+                    <div class="header-title">LP <span>ERP</span></div>
+                    <div class="header-subtitle">Mueblería Torreón</div>
+                </td>
+                <td class="header-right">
+                    <strong>Catálogo Oficial</strong><br />
+                    Fecha: {{ current_date }}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div id="footer_content">
+        <table class="footer-table">
+            <tr>
+                <td style="font-weight: bold; color: #0f172a;">Síguenos en Redes: @MuebleriaTorreon | Tel: (871)
+                    123-4567</td>
+                <td style="text-align: right;">Hoja <pdf:pagenumber> de <pdf:pagecount>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- MAIN CARDS -->
+    <table class="catalog-table">
+        {% for p in products %}
+        {% if loop.index0 % 3 == 0 %}
+        <tr>
+            {% endif %}
+
+            <td class="card-cell">
+                <div class="card-inner">
+                    <div class="card-image-wrapper">
+                        {% if p.local_image_path %}
+                        <img class="card-img" src="{{ p.local_image_path }}" />
+                        {% elif p.imagen_url %}
+                        {% if p.imagen_url.startswith('http') %}
+                        <img class="card-img" src="{{ p.imagen_url }}" />
+                        {% else %}
+                        <img class="card-img" src="{{ base_url }}{{ p.imagen_url }}" />
+                        {% endif %}
+                        {% else %}
+                        <div class="empty-image">Sin Fotografía</div>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <div class="model-name">{{ p.modelo }}</div>
+                        <div class="model-code">CÓDIGO: {{ p.codigo }}</div>
+                        <div class="price">${{ "{:,.2f}".format(p.precio_lista) }}</div>
+                        {% if show_stock %}
+                        <div class="stock">EXISTENCIA: {{ p.stock|default(0) }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+
+            {% if loop.index0 % 3 == 2 or loop.last %}
+            <!-- Fill empty cells if last row is incomplete -->
+            {% if loop.last and loop.index0 % 3 != 2 %}
+            {% for _ in range(2 - (loop.index0 % 3)) %}
+            <td class="card-cell"></td>
+            {% endfor %}
+            {% endif %}
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+</body>
+
+</html>

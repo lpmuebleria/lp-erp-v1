@@ -18,6 +18,7 @@ class ProductBase(BaseModel):
     activo: int = 1
     stock: int = 0
     imagen_url: Optional[str] = None
+    in_catalog: int = 1
 
 class ProductCreate(ProductBase):
     pass

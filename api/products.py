@@ -52,8 +52,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor(dictionary=True)
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo,
             data.modelo,
@@ -69,7 +69,8 @@ def create_product(data: ProductCreate):
             data.utilidad_nivel,
             data.activo,
             data.stock,
-            data.imagen_url
+            data.imagen_url,
+            data.in_catalog
         ))
         conn.commit()
         return {"id": cur.lastrowid, "status": "success"}
@@ -85,7 +86,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -103,6 +104,7 @@ def update_product(product_id: int, data: ProductCreate):
             data.activo,
             data.stock,
             data.imagen_url,
+            data.in_catalog,
             product_id
         ))
         

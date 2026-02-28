@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus } from 'lucide-react';
+import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -9,6 +9,8 @@ function Inventory({ role, isSuperadmin }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showCatalogModal, setShowCatalogModal] = useState(false);
+    const [generatingCatalog, setGeneratingCatalog] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
 
     const isAdmin = isSuperadmin || role === 'admin';
@@ -47,13 +49,22 @@ function Inventory({ role, isSuperadmin }) {
                 <div className="flex items-center space-x-4 text-slate-400 text-sm">
                     <span>{products.length} productos encontrados</span>
                     {isAdmin && (
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
-                        >
-                            <Plus size={16} />
-                            <span>Nuevo Producto</span>
-                        </button>
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => setShowCatalogModal(true)}
+                                className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
+                            >
+                                <FileText size={16} />
+                                <span>Generar Catálogo PDF</span>
+                            </button>
+                            <button
+                                onClick={() => setShowModal(true)}
+                                className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
+                            >
+                                <Plus size={16} />
+                                <span>Nuevo Producto</span>
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -69,6 +80,35 @@ function Inventory({ role, isSuperadmin }) {
                 />
             )}
 
+            {showCatalogModal && (
+                <CatalogOptionsModal
+                    onClose={() => setShowCatalogModal(false)}
+                    isGenerating={generatingCatalog}
+                    onGenerate={async (includeStock) => {
+                        setGeneratingCatalog(true);
+                        try {
+                            const response = await axios.get(`${API_URL}/catalog/pdf?include_stock=${includeStock}`, {
+                                responseType: 'blob'
+                            });
+                            // Trigger physical download
+                            const url = window.URL.createObjectURL(new Blob([response.data]));
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.setAttribute('download', 'Catalogo_Muebleria_Torreon.pdf');
+                            document.body.appendChild(link);
+                            link.click();
+                            link.parentNode.removeChild(link);
+                        } catch (err) {
+                            console.error("Error generating catalog", err);
+                            alert("Hubo un error al generar el catálogo. Por favor intenta de nuevo.");
+                        } finally {
+                            setGeneratingCatalog(false);
+                            setShowCatalogModal(false);
+                        }
+                    }}
+                />
+            )}
+
             {loading ? (
                 <div className="h-64 flex items-center justify-center">
                     <Loader2 className="animate-spin text-premium-gold" size={40} />
@@ -80,6 +120,17 @@ function Inventory({ role, isSuperadmin }) {
                             key={product.id}
                             product={product}
                             isAdmin={isAdmin}
+                            onToggleCatalog={async () => {
+                                try {
+                                    await axios.put(`${API_URL}/products/${product.id}`, {
+                                        ...product,
+                                        in_catalog: product.in_catalog === 1 ? 0 : 1
+                                    });
+                                    fetchProducts(); // Refresh list to reflect toggle
+                                } catch (err) {
+                                    console.error(err);
+                                }
+                            }}
                             onEdit={() => {
                                 setEditingProduct(product);
                                 setShowModal(true);
@@ -97,7 +148,7 @@ function Inventory({ role, isSuperadmin }) {
     );
 }
 
-function ProductCard({ product, isAdmin, onEdit }) {
+function ProductCard({ product, isAdmin, onEdit, onToggleCatalog }) {
     const isLowStock = product.stock <= 2;
     const [showPreview, setShowPreview] = useState(false);
 
@@ -116,6 +167,15 @@ function ProductCard({ product, isAdmin, onEdit }) {
                             <h4 className="text-lg font-bold text-white group-hover:text-premium-gold transition-colors line-clamp-1">{product.modelo}</h4>
                         </div>
                         <div className="flex items-center space-x-2">
+                            {isAdmin && (
+                                <button
+                                    onClick={onToggleCatalog}
+                                    className={`p-2 rounded-lg transition-colors border ${product.in_catalog === 1 ? 'bg-premium-gold/20 text-premium-gold border-premium-gold/50' : 'bg-black/30 text-slate-500 border-white/10'}`}
+                                    title={product.in_catalog === 1 ? 'Actualmente en catálogo' : 'Excluido del catálogo'}
+                                >
+                                    {product.in_catalog === 1 ? <Eye size={18} /> : <EyeOff size={18} />}
+                                </button>
+                            )}
                             {product.imagen_url && (
                                 <button
                                     onMouseEnter={() => setShowPreview(true)}
@@ -188,7 +248,8 @@ function ProductModal({ onClose, onSave, product }) {
         utilidad_nivel: 'media',
         activo: 1,
         stock: 0,
-        imagen_url: ''
+        imagen_url: '',
+        in_catalog: 1
     });
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -370,6 +431,23 @@ function ProductModal({ onClose, onSave, product }) {
                                     )}
                                 </label>
                             </div>
+                            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                                <div>
+                                    <div className="text-sm font-bold tracking-tight text-white mb-1">Catálogo Público</div>
+                                    <div className="text-[10px] text-slate-500">Determina si este producto aparece en la exportación PDF del catálogo</div>
+                                </div>
+
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        value=""
+                                        className="sr-only peer"
+                                        checked={form.in_catalog === 1}
+                                        onChange={(e) => setForm({ ...form, in_catalog: e.target.checked ? 1 : 0 })}
+                                    />
+                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-premium-gold"></div>
+                                </label>
+                            </div>
                         </div>
 
                         <div className="flex space-x-3 pt-4">
@@ -407,6 +485,65 @@ function InputField({ label, value, onChange, type = "text", placeholder, requir
                 required={required}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold placeholder:text-slate-600 transition-all"
             />
+        </div>
+    );
+}
+
+function CatalogOptionsModal({ onClose, onGenerate, isGenerating }) {
+    const [includeStock, setIncludeStock] = useState(false);
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-premium-slate w-full max-w-sm rounded-3xl border border-white/10 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-premium-gold/20 rounded-xl text-premium-gold">
+                        <FileText size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-white leading-tight">Exportar Catálogo</h3>
+                        <p className="text-xs text-slate-400">Generador de Archivo PDF</p>
+                    </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6">
+                    <label className="flex items-start space-x-3 cursor-pointer group">
+                        <div className="relative flex items-start justify-center pt-0.5">
+                            <input
+                                type="checkbox"
+                                className="w-5 h-5 appearance-none border-2 border-white/20 rounded-md checked:bg-premium-gold checked:border-premium-gold transition-colors focus:outline-none"
+                                checked={includeStock}
+                                onChange={(e) => setIncludeStock(e.target.checked)}
+                            />
+                            {includeStock && <CheckCircle2 className="absolute text-black pointer-events-none" size={16} />}
+                        </div>
+                        <div>
+                            <span className="text-sm font-bold text-white block group-hover:text-premium-gold transition-colors">
+                                Imprimir con Cantidad en Existencia
+                            </span>
+                            <span className="text-xs text-slate-500 leading-tight block mt-1">
+                                Útil para uso interno del equipo de ventas o actualizaciones a publico. Para mostrar solo al cliente de mostrador se recomienda mantener apagado.
+                            </span>
+                        </div>
+                    </label>
+                </div>
+
+                <div className="flex space-x-3">
+                    <button
+                        onClick={onClose}
+                        disabled={isGenerating}
+                        className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-sm font-bold text-slate-400 hover:text-white transition-all disabled:opacity-50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={() => onGenerate(includeStock)}
+                        disabled={isGenerating}
+                        className="flex-1 px-4 py-3 rounded-xl bg-premium-gold text-black font-bold text-sm hover:bg-yellow-400 transition-all flex items-center justify-center disabled:opacity-50 space-x-2"
+                    >
+                        {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <span>Descargar Documento</span>}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

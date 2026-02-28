@@ -35,7 +35,7 @@ def health_check():
     return {"status": "ok", "version": "2.0.0-react-ready"}
 
 from fastapi.staticfiles import StaticFiles
-from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping
+from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping, catalog
 
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(products.router, prefix="/api", tags=["Products"])
@@ -50,6 +50,7 @@ app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
 app.include_router(promotions.router, prefix="/api", tags=["Promotions"])
 app.include_router(expenses.router, prefix="/api", tags=["Expenses"])
 app.include_router(roles.router, prefix="/api", tags=["Roles"])
+app.include_router(catalog.router, prefix="/api", tags=["Catalog"])
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 if __name__ == "__main__":

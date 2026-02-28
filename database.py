@@ -37,7 +37,8 @@ def init_db():
             precio_lista DECIMAL(15,2) NOT NULL,
             costo_total DECIMAL(15,2) NOT NULL,
             flete DECIMAL(15,2) NOT NULL DEFAULT 0,
-            activo INT NOT NULL DEFAULT 1
+            activo INT NOT NULL DEFAULT 1,
+            in_catalog INT NOT NULL DEFAULT 1
         )""",
         """CREATE TABLE IF NOT EXISTS utilidad_config(
             nivel VARCHAR(255) PRIMARY KEY,      -- baja/media/alta
@@ -248,6 +249,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE products ADD COLUMN costo_fabrica DECIMAL(15,2) NOT NULL DEFAULT 0")
     if not col_exists(cur, "products", "flete"):
         cur.execute("ALTER TABLE products ADD COLUMN flete DECIMAL(15,2) NOT NULL DEFAULT 0")
+    if not col_exists(cur, "products", "in_catalog"):
+        cur.execute("ALTER TABLE products ADD COLUMN in_catalog INT NOT NULL DEFAULT 1")
 
     # quotes
     if not col_exists(cur, "quotes", "cliente_nombre"):
