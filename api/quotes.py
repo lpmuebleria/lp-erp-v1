@@ -4,7 +4,7 @@ from typing import List, Optional
 from utils import new_folio, today_iso
 from schemas import QuoteCreate
 import datetime
-import pdfkit
+import os
 from jinja2 import Environment, FileSystemLoader
 import os
 
@@ -386,26 +386,20 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "saldo": order_info["saldo"],
                 "entrega_estimada": order_info.get("entrega_estimada") or ""
             }
+        from utils import get_image_b64
+        context["logo_b64"] = get_image_b64('logo.jpg') or get_image_b64('logo.png') or get_image_b64('logo.jpeg')
+        context["fb_b64"] = get_image_b64('Facebook_logo.png')
+        context["ig_b64"] = get_image_b64('Instagram_icon.png')
+        context["wa_b64"] = get_image_b64('whatsapp_icon.png')
 
         # Render HTML
         env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), 'templates')))
         template = env.get_template('receipt.html')
         html_out = template.render(context)
         
-        # Windows specifics for wkhtmltopdf:
-        path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-        config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf) if os.path.exists(path_wkhtmltopdf) else None
+        from weasyprint import HTML
         
-        pdf_options = {
-            'page-size': 'Letter',
-            'margin-top': '0.5in',
-            'margin-right': '0.5in',
-            'margin-bottom': '0.5in',
-            'margin-left': '0.5in',
-            'encoding': 'UTF-8'
-        }
-        
-        pdf = pdfkit.from_string(html_out, False, options=pdf_options, configuration=config)
+        pdf = HTML(string=html_out).write_pdf()
         
         return Response(
             content=pdf,

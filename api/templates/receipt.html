@@ -5,16 +5,46 @@
     <meta charset="UTF-8">
     <title>Comprobante</title>
     <style>
+        @page {
+            size: letter;
+            margin: 25mm 10mm 30mm 10mm;
+
+            @top-center {
+                content: element(compact_header);
+            }
+
+            @bottom-center {
+                content: element(footer);
+            }
+        }
+
+        @page :first {
+            margin-top: 35mm;
+
+            @top-center {
+                content: element(full_header);
+            }
+        }
+
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
             color: #333;
+            background-color: #ffffff;
         }
 
-        .header {
-            text-align: center;
+        .full-header {
+            position: running(full_header);
+            width: 100%;
             border-bottom: 2px solid #D4AF37;
             padding-bottom: 10px;
             margin-bottom: 20px;
+        }
+
+        .compact-header {
+            position: running(compact_header);
+            width: 100%;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
         }
 
         .logo {
@@ -55,11 +85,13 @@
         }
 
         .footer {
-            font-size: 10px;
-            color: #777;
-            text-align: center;
+            position: running(footer);
+            width: 100%;
             border-top: 1px solid #eee;
-            padding-top: 10px;
+            padding-top: 15px;
+            text-align: center;
+            color: #777;
+            font-size: 11px;
         }
 
         .gold {
@@ -103,10 +135,41 @@
 </head>
 
 <body>
-    <div class="header">
-        <h1 class="gold">Mueblería LP</h1>
+    <div class="full-header">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 30%; text-align: left; vertical-align: middle;">
+                    {% if logo_b64 %}
+                    <img class="logo" src="{{ logo_b64 }}" style="max-height: 80px; width: auto;" alt="Mueblería LP" />
+                    {% endif %}
+                </td>
+                <td style="width: 40%; text-align: center; vertical-align: middle;">
+                    <h1 class="gold" style="font-size: 22pt; margin: 0;">Nota de {{ 'Cotización' if status ==
+                        'COTIZACION' else 'Venta' }}</h1>
+                </td>
+                <td style="width: 30%; text-align: right; vertical-align: middle; color: #777; font-size: 10pt;">
+                    Folio: <span class="gold" style="font-weight: bold;">{{ folio }}</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="compact-header">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="text-align: left; vertical-align: middle;">
+                    <span class="gold" style="font-size: 12pt; font-weight: bold;">Nota de Venta - {{ folio }}</span>
+                </td>
+                <td style="text-align: right; vertical-align: middle; color: #777; font-size: 9pt;">
+                    LP Mueblería
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #777;">
         <p>Blvd. Independencia 1234, Centro, Torreón, Coah.</p>
         <p>Tel: (871) 123-4567 | WhatsApp: (871) 987-6543</p>
+    </div>
     </div>
 
     <table class="info-table" style="width: 100%;">
@@ -168,19 +231,20 @@
         </p>
         {% if costo_envio and costo_envio > 0 %}
         <p style="font-size: 14px; color: #555; margin-top: 5px;">
-            Envío a Domicilio (Pago sólo en efectivo): <span style="font-weight:bold;">${{ "{:,.2f}".format(costo_envio) }}</span>
+            Envío a Domicilio (Pago sólo en efectivo): <span style="font-weight:bold;">${{ "{:,.2f}".format(costo_envio)
+                }}</span>
         </p>
         {% endif %}
 
         {% if status != 'COTIZACION' %}
-        <table style="width: 100%; margin-top: 20px; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px;">
+        <table style="width: 100%; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">
             <tr>
-                <td style="text-align: left;">
+                <td style="text-align: left; font-size: 12px;">
                     {% if entrega_estimada %}
                     <strong>Entrega Estimada:</strong> {{ entrega_estimada }}
                     {% endif %}
                 </td>
-                <td style="text-align: right;">
+                <td style="text-align: right; font-size: 12px;">
                     <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado)
                         }}</p>
                     <p style="margin: 2px 0;"><strong>Saldo Restante:</strong> ${{ "{:,.2f}".format(saldo) }}</p>
@@ -201,7 +265,28 @@
         <p><strong>Nota Fabricación:</strong> El tiempo estimado de fabricación es de 25 días hábiles a partir de la
             confirmación de su anticipo.</p>
         {% endif %}
-        <p>LP Mueblería - Sistema ERP V1</p>
+
+        <p style="margin: 10px 0 5px 0;">LP Mueblería - Sistema ERP V1</p>
+
+        <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 5px;">
+            <tr>
+                <td style="width: 75%; text-align: left; vertical-align: middle; padding: 0;">
+                    {% if fb_b64 %}
+                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ fb_b64 }}" /> LP
+                    Mueblería de Jalisco &nbsp;&nbsp;
+                    {% endif %}
+                    {% if ig_b64 %}
+                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ ig_b64 }}" />
+                    /lpmuebleria &nbsp;&nbsp;
+                    {% endif %}
+                    {% if wa_b64 %}
+                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ wa_b64 }}" />
+                    8718784462
+                    {% endif %}
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding: 0;" class="page-number"></td>
+            </tr>
+        </table>
     </div>
 </body>
 

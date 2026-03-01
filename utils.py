@@ -1,12 +1,27 @@
 import os
 import datetime
 import pandas as pd
+import base64
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from database import db
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def get_image_b64(filename):
+    """Reads an image from api/static/img and returns its base64 representation."""
+    filepath = os.path.join(BASE_DIR, "api", "static", "img", filename)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode()
+            ext = os.path.splitext(filename)[1][1:].lower()
+            if ext == 'jpg': ext = 'jpeg'
+            return f"data:image/{ext};base64,{encoded_string}"
+        except Exception as e:
+            print(f"Error reading image {filename}: {e}")
+    return ""
 
 # Constants
 APP_NAME = "LP Mueblería de Jalisco"

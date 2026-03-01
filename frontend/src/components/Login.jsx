@@ -30,7 +30,7 @@ function Login({ onLoginSuccess }) {
     };
 
     return (
-        <div className="min-h-screen bg-premium-bg flex items-center justify-center p-6 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-premium-slate via-premium-bg to-black">
+        <div className="min-h-screen bg-premium-bg flex items-center justify-center p-6 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-premium-slate via-premium-bg to-black">
             <div className="w-full max-w-md animate-in fade-in zoom-in duration-500">
                 {/* Logo / Branding */}
                 <div className="text-center mb-10">

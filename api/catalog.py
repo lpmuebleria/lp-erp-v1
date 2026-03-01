@@ -2,11 +2,13 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from database import db
 from jinja2 import Environment, FileSystemLoader
-from xhtml2pdf import pisa
+from weasyprint import HTML
 from io import BytesIO
 import os
 import datetime
 import base64
+
+from utils import get_image_b64
 
 router = APIRouter()
 
@@ -14,16 +16,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "api", "templates")
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
 
-def get_image_base64(path):
-    try:
-        with open(path, "rb") as image_file:
-            ext = path.split('.')[-1].lower()
-            mime = 'image/jpeg' if ext in ['jpg', 'jpeg'] else 'image/png'
-            encoded = base64.b64encode(image_file.read()).decode('utf-8')
-            return f"data:{mime};base64,{encoded}"
-    except Exception as e:
-        print(f"Error loading image {path}:", e)
-        return ""
+
 
 @router.get("/catalog/pdf")
 def generate_catalog_pdf(include_stock: str = "false"):
@@ -40,12 +33,12 @@ def generate_catalog_pdf(include_stock: str = "false"):
         products = cur.fetchall()
         conn.close()
 
-        # Fix deadlock: Resolve HTTP URLs to actual local file paths for xhtml2pdf to read directly
+        # Fix deadlock: Resolve HTTP URLs to actual local file paths
         UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
         for p in products:
             if p['imagen_url'] and p['imagen_url'].startswith('http://localhost:8000/static/uploads/'):
                 filename = p['imagen_url'].split('/')[-1]
-                p['local_image_path'] = os.path.join(UPLOAD_DIR, filename).replace('\\', '/')
+                p['local_image_path'] = "file:///" + os.path.join(UPLOAD_DIR, filename).replace('\\', '/')
             else:
                 p['local_image_path'] = None
 
@@ -56,12 +49,11 @@ def generate_catalog_pdf(include_stock: str = "false"):
         show_stock = include_stock.lower() == "true"
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
 
-        # Load Branding Images as Base64
-        logo_path = "C:/Users/Lpmue/OneDrive/Desktop/Muebleria/marketing/LP Mueblería Jalisco logo.jpeg"
-        social_path = "C:/Users/Lpmue/OneDrive/Desktop/Muebleria/marketing/Redes sociales.png"
-        
-        logo_b64 = get_image_base64(logo_path)
-        socials_b64 = get_image_base64(social_path)
+        # Load Branding Images as Base64 from api/static/img
+        logo_b64 = get_image_b64('logo.jpg') or get_image_b64('logo.png') or get_image_b64('logo.jpeg')
+        fb_b64 = get_image_b64('Facebook_logo.png')
+        ig_b64 = get_image_b64('Instagram_icon.png')
+        wa_b64 = get_image_b64('whatsapp_icon.png')
 
         # Load Jinja Template
         template = env.get_template("catalog.html")
@@ -70,22 +62,14 @@ def generate_catalog_pdf(include_stock: str = "false"):
             show_stock=show_stock,
             current_date=current_date,
             logo_b64=logo_b64,
-            socials_b64=socials_b64,
+            fb_b64=fb_b64,
+            ig_b64=ig_b64,
+            wa_b64=wa_b64,
             base_url="http://localhost:8000" # fallback if required for static resolution
         )
 
-        # Generate PDF with xhtml2pdf
-        result = BytesIO()
-        pisa_status = pisa.CreatePDF(
-            BytesIO(html_out.encode("utf-8")),
-            dest=result,
-            encoding='UTF-8'
-        )
-
-        if pisa_status.err:
-            raise Exception("Error generando el PDF")
-
-        pdf_file = result.getvalue()
+        # Generate PDF with WeasyPrint
+        pdf_file = HTML(string=html_out).write_pdf()
 
         # Send as response
         return Response(

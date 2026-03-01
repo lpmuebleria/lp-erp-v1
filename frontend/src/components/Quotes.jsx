@@ -139,15 +139,25 @@ function Quotes() {
                                 <span className="text-3xl font-black text-premium-gold">${selectedQuote.quote.total.toLocaleString()}</span>
                             </div>
 
-                            {selectedQuote.quote.status !== 'PEDIDO' && (
+                            <div className="space-y-3">
                                 <button
-                                    onClick={() => setShowConvertModal(true)}
-                                    className="w-full bg-premium-gold text-black font-black py-4 rounded-2xl hover:bg-yellow-400 transition-all flex items-center justify-center gap-2 shadow-xl shadow-premium-gold/10 hover:shadow-premium-gold/20 active:scale-95"
+                                    onClick={() => window.open(`${API_URL}/quotes/${selectedQuote.quote.id}/pdf`, '_blank')}
+                                    className="w-full bg-white/5 border border-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                                 >
-                                    <ArrowRight size={20} />
-                                    CONVERTIR A PEDIDO
+                                    <FileText size={20} className="text-premium-gold" />
+                                    IMPRIMIR PDF
                                 </button>
-                            )}
+
+                                {selectedQuote.quote.status !== 'PEDIDO' && (
+                                    <button
+                                        onClick={() => setShowConvertModal(true)}
+                                        className="w-full bg-premium-gold text-black font-black py-4 rounded-2xl hover:bg-yellow-400 transition-all flex items-center justify-center gap-2 shadow-xl shadow-premium-gold/10 hover:shadow-premium-gold/20 active:scale-95"
+                                    >
+                                        <ArrowRight size={20} />
+                                        CONVERTIR A PEDIDO
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-premium-slate/10 rounded-3xl border border-dashed border-white/10 text-slate-500 p-8 text-center italic">

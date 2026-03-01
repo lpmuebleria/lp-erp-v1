@@ -1,13 +1,17 @@
+import os
+from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
 
+load_dotenv()
+
 # --- MySQL Connection Config ---
 MYSQL_CONFIG = {
-    'user': 'root',
-    'password': '643643', # Keep consistent with user's app.py
-    'host': 'Lugo7',
-    'database': 'lp_erp',
-    'port': 3306,
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', 'root'),
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'database': os.getenv('DB_NAME', 'lp_erp'),
+    'port': int(os.getenv('DB_PORT', 3306)),
     'raise_on_warnings': False
 }
 

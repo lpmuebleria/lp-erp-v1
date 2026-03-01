@@ -72,7 +72,6 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
         raise HTTPException(status_code=404, detail="No hay datos para exportar")
 
     if format == "pdf":
-        import pdfkit
         from jinja2 import Environment, FileSystemLoader
         import os
 
@@ -90,7 +89,12 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
         # Prep data for template
         for row in data:
             if isinstance(row["created_at"], str):
-                row["fecha_str"] = row["created_at"].split()[0] # Fallback if it's already a string
+                # If it's a string like "2026-02-22T18:16:08", convert to "22/02/2026"
+                try:
+                    dt = datetime.datetime.fromisoformat(row["created_at"].replace('Z', '+00:00'))
+                    row["fecha_str"] = dt.strftime("%d/%m/%Y")
+                except:
+                    row["fecha_str"] = row["created_at"].split()[0]
             else:
                 row["fecha_str"] = row["created_at"].strftime("%d/%m/%Y")
             row["status_class"] = get_status_class(row["estatus"])
@@ -110,23 +114,19 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
             "fecha_generacion": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         }
 
+        from utils import get_image_b64
+        context["logo_b64"] = get_image_b64('logo.jpg') or get_image_b64('logo.png') or get_image_b64('logo.jpeg')
+        context["fb_b64"] = get_image_b64('Facebook_logo.png')
+        context["ig_b64"] = get_image_b64('Instagram_icon.png')
+        context["wa_b64"] = get_image_b64('whatsapp_icon.png')
+
         env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), 'templates')))
         template = env.get_template('orders_report.html')
         html_out = template.render(context)
 
-        path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-        config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf) if os.path.exists(path_wkhtmltopdf) else None
+        from weasyprint import HTML
         
-        pdf_options = {
-            'page-size': 'Letter',
-            'margin-top': '0.5in',
-            'margin-right': '0.5in',
-            'margin-bottom': '0.5in',
-            'margin-left': '0.5in',
-            'encoding': 'UTF-8'
-        }
-        
-        pdf = pdfkit.from_string(html_out, False, options=pdf_options, configuration=config)
+        pdf = HTML(string=html_out).write_pdf()
         
         return Response(
             content=pdf,
@@ -156,18 +156,35 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
         }
         
         # Make timestamp timezone naive manually before excel export to avoid timezone issues
-        # Check if created_at is datetime first, if it's already a string or naive datetime, skip tz_localize
-        if pd.api.types.is_datetime64_any_dtype(df['created_at']):
-            if df['created_at'].dt.tz is not None:
-                df['created_at'] = df['created_at'].dt.tz_localize(None)
+        def make_naive(val):
+            if isinstance(val, (datetime.datetime, pd.Timestamp)):
+                if val.tzinfo is not None:
+                    return val.replace(tzinfo=None)
+            return val
+
+        if 'created_at' in df.columns:
+            df['created_at'] = df['created_at'].apply(make_naive)
         
         # Filter to only existing columns in map
         df = df[list(cols_map.keys())].rename(columns=cols_map)
         
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Pedidos')
-        
+            
+            # Access the openpyxl worksheet to adjust column widths
+            worksheet = writer.sheets['Pedidos']
+            for i, col in enumerate(df.columns):
+                # Find the maximum length of the content in this column
+                max_len = max(
+                    df[col].astype(str).map(len).max(),  # Max length of data
+                    len(str(col))  # Length of the header
+                ) + 2  # Add some padding
+                
+                # set_column in xlsxwriter vs column_dimensions in openpyxl
+                column_letter = chr(65 + i) # A, B, C...
+                worksheet.column_dimensions[column_letter].width = max_len
+
         output.seek(0)
         
         headers = {
