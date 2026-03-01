@@ -100,7 +100,9 @@
         .card-header {
             background-color: #3b332d;
             text-align: center;
-            padding: 6px;
+            padding: 6px 10px;
+            height: 45px;
+            vertical-align: middle;
         }
 
         .product-badge {
@@ -125,13 +127,16 @@
 
         .empty-image {
             color: #94a3b8;
-            font-size: 9pt;
+            font-size: 8pt;
             font-style: italic;
+            display: block;
         }
 
         /* Detalles debajo de la imagen */
         .card-details-cell {
             padding: 10px;
+            height: 95px;
+            vertical-align: top;
         }
 
         .details-table {
@@ -248,10 +253,8 @@
                             {% if p.imagen_url.startswith('http') %}
                             <img class="card-img" src="{{ p.imagen_url }}" />
                             {% else %}
-                            <img class="card-img" src="{{ base_url }}{{ p.imagen_url }}" />
-                            {% endif %}
-                            {% else %}
                             <span class="empty-image">Sin Fotografía</span>
+                            {% endif %}
                             {% endif %}
                         </td>
                     </tr>

@@ -33,14 +33,27 @@ def generate_catalog_pdf(include_stock: str = "false"):
         products = cur.fetchall()
         conn.close()
 
-        # Fix deadlock: Resolve HTTP URLs to actual local file paths
-        UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+        # Fix deadlock: Resolve URLs/Paths to actual local file paths for WeasyPrint
+        UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads").replace('\\', '/')
         for p in products:
-            if p['imagen_url'] and p['imagen_url'].startswith('http://localhost:8000/static/uploads/'):
-                filename = p['imagen_url'].split('/')[-1]
-                p['local_image_path'] = "file:///" + os.path.join(UPLOAD_DIR, filename).replace('\\', '/')
-            else:
+            img_url = p.get('imagen_url')
+            if not img_url:
                 p['local_image_path'] = None
+                continue
+            
+            # Case 1: Full localhost URL
+            if img_url.startswith(('http://localhost:8000/static/uploads/', 'http://127.0.0.1:8000/static/uploads/')):
+                filename = img_url.split('/')[-1]
+                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{filename}"
+            # Case 2: Relative path starting with /static/uploads/
+            elif img_url.startswith('/static/uploads/'):
+                filename = img_url.split('/')[-1]
+                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{filename}"
+            # Case 3: Just the filename
+            elif not img_url.startswith('http'):
+                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{img_url}"
+            else:
+                p['local_image_path'] = img_url # External URL, WeasyPrint will try to fetch it
 
         if not products:
             raise HTTPException(status_code=400, detail="No hay productos marcados para el catálogo.")
