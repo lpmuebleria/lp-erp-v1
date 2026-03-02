@@ -145,6 +145,11 @@ def create_user(request: Request, user: UserCreate):
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="El nombre de usuario (ID de Acceso) ya existe.")
             
+        # Sanitize optional fields to handle empty strings from frontend
+        val_edad = user.edad if user.edad else None
+        val_cumple = user.cumpleanos if user.cumpleanos and user.cumpleanos.strip() else None
+        val_rfc = user.rfc if user.rfc and user.rfc.strip() else None
+
         cur.execute("""
             INSERT INTO users 
             (username, pin, password, role_id, nombre_completo, edad, cumpleanos, rfc, rol) 
@@ -154,9 +159,9 @@ def create_user(request: Request, user: UserCreate):
             user.password, 
             user.role_id, 
             user.nombre_completo, 
-            user.edad, 
-            user.cumpleanos, 
-            user.rfc,
+            val_edad, 
+            val_cumple, 
+            val_rfc,
             "vendedor" # Legacy fallback
         ))
         conn.commit()

@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <style>
         @page {
             size: a4;
             margin: 20mm;
-
             @top-right {
                 content: "Página " counter(page) " de " counter(pages);
                 font-size: 9pt;
@@ -18,8 +16,7 @@
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #1e293b;
-            background-color: #faf9f6;
-            /* Ivory Cream */
+            background-color: #faf9f6; /* Ivory Cream */
             margin: 0;
             padding: 0;
         }
@@ -63,8 +60,7 @@
         }
 
         .product-card {
-            width: 48%;
-            /* 2 columns */
+            width: 48%; /* 2 columns */
             margin-bottom: 30px;
             text-align: center;
             /* Floating design: no borders, soft background */
@@ -72,41 +68,37 @@
 
         .img-container {
             background-color: #ffffff;
-            height: 300px;
-            /* Larger image container */
+            height: 250px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
+            border-radius: 8px; /* Slight roundness for elegance */
+            /* No shadow/border for 'floating' look */
             width: 100%;
             overflow: hidden;
         }
 
         .product-img {
-            max-width: 95%;
-            max-height: 95%;
+            max-width: 90%;
+            max-height: 90%;
             object-fit: contain;
         }
 
         .product-info {
-            padding: 10px 0;
+            padding: 15px 0;
         }
 
         .model-name {
-            font-size: 12pt;
-            /* Smaller name */
+            font-size: 16pt;
             font-weight: bold;
-            color: #1e293b;
-            margin-bottom: 3px;
+            color: #0f172a;
+            margin-bottom: 5px;
             text-transform: uppercase;
         }
 
         .product-code {
             font-size: 9pt;
-            color: #475569;
-            /* Striking slate color */
-            font-weight: bold;
-            /* Make it pop */
+            color: #94a3b8;
             font-family: 'Courier New', Courier, monospace;
             margin-bottom: 8px;
         }
@@ -114,8 +106,7 @@
         .price {
             font-size: 18pt;
             font-weight: bold;
-            color: #d97706;
-            /* Elegant Gold */
+            color: #d97706; /* Elegant Gold */
         }
 
         .stock {
@@ -158,7 +149,6 @@
         }
     </style>
 </head>
-
 <body>
 
     <div class="header">
@@ -167,7 +157,7 @@
         {% else %}
         <div style="font-size: 20pt; font-weight: bold;">LP Mueblería</div>
         {% endif %}
-
+        
         <div class="header-info">
             <h1 class="header-title">Catálogo Oficial</h1>
             <div class="header-date">Fecha: {{ current_date }}</div>
@@ -220,5 +210,4 @@
     </div>
 
 </body>
-
 </html>
