@@ -78,6 +78,48 @@ def update_cost_config(data: List[CostConfig]):
     finally:
         conn.close()
 
+class IvaConfig(BaseModel):
+    iva_automatico: bool
+
+@router.get("/config/iva", response_model=IvaConfig)
+def get_iva_config():
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
+    row = cur.fetchone()
+    conn.close()
+    val = False
+    if row and row['v'] == '1':
+        val = True
+    return {"iva_automatico": val}
+
+@router.put("/config/iva")
+def update_iva_config(data: IvaConfig):
+    from utils import calcular_precio_producto
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        val = '1' if data.iva_automatico else '0'
+        cur.execute("""
+            INSERT INTO settings (k, v) VALUES ('iva_automatico', %s)
+            ON DUPLICATE KEY UPDATE v=%s
+        """, (val, val))
+        
+        # Trigger massive price recalculation
+        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
+        products = cur.fetchall()
+        for p in products:
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"])
+            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
+            
+        conn.commit()
+        return {"status": "success", "message": "Global IVA config updated and prices recalculated."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
 class GlobalFleteConfig(BaseModel):
     costo: float
 

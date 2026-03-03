@@ -84,9 +84,12 @@ function Inventory({ role, isSuperadmin }) {
                 <CatalogOptionsModal
                     onClose={() => setShowCatalogModal(false)}
                     isGenerating={generatingCatalog}
-                    onGenerate={async (includeStock) => {
+                    onGenerate={async (includeStock, comments) => {
                         setGeneratingCatalog(true);
                         try {
+                            // Update comments first before generating
+                            await axios.put(`${API_URL}/catalog/comments`, { comentarios: comments });
+
                             const response = await axios.get(`${API_URL}/catalog/pdf?include_stock=${includeStock}`, {
                                 responseType: 'blob'
                             });
@@ -261,12 +264,13 @@ function ProductModal({ onClose, onSave, product }) {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, fRes] = await Promise.all([
+            const [uRes, cRes, fRes, ivaRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`),
                 axios.get(`${API_URL}/config/costs`),
-                axios.get(`${API_URL}/config/flete`)
+                axios.get(`${API_URL}/config/flete`),
+                axios.get(`${API_URL}/config/iva`)
             ]);
-            setConfigs({ utilities: uRes.data, costs: cRes.data, globalFlete: fRes.data.costo });
+            setConfigs({ utilities: uRes.data, costs: cRes.data, globalFlete: fRes.data.costo, ivaAutomatico: ivaRes.data.iva_automatico });
         } catch (err) {
             console.error("Error fetching configs for modal:", err);
         }
@@ -283,7 +287,10 @@ function ProductModal({ onClose, onSave, product }) {
             const subtotal = form.costo_fabrica + fleteGlobal;
 
             // Requerimiento Muebleria: (Costo + Flete) * Margen + Fijos
-            const listPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+            let listPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+            if (configs.ivaAutomatico) {
+                listPrice = listPrice * 1.16;
+            }
             const totalCost = subtotal + sumFixed;
 
             setForm(prev => ({
@@ -491,6 +498,24 @@ function InputField({ label, value, onChange, type = "text", placeholder, requir
 
 function CatalogOptionsModal({ onClose, onGenerate, isGenerating }) {
     const [includeStock, setIncludeStock] = useState(false);
+    const [comments, setComments] = useState("");
+    const [fetchingComments, setFetchingComments] = useState(true);
+
+    useEffect(() => {
+        const loadComments = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/catalog/comments`);
+                if (res.data.comentarios) {
+                    setComments(res.data.comentarios);
+                }
+            } catch (err) {
+                console.error("Error fetching catalog comments:", err);
+            } finally {
+                setFetchingComments(false);
+            }
+        };
+        loadComments();
+    }, []);
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -527,6 +552,19 @@ function CatalogOptionsModal({ onClose, onGenerate, isGenerating }) {
                     </label>
                 </div>
 
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6">
+                    <label className="text-[10px] text-slate-500 uppercase font-black mb-2 block tracking-widest">
+                        Condiciones Generales (Opcional)
+                    </label>
+                    <textarea
+                        value={comments}
+                        onChange={(e) => setComments(e.target.value)}
+                        placeholder={fetchingComments ? "Cargando..." : "Ej. Precios sujetos a cambios sin previo aviso...\nTiempo de entrega 45 días..."}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold placeholder:text-slate-600 transition-all min-h-[100px] resize-none"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-2">Esta información se imprimirá en la portada / primer hoja del Catálogo PDF para todos tus clientes.</p>
+                </div>
+
                 <div className="flex space-x-3">
                     <button
                         onClick={onClose}
@@ -536,7 +574,7 @@ function CatalogOptionsModal({ onClose, onGenerate, isGenerating }) {
                         Cancelar
                     </button>
                     <button
-                        onClick={() => onGenerate(includeStock)}
+                        onClick={() => onGenerate(includeStock, comments)}
                         disabled={isGenerating}
                         className="flex-1 px-4 py-3 rounded-xl bg-premium-gold text-black font-bold text-sm hover:bg-yellow-400 transition-all flex items-center justify-center disabled:opacity-50 space-x-2"
                     >

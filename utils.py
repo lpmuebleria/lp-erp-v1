@@ -58,6 +58,10 @@ def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilida
     row_flete = cur.fetchone()
     flete = float(row_flete["v"]) if row_flete else 0.0
 
+    cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
+    row_iva = cur.fetchone()
+    iva_automatico = True if (row_iva and row_iva["v"] == '1') else False
+
     nivel = (utilidad_nivel or "media").strip().lower()
     cur.execute("SELECT multiplicador FROM utilidad_config WHERE nivel=%s", (nivel,))
     row_mul = cur.fetchone()
@@ -68,6 +72,9 @@ def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilida
     costo_base = float(costo_fabricacion or 0) + flete
     costo_con_utilidad = costo_base * multiplicador
     precio_final = costo_con_utilidad + cfg["maniobras"] + cfg["empaque"] + cfg["comision"] + cfg["garantias"]
+
+    if iva_automatico:
+        precio_final = precio_final * 1.16
 
     return round(precio_final, 2)
 

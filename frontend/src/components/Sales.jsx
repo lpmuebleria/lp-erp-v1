@@ -68,9 +68,14 @@ function Sales({ vendedor }) {
 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(null);
+    const [ivaAutomatico, setIvaAutomatico] = useState(false);
 
     // Fetch promos once
     useEffect(() => {
+        axios.get(`${API_URL}/config/iva`)
+            .then(res => setIvaAutomatico(res.data.iva_automatico))
+            .catch(console.error);
+
         axios.get(`${API_URL}/promotions`)
             .then(res => setPromotions(res.data.filter(p => p.is_active)))
             .catch(console.error);
@@ -161,7 +166,7 @@ function Sales({ vendedor }) {
 
     const baseTotal = Math.max(0, subtotal - sumDescuentosManuales - descGlobalVal);
     const shippingAmount = parseFloat(shipping.costo) || 0;
-    const ivaAmount = billing.requiere_factura ? baseTotal * 0.16 : 0;
+    const ivaAmount = (billing.requiere_factura && !ivaAutomatico) ? baseTotal * 0.16 : 0;
     const total = baseTotal + shippingAmount + ivaAmount;
 
     // --- Actions ---
@@ -679,7 +684,10 @@ function Sales({ vendedor }) {
 
                                 {/* Organic IVA Switch */}
                                 <div className="flex items-center justify-between py-2 border-b border-white/5">
-                                    <span className="text-sm text-slate-300 font-bold">+ Agregar IVA (16%)</span>
+                                    <span className="text-sm text-slate-300 font-bold flex flex-col">
+                                        {ivaAutomatico ? "Capturar Datos Fiscales" : "+ Agregar IVA (16%)"}
+                                        {ivaAutomatico && <span className="text-[10px] text-green-400 font-normal mt-1">IVA incluido en los precios desde inventario</span>}
+                                    </span>
                                     <label className="flex items-center cursor-pointer">
                                         <div className="relative">
                                             <input

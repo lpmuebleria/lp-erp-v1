@@ -13,6 +13,7 @@ function Settings() {
     const [costs, setCosts] = useState([]);
     const [promotions, setPromotions] = useState([]);
     const [globalFlete, setGlobalFlete] = useState(0);
+    const [ivaAutomatico, setIvaAutomatico] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -24,16 +25,18 @@ function Settings() {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, pRes, fRes] = await Promise.all([
+            const [uRes, cRes, pRes, fRes, ivaRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`),
                 axios.get(`${API_URL}/config/costs`),
                 axios.get(`${API_URL}/promotions`),
-                axios.get(`${API_URL}/config/flete`)
+                axios.get(`${API_URL}/config/flete`),
+                axios.get(`${API_URL}/config/iva`)
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
             setPromotions(pRes.data);
             setGlobalFlete(fRes.data.costo);
+            setIvaAutomatico(ivaRes.data.iva_automatico);
         } catch (err) {
             console.error("Error fetching configs:", err);
         } finally {
@@ -48,7 +51,8 @@ function Settings() {
             if (activeTab === 'utilidades') {
                 await Promise.all([
                     axios.put(`${API_URL}/config/utility`, utilities),
-                    axios.put(`${API_URL}/config/flete`, { costo: globalFlete })
+                    axios.put(`${API_URL}/config/flete`, { costo: globalFlete }),
+                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico })
                 ]);
             } else if (activeTab === 'costos') {
                 await axios.put(`${API_URL}/config/costs`, costs);
@@ -239,6 +243,28 @@ function Settings() {
                                         />
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 pt-8 border-t border-white/5">
+                            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                                <Percent className="text-premium-gold" size={20} />
+                                Impuestos y Fiscalidad
+                            </h2>
+                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 max-w-lg">
+                                <div>
+                                    <div className="font-bold text-slate-300">IVA Automático (16%)</div>
+                                    <div className="text-xs text-slate-500 mt-1">Al activar, todos los productos tendrán el IVA sumado a su precio base.</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={ivaAutomatico}
+                                        onChange={(e) => setIvaAutomatico(e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-premium-gold"></div>
+                                </label>
                             </div>
                         </div>
                     </section>

@@ -174,6 +174,13 @@
         </div>
     </div>
 
+    {% if comentarios_catalogo %}
+    <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 4px solid #b8860b; margin-bottom: 30px; font-size: 11pt; line-height: 1.5; color: #334155; white-space: pre-wrap;">
+        <strong style="color: #b8860b; font-size: 12pt; display: block; margin-bottom: 8px; text-transform: uppercase;">Información / Condiciones Generales</strong>
+        {{ comentarios_catalogo }}
+    </div>
+    {% endif %}
+
     <div class="catalog-grid">
         {% for p in products %}
         <div class="product-card">
