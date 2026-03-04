@@ -6,6 +6,7 @@ from typing import List, Optional
 from database import db
 from schemas import Product, ProductCreate
 from utils import money
+from api.notifications import trigger_notification
 
 router = APIRouter()
 
@@ -48,16 +49,24 @@ def get_product(product_id: int):
 
 @router.post("/products")
 def create_product(data: ProductCreate):
+    # Validation against whitespace-only strings
+    if not data.codigo.strip():
+        raise HTTPException(status_code=400, detail="El código del producto no puede estar vacío.")
+    if not data.modelo.strip():
+        raise HTTPException(status_code=400, detail="El modelo del producto no puede estar vacío.")
+    if not data.tamano.strip():
+        raise HTTPException(status_code=400, detail="El tamaño del producto no puede estar vacío.")
+
     conn = db()
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor()
     try:
         cur.execute("""
             INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            data.codigo,
-            data.modelo,
-            data.tamano,
+            data.codigo.strip(),
+            data.modelo.strip(),
+            data.tamano.strip(),
             data.precio_lista,
             data.costo_total,
             data.costo_fabrica,
@@ -73,7 +82,17 @@ def create_product(data: ProductCreate):
             data.in_catalog
         ))
         conn.commit()
-        return {"id": cur.lastrowid, "status": "success"}
+        product_id = cur.lastrowid
+
+        # Notify Admin
+        trigger_notification(
+            role_target="admin",
+            type="info",
+            title="Nuevo Producto",
+            message=f"Se agregó el modelo {data.modelo} ({data.codigo})",
+        )
+
+        return {"id": product_id, "status": "success"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

@@ -60,7 +60,10 @@ function ConceptDetails({ concepto, onBack }) {
     }, [concepto, startDate, endDate]);
 
     const handleAddExpense = async () => {
-        if (!expenseForm.monto || !expenseForm.descripcion.trim()) return;
+        if (!expenseForm.monto || !expenseForm.descripcion.trim()) {
+            alert("El monto y la descripción son obligatorios"); // ConceptDetails doesn't seem to have react-hot-toast imported
+            return;
+        }
         setAddingExpense(true);
         try {
             await axios.post(`${API_URL}/expenses`, {

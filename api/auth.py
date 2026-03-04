@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, Form
 from database import db
 from schemas import LoginRequest
+from security import verify_password
 
 router = APIRouter()
 
@@ -14,12 +15,12 @@ def login(request: Request, login_data: LoginRequest):
             SELECT u.*, r.nombre as role_name, r.is_superadmin 
             FROM users u 
             LEFT JOIN roles r ON u.role_id = r.id 
-            WHERE u.username=%s AND u.password=%s
-        """, (login_data.username.strip(), login_data.password))
+            WHERE u.username=%s
+        """, (login_data.username.strip(),))
 
         u = cur.fetchone()
 
-        if not u:
+        if not u or not verify_password(login_data.password, u["password"]):
             raise HTTPException(status_code=401, detail="Credenciales incorrectas.")
 
         # Load permissions for this user's role

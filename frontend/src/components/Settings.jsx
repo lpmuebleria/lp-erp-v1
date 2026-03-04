@@ -57,7 +57,7 @@ function Settings() {
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (err) {
             console.error("Error saving configs:", err);
-            alert("Error al guardar la configuración");
+            toast.error("Error al guardar la configuración");
         } finally {
             setSaving(false);
         }
@@ -87,7 +87,10 @@ function Settings() {
         const form = e.target;
         const name = form.name.value;
         const discount_pct = parseFloat(form.discount_pct.value);
-        if (!name || isNaN(discount_pct)) return;
+        if (!name?.trim() || isNaN(discount_pct)) {
+            toast.error("Nombre y porcentaje son obligatorios");
+            return;
+        }
 
         try {
             const res = await axios.post(`${API_URL}/promotions`, { name, discount_pct, is_active: 1 });
