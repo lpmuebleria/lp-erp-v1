@@ -16,6 +16,7 @@ import {
   Wallet
 } from 'lucide-react';
 import axios from 'axios';
+import { Toaster } from 'react-hot-toast';
 
 // Ensure all requests send and receive cookies for FastAPI SessionMiddleware
 axios.defaults.withCredentials = true;
@@ -280,6 +281,7 @@ function App() {
           {activeTab === 'settings' && canAccess('settings') && <Settings />}
         </div>
       </main>
+      <Toaster position="top-right" />
     </div>
   );
 }

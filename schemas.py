@@ -3,11 +3,11 @@ from typing import List, Optional, Any
 from datetime import datetime
 
 class ProductBase(BaseModel):
-    codigo: str
-    modelo: str
-    tamano: str
-    precio_lista: float
-    costo_total: float
+    codigo: str = Field(..., min_length=1)
+    modelo: str = Field(..., min_length=1)
+    tamano: str = Field(..., min_length=1)
+    precio_lista: float = Field(..., gt=0)
+    costo_total: float = Field(..., gt=0)
     costo_fabrica: float = 0
     flete: float = 0
     maniobras: float = 0
@@ -113,13 +113,13 @@ class OrderNote(BaseModel):
     created_at: str
 
 class ExpenseCreate(BaseModel):
-    concepto: str
-    monto: float
-    descripcion: str
-    fecha: str
+    concepto: str = Field(..., min_length=1)
+    monto: float = Field(..., gt=0)
+    descripcion: str = Field(..., min_length=1)
+    fecha: str = Field(..., min_length=1)
 
 class RoleCreate(BaseModel):
-    nombre: str
+    nombre: str = Field(..., min_length=1)
     is_superadmin: bool = False
 
 class RolePermissionUpdate(BaseModel):
@@ -130,10 +130,10 @@ class RolePermissionBulk(BaseModel):
     permissions: List[RolePermissionUpdate]
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
     role_id: int
-    nombre_completo: str
+    nombre_completo: str = Field(..., min_length=1)
     edad: Optional[int] = None
     cumpleanos: Optional[str] = None
     rfc: Optional[str] = None

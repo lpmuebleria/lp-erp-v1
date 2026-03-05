@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, FileText, ArrowRight, User, Phone, Mail, Calendar, DollarSign, Loader2, CheckCircle2, ChevronRight, X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -18,7 +19,10 @@ function Quotes() {
         try {
             const res = await axios.get(`${API_URL}/quotes?q=${query}`);
             setQuotes(res.data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al cargar cotizaciones");
+        }
         finally { setLoading(false); }
     };
 
@@ -198,11 +202,17 @@ function ConvertModal({ quote, onClose, onConverted }) {
         e.preventDefault();
         setSaving(true);
         try {
+            if (!form.cliente_nombre?.trim()) {
+                toast.error("El nombre del cliente es obligatorio");
+                setSaving(false);
+                return;
+            }
             await axios.post(`${API_URL}/quotes/${quote.id}/convert`, form);
+            toast.success("Cotización convertida a pedido");
             onConverted();
         } catch (err) {
             console.error(err);
-            alert("Error al convertir a pedido");
+            toast.error("Error al convertir a pedido");
         } finally {
             setSaving(false);
         }

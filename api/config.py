@@ -2,13 +2,13 @@ from fastapi import APIRouter, HTTPException, Request
 from typing import List
 from database import db
 from schemas import UserCreate, UserUpdate
+from security import hash_password
 from pydantic import BaseModel
+from api.notifications import trigger_notification
 
 router = APIRouter()
 
 def require_superadmin(request: Request):
-    if request.headers.get("x-is-superadmin") == "true":
-        return
     if not request.session.get("is_superadmin"):
         raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel SuperAdmin.")
 
@@ -180,33 +180,51 @@ def get_users(request: Request):
 @router.post("/users")
 def create_user(request: Request, user: UserCreate):
     require_superadmin(request)
+    
+    # Validation against whitespace-only strings
+    if not user.username.strip():
+        raise HTTPException(status_code=400, detail="El ID de Acceso no puede estar vacío.")
+    if not user.password.strip():
+        raise HTTPException(status_code=400, detail="La contraseña no puede estar vacía.")
+    if not user.nombre_completo.strip():
+        raise HTTPException(status_code=400, detail="El nombre completo no puede estar vacío.")
+
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT username FROM users WHERE username=%s", (user.username,))
+        cur.execute("SELECT username FROM users WHERE username=%s", (user.username.strip(),))
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="El nombre de usuario (ID de Acceso) ya existe.")
             
-        # Sanitize optional fields to handle empty strings from frontend
+        # Sanitize optional fields
         val_edad = user.edad if user.edad else None
-        val_cumple = user.cumpleanos if user.cumpleanos and user.cumpleanos.strip() else None
-        val_rfc = user.rfc if user.rfc and user.rfc.strip() else None
+        val_cumple = user.cumpleanos.strip() if user.cumpleanos and user.cumpleanos.strip() else None
+        val_rfc = user.rfc.strip() if user.rfc and user.rfc.strip() else None
 
         cur.execute("""
             INSERT INTO users 
             (username, pin, password, role_id, nombre_completo, edad, cumpleanos, rfc, rol) 
             VALUES (%s, '0000', %s, %s, %s, %s, %s, %s, %s)
         """, (
-            user.username, 
-            user.password, 
+            user.username.strip(), 
+            hash_password(user.password.strip()), 
             user.role_id, 
-            user.nombre_completo, 
+            user.nombre_completo.strip(), 
             val_edad, 
             val_cumple, 
             val_rfc,
             "vendedor" # Legacy fallback
         ))
         conn.commit()
+
+        # Notify Admin
+        trigger_notification(
+            role_target="admin",
+            type="warning",
+            title="Nuevo Usuario Registrado",
+            message=f"Se creó una cuenta para {user.nombre_completo} (ID: {user.username})"
+        )
+
         return {"status": "success", "message": "Usuario/Perfil creado correctamente"}
     except Exception as e:
         conn.rollback()
@@ -229,7 +247,7 @@ def update_user(request: Request, username: str, user_update: UserUpdate):
         params = []
         if user_update.password:
             updates.append("password=%s")
-            params.append(user_update.password)
+            params.append(hash_password(user_update.password))
         if user_update.role_id is not None:
             updates.append("role_id=%s")
             params.append(user_update.role_id)

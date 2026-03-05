@@ -19,6 +19,7 @@ import {
     MapPin,
     AlertTriangle
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -193,9 +194,9 @@ function Sales({ vendedor }) {
     };
 
     const handleSave = async () => {
-        if (cart.length === 0) return alert("El carrito está vacío");
-        if (!customer.nombre) return alert("Ingrese el nombre del cliente");
-        if (!customer.tel && status !== 'COTIZACION') return alert("El teléfono es obligatorio para ventas/pedidos.");
+        if (cart.length === 0) return toast.error("El carrito está vacío");
+        if (!customer.nombre?.trim()) return toast.error("Ingrese el nombre del cliente");
+        if (!customer.tel?.trim() && status !== 'COTIZACION') return toast.error("El teléfono es obligatorio para ventas/pedidos.");
 
         setLoading(true);
         // Prefix based on the new types
@@ -209,7 +210,7 @@ function Sales({ vendedor }) {
             const minDeposit = total * 0.30;
             if (payment.monto < minDeposit) {
                 setLoading(false);
-                return alert(`El anticipo mínimo es del 30% ($${minDeposit.toLocaleString()})`);
+                return toast.error(`El anticipo mínimo es del 30% ($${minDeposit.toLocaleString()})`);
             }
         }
 
@@ -255,8 +256,9 @@ function Sales({ vendedor }) {
             localStorage.removeItem('lp_erp_cart');
             localStorage.removeItem('lp_erp_customer');
             localStorage.removeItem('lp_erp_shipping');
+            toast.success("¡Registro completado con éxito!");
         } catch (error) {
-            alert("Error al guardar: " + (error.response?.data?.detail || error.message));
+            toast.error("Error al guardar: " + (error.response?.data?.detail || error.message));
         } finally {
             setLoading(false);
         }

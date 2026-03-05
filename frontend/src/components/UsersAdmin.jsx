@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Users as UsersIcon, Shield, Check, X, Plus, Trash2, Loader2, Save, Edit, AlertCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -63,8 +64,9 @@ function UsersAdmin() {
         e.preventDefault();
         setSaving(true);
         try {
-            if (!newUser.password) {
-                alert("La contraseña es obligatoria");
+            if (!newUser.username?.trim() || !newUser.password?.trim() || !newUser.nombre_completo?.trim() || !newUser.role_id) {
+                toast.error("Por favor llena todos los campos obligatorios");
+                setSaving(false);
                 return;
             }
             await axios.post(`${API_URL}/users`, {
@@ -79,9 +81,10 @@ function UsersAdmin() {
 
             // Reset and refresh
             setNewUser({ username: '', password: '', role_id: '', nombre_completo: '', edad: '', cumpleanos: '', rfc: '' });
+            toast.success("Usuario registrado correctamente");
             fetchData();
         } catch (err) {
-            alert(err.response?.data?.detail || "Error al crear usuario");
+            toast.error(err.response?.data?.detail || "Error al crear usuario");
         } finally {
             setSaving(false);
         }
@@ -103,14 +106,20 @@ function UsersAdmin() {
         e.preventDefault();
         setSaving(true);
         try {
+            if (!editForm.nombre_completo?.trim()) {
+                toast.error("El nombre completo no puede estar vacío");
+                setSaving(false);
+                return;
+            }
             const payload = { ...editForm, role_id: parseInt(editForm.role_id) };
             if (!payload.password) delete payload.password; // Don't send empty password
 
             await axios.put(`${API_URL}/users/${editUserModal.user.username}`, payload, { withCredentials: true });
+            toast.success("Perfil actualizado correctamente");
             setEditUserModal({ isOpen: false, user: null });
             fetchData();
         } catch (err) {
-            alert(err.response?.data?.detail || "Error al actualizar perfil");
+            toast.error(err.response?.data?.detail || "Error al actualizar perfil");
         } finally {
             setSaving(false);
         }
@@ -121,9 +130,10 @@ function UsersAdmin() {
         setDeletingUser(username);
         try {
             await axios.delete(`${API_URL}/users/${username}`, { withCredentials: true });
+            toast.success("Usuario eliminado");
             fetchData();
         } catch (err) {
-            alert(err.response?.data?.detail || "Error al eliminar usuario");
+            toast.error(err.response?.data?.detail || "Error al eliminar usuario");
         } finally {
             setDeletingUser(null);
         }
@@ -131,7 +141,10 @@ function UsersAdmin() {
 
     const handleCreateRole = async (e) => {
         e.preventDefault();
-        if (!newRole.nombre.trim()) return;
+        if (!newRole.nombre?.trim()) {
+            toast.error("El nombre del nivel es obligatorio");
+            return;
+        }
         setSaving(true);
         try {
             await axios.post(`${API_URL}/roles`, {
@@ -139,9 +152,10 @@ function UsersAdmin() {
                 is_superadmin: false
             }, { withCredentials: true });
             setNewRole({ nombre: '' });
+            toast.success("Nivel de acceso creado");
             fetchData();
         } catch (err) {
-            alert("Error al crear el Nivel de Acceso");
+            toast.error("Error al crear el Nivel de Acceso");
         } finally {
             setSaving(false);
         }
@@ -151,7 +165,7 @@ function UsersAdmin() {
         // Find role, ensure it's not superadmin
         const role = roles.find(r => r.id === roleId);
         if (role?.is_superadmin) {
-            alert("No puedes alterar los permisos del Dueño / SuperAdmin.");
+            toast.error("No puedes alterar los permisos del Dueño / SuperAdmin.");
             return;
         }
 

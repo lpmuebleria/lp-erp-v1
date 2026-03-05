@@ -24,12 +24,15 @@ def get_promotions():
 
 @router.post("/promotions", response_model=Promotion)
 def create_promotion(data: PromotionBase):
+    if not data.name.strip():
+        raise HTTPException(status_code=400, detail="El nombre de la promoción no puede estar vacío.")
+
     conn = db()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
         INSERT INTO promotions(name, discount_pct, is_active)
         VALUES (%s, %s, %s)
-    """, (data.name, data.discount_pct, data.is_active))
+    """, (data.name.strip(), data.discount_pct, data.is_active))
     promo_id = cur.lastrowid
     conn.commit()
     conn.close()

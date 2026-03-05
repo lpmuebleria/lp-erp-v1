@@ -5,8 +5,6 @@ from schemas import RoleCreate, RolePermissionBulk
 router = APIRouter()
 
 def require_superadmin(request: Request):
-    if request.headers.get("x-is-superadmin") == "true":
-        return
     if not request.session.get("is_superadmin"):
         raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel SuperAdmin.")
 
@@ -31,10 +29,14 @@ def get_roles(request: Request):
 @router.post("/roles")
 def create_role(request: Request, role: RoleCreate):
     require_superadmin(request)
+    
+    if not role.nombre.strip():
+        raise HTTPException(status_code=400, detail="El nombre del nivel de acceso no puede estar vacío.")
+
     conn = db()
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES (%s, %s)", (role.nombre, role.is_superadmin))
+        cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES (%s, %s)", (role.nombre.strip(), role.is_superadmin))
         new_id = cur.lastrowid
         
         # Default all modules to hidden for a safety-first approach

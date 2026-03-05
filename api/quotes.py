@@ -5,8 +5,7 @@ from utils import new_folio, today_iso
 from schemas import QuoteCreate
 import datetime
 import os
-from jinja2 import Environment, FileSystemLoader
-import os
+from services.pdf_service import generate_receipt_pdf
 
 router = APIRouter()
 
@@ -386,20 +385,8 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "saldo": order_info["saldo"],
                 "entrega_estimada": order_info.get("entrega_estimada") or ""
             }
-        from utils import get_image_b64
-        context["logo_b64"] = get_image_b64('logo.jpg') or get_image_b64('logo.png') or get_image_b64('logo.jpeg')
-        context["fb_b64"] = get_image_b64('Facebook_logo.png')
-        context["ig_b64"] = get_image_b64('Instagram_icon.png')
-        context["wa_b64"] = get_image_b64('whatsapp_icon.png')
-
-        # Render HTML
-        env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), 'templates')))
-        template = env.get_template('receipt.html')
-        html_out = template.render(context)
-        
-        from weasyprint import HTML
-        
-        pdf = HTML(string=html_out).write_pdf()
+        # Use the isolated PDF service
+        pdf = generate_receipt_pdf(context)
         
         return Response(
             content=pdf,

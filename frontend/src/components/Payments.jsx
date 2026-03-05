@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Loader2, Search, FileText, XCircle, RefreshCw } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -20,7 +21,7 @@ function Payments() {
             setPayments(res.data);
         } catch (err) {
             console.error("Error fetching payments:", err);
-            alert("No se pudo cargar el historial de pagos");
+            toast.error("No se pudo cargar el historial de pagos");
         } finally {
             setLoading(false);
         }

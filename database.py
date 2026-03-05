@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
+from security import hash_password
+from fastapi import HTTPException
 
 load_dotenv()
 
@@ -15,223 +17,255 @@ MYSQL_CONFIG = {
     'raise_on_warnings': False
 }
 
+from mysql.connector import pooling
+from logger_config import logger
+
+# Create Pool (up to 5-10 connections)
+try:
+    db_pool = pooling.MySQLConnectionPool(
+        pool_name="lp_erp_pool",
+        pool_size=5,
+        pool_reset_session=True,
+        **MYSQL_CONFIG
+    )
+    logger.info("✅ Database connection pool created.")
+except Error as e:
+    logger.error(f"❌ Failed to create database pool: {e}")
+    db_pool = None
+
 def db():
+    """Returns a connection from the pool."""
+    if not db_pool:
+        # Fallback to direct connection if pool failed to initialize
+        try:
+            return mysql.connector.connect(**MYSQL_CONFIG)
+        except Error as e:
+            logger.error(f"❌ Direct connection failed: {e}")
+            raise HTTPException(status_code=503, detail="Base de datos no disponible")
+
     try:
-        conn = mysql.connector.connect(**MYSQL_CONFIG)
-        return conn
+        return db_pool.get_connection()
     except Error as e:
-        print(f"Error connecting to MySQL: {e}")
-        raise
+        logger.error(f"❌ Pool exhausted or connection error: {e}")
+        raise HTTPException(status_code=503, detail="Servidor saturado. Intente de nuevo.")
 
 def col_exists(cur, table: str, col: str) -> bool:
     cur.execute(f"SHOW COLUMNS FROM `{table}` LIKE '{col}'")
     return cur.fetchone() is not None
 
 def init_db():
-    conn = db()
-    cur = conn.cursor(dictionary=True)
+    """Initializes the database schema. Handled by startup_event in main.py."""
+    conn = None
+    try:
+        conn = db()
+        cur = conn.cursor(dictionary=True)
 
-    # 1) Crear tablas base (uno por uno)
-    tables = [
-        """CREATE TABLE IF NOT EXISTS products(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            codigo VARCHAR(255) UNIQUE NOT NULL,
-            modelo TEXT NOT NULL,
-            tamano VARCHAR(255) NOT NULL, -- Chico/Mediano/Grande
-            precio_lista DECIMAL(15,2) NOT NULL,
-            costo_total DECIMAL(15,2) NOT NULL,
-            flete DECIMAL(15,2) NOT NULL DEFAULT 0,
-            activo INT NOT NULL DEFAULT 1,
-            in_catalog INT NOT NULL DEFAULT 1
-        )""",
-        """CREATE TABLE IF NOT EXISTS utilidad_config(
-            nivel VARCHAR(255) PRIMARY KEY,      -- baja/media/alta
-            multiplicador DECIMAL(15,2) NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS cost_config(
-            tamano VARCHAR(255) PRIMARY KEY,
-            maniobras DECIMAL(15,2) NOT NULL,
-            empaque DECIMAL(15,2) NOT NULL,
-            comision DECIMAL(15,2) NOT NULL,
-            garantias DECIMAL(15,2) NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS settings(
-            k VARCHAR(255) PRIMARY KEY,
-            v TEXT NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS customers(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nombre TEXT NOT NULL,
-            telefono VARCHAR(255),
-            direccion TEXT
-        )""",
-        """CREATE TABLE IF NOT EXISTS quotes(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            folio VARCHAR(255) UNIQUE NOT NULL,
-            created_at TEXT NOT NULL,
-            customer_id INT,
-            vendedor TEXT NOT NULL,
-            descuento_global_tipo VARCHAR(20),
-            descuento_global_val DECIMAL(15,2),
-            total DECIMAL(15,2) NOT NULL,
-            notas TEXT,
-            status VARCHAR(100) NOT NULL DEFAULT 'COTIZACION',
-            FOREIGN KEY(customer_id) REFERENCES customers(id)
-        )""",
-        """CREATE TABLE IF NOT EXISTS quote_lines(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            quote_id INT NOT NULL,
-            product_id INT NOT NULL,
-            cantidad INT NOT NULL,
-            precio_unit DECIMAL(15,2) NOT NULL,
-            descuento_tipo VARCHAR(20), -- % or $
-            descuento_val DECIMAL(15,2),
-            total_linea DECIMAL(15,2) NOT NULL,
-            FOREIGN KEY(quote_id) REFERENCES quotes(id),
-            FOREIGN KEY(product_id) REFERENCES products(id)
-        )""",
-        """CREATE TABLE IF NOT EXISTS orders(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            folio VARCHAR(255) UNIQUE NOT NULL,
-            created_at TEXT NOT NULL,
-            quote_id INT,
-            customer_id INT,
-            vendedor TEXT NOT NULL,
-            total DECIMAL(15,2) NOT NULL,
-            anticipo_req DECIMAL(15,2) NOT NULL,
-            anticipo_pagado DECIMAL(15,2) NOT NULL DEFAULT 0,
-            saldo DECIMAL(15,2) NOT NULL,
-            estatus VARCHAR(100) NOT NULL DEFAULT 'Registrado',
-            entrega_estimada TEXT NOT NULL,
-            tipo VARCHAR(100) NOT NULL DEFAULT 'VENTA_STOCK',
-            nota TEXT NOT NULL,
-            FOREIGN KEY(quote_id) REFERENCES quotes(id),
-            FOREIGN KEY(customer_id) REFERENCES customers(id)
-        )""",
-        """CREATE TABLE IF NOT EXISTS payments(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            order_id INT NOT NULL,
-            created_at TEXT NOT NULL,
-            metodo VARCHAR(100) NOT NULL, -- efectivo/debito/credito/transferencia
-            monto DECIMAL(15,2) NOT NULL,
-            referencia VARCHAR(255),
-            efectivo_recibido DECIMAL(15,2),
-            cambio DECIMAL(15,2),
-            anulado INT NOT NULL DEFAULT 0,
-            motivo_anulacion TEXT NOT NULL,                      
-            FOREIGN KEY(order_id) REFERENCES orders(id)
-        )""",
-        """CREATE TABLE IF NOT EXISTS deliveries(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            order_id INT NOT NULL,
-            fecha VARCHAR(20) NOT NULL,
-            turno VARCHAR(20) NOT NULL, -- MANANA / TARDE
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(order_id) REFERENCES orders(id)   
-        )""",
-        """CREATE TABLE IF NOT EXISTS roles(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nombre VARCHAR(100) NOT NULL,
-            is_superadmin BOOLEAN DEFAULT FALSE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""",
-        """CREATE TABLE IF NOT EXISTS role_permissions(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            role_id INT NOT NULL,
-            modulo VARCHAR(50) NOT NULL,
-            can_view BOOLEAN DEFAULT FALSE,
-            FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
-        )""",
-        """CREATE TABLE IF NOT EXISTS users(
-            username VARCHAR(255) PRIMARY KEY,
-            pin VARCHAR(20) NOT NULL,
-            rol VARCHAR(50) NOT NULL, -- legacy
-            password VARCHAR(255),
-            role_id INT,
-            nombre_completo VARCHAR(200),
-            edad INT,
-            cumpleanos DATE,
-            rfc VARCHAR(20)
-        )""",
-        """CREATE TABLE IF NOT EXISTS order_notes(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            order_id INT NOT NULL,
-            author VARCHAR(255) NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(order_id) REFERENCES orders(id)
-        )""",
-        """CREATE TABLE IF NOT EXISTS notifications(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            role_target VARCHAR(50) NOT NULL,
-            type VARCHAR(50) NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            message TEXT NOT NULL,
-            is_read INT NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL,
-            related_order_id INT
-        )""",
-        """CREATE TABLE IF NOT EXISTS promotions(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            discount_pct DECIMAL(5,2) NOT NULL,
-            is_active INT NOT NULL DEFAULT 1
-        )""",
-        """CREATE TABLE IF NOT EXISTS shipping_zones(
-            name VARCHAR(100) PRIMARY KEY,
-            costo DECIMAL(15,2) NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS shipping_costs(
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            cp VARCHAR(20) NOT NULL UNIQUE,
-            colonia TEXT NOT NULL,
-            municipio VARCHAR(100) NOT NULL,
-            zona_name VARCHAR(100) NOT NULL,
-            FOREIGN KEY (zona_name) REFERENCES shipping_zones(name) ON UPDATE CASCADE
-        )"""
-    ]
-    for sql in tables:
-        cur.execute(sql)
+        # 1) Crear tablas base (uno por uno)
+        tables = [
+            """CREATE TABLE IF NOT EXISTS products(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                codigo VARCHAR(255) UNIQUE NOT NULL,
+                modelo TEXT NOT NULL,
+                tamano VARCHAR(255) NOT NULL, -- Chico/Mediano/Grande
+                precio_lista DECIMAL(15,2) NOT NULL,
+                costo_total DECIMAL(15,2) NOT NULL,
+                flete DECIMAL(15,2) NOT NULL DEFAULT 0,
+                activo INT NOT NULL DEFAULT 1,
+                in_catalog INT NOT NULL DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS utilidad_config(
+                nivel VARCHAR(255) PRIMARY KEY,      -- baja/media/alta
+                multiplicador DECIMAL(15,2) NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS cost_config(
+                tamano VARCHAR(255) PRIMARY KEY,
+                maniobras DECIMAL(15,2) NOT NULL,
+                empaque DECIMAL(15,2) NOT NULL,
+                comision DECIMAL(15,2) NOT NULL,
+                garantias DECIMAL(15,2) NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS settings(
+                k VARCHAR(255) PRIMARY KEY,
+                v TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS customers(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                telefono VARCHAR(255),
+                direccion TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS quotes(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                folio VARCHAR(255) UNIQUE NOT NULL,
+                created_at TEXT NOT NULL,
+                customer_id INT,
+                vendedor TEXT NOT NULL,
+                descuento_global_tipo VARCHAR(20),
+                descuento_global_val DECIMAL(15,2),
+                total DECIMAL(15,2) NOT NULL,
+                notas TEXT,
+                status VARCHAR(100) NOT NULL DEFAULT 'COTIZACION',
+                FOREIGN KEY(customer_id) REFERENCES customers(id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS quote_lines(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                quote_id INT NOT NULL,
+                product_id INT NOT NULL,
+                cantidad INT NOT NULL,
+                precio_unit DECIMAL(15,2) NOT NULL,
+                descuento_tipo VARCHAR(20), -- % or $
+                descuento_val DECIMAL(15,2),
+                total_linea DECIMAL(15,2) NOT NULL,
+                FOREIGN KEY(quote_id) REFERENCES quotes(id),
+                FOREIGN KEY(product_id) REFERENCES products(id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS orders(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                folio VARCHAR(255) UNIQUE NOT NULL,
+                created_at TEXT NOT NULL,
+                quote_id INT,
+                customer_id INT,
+                vendedor TEXT NOT NULL,
+                total DECIMAL(15,2) NOT NULL,
+                anticipo_req DECIMAL(15,2) NOT NULL,
+                anticipo_pagado DECIMAL(15,2) NOT NULL DEFAULT 0,
+                saldo DECIMAL(15,2) NOT NULL,
+                estatus VARCHAR(100) NOT NULL DEFAULT 'Registrado',
+                entrega_estimada TEXT NOT NULL,
+                tipo VARCHAR(100) NOT NULL DEFAULT 'VENTA_STOCK',
+                nota TEXT NOT NULL,
+                FOREIGN KEY(quote_id) REFERENCES quotes(id),
+                FOREIGN KEY(customer_id) REFERENCES customers(id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS payments(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                created_at TEXT NOT NULL,
+                metodo VARCHAR(100) NOT NULL, -- efectivo/debito/credito/transferencia
+                monto DECIMAL(15,2) NOT NULL,
+                referencia VARCHAR(255),
+                efectivo_recibido DECIMAL(15,2),
+                cambio DECIMAL(15,2),
+                anulado INT NOT NULL DEFAULT 0,
+                motivo_anulacion TEXT NOT NULL,                      
+                FOREIGN KEY(order_id) REFERENCES orders(id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS deliveries(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                fecha VARCHAR(20) NOT NULL,
+                turno VARCHAR(20) NOT NULL, -- MANANA / TARDE
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(order_id) REFERENCES orders(id)   
+            )""",
+            """CREATE TABLE IF NOT EXISTS roles(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                is_superadmin BOOLEAN DEFAULT FALSE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS role_permissions(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                role_id INT NOT NULL,
+                modulo VARCHAR(50) NOT NULL,
+                can_view BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS users(
+                username VARCHAR(255) PRIMARY KEY,
+                pin VARCHAR(20) NOT NULL,
+                rol VARCHAR(50) NOT NULL, -- legacy
+                password VARCHAR(255),
+                role_id INT,
+                nombre_completo VARCHAR(200),
+                edad INT,
+                cumpleanos DATE,
+                rfc VARCHAR(20)
+            )""",
+            """CREATE TABLE IF NOT EXISTS order_notes(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(order_id) REFERENCES orders(id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS notifications(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                role_target VARCHAR(50) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                is_read INT NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                related_order_id INT
+            )""",
+            """CREATE TABLE IF NOT EXISTS promotions(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                discount_pct DECIMAL(5,2) NOT NULL,
+                is_active INT NOT NULL DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS shipping_zones(
+                name VARCHAR(100) PRIMARY KEY,
+                costo DECIMAL(15,2) NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS shipping_costs(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                cp VARCHAR(20) NOT NULL UNIQUE,
+                colonia TEXT NOT NULL,
+                municipio VARCHAR(100) NOT NULL,
+                zona_name VARCHAR(100) NOT NULL,
+                FOREIGN KEY (zona_name) REFERENCES shipping_zones(name) ON UPDATE CASCADE
+            )"""
+        ]
+        for sql in tables:
+            cur.execute(sql)
 
-    # Migrations (Refactored logic from app.py)
-    _migrate(cur)
+        # Migrations (Refactored logic from app.py)
+        _migrate(cur)
 
-    # Seeds
-    cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('baja',1.30)")
-    cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('media',1.45)")
-    cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('alta',1.60)")
-    cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('especial',1.20)")
+        # Seeds
+        cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('baja',1.30)")
+        cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('media',1.45)")
+        cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('alta',1.60)")
+        cur.execute("INSERT IGNORE INTO utilidad_config(nivel,multiplicador) VALUES ('especial',1.20)")
 
-    # Seed global settings
-    cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('global_flete_cost', '0')")
+        # Seed global settings
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('global_flete_cost', '0')")
 
-    # Seed cost_config
-    cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Chico', 200, 50, 200, 150)")
-    cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Mediano', 225, 50, 200, 150)")
-    cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Grande', 250, 50, 300, 200)")
+        # Seed cost_config
+        cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Chico', 200, 50, 200, 150)")
+        cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Mediano', 225, 50, 200, 150)")
+        cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Grande', 250, 50, 300, 200)")
 
-    # Seed roles if empty
-    cur.execute("SELECT COUNT(*) as c FROM roles")
-    if cur.fetchone()['c'] == 0:
-        cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Administrador General', 1)")
-        super_id = cur.lastrowid
-        cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Gerente / Admin C1', 0)")
-        admin_c1_id = cur.lastrowid
-        cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Vendedor', 0)")
-        vendedor_id = cur.lastrowid
+        # Seed roles if empty
+        cur.execute("SELECT COUNT(*) as c FROM roles")
+        if cur.fetchone()['c'] == 0:
+            cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Administrador General', 1)")
+            super_id = cur.lastrowid
+            cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Gerente / Admin C1', 0)")
+            admin_c1_id = cur.lastrowid
+            cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES ('Vendedor', 0)")
+            vendedor_id = cur.lastrowid
 
-        # Seed users if they don't exist
-        cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('admin','9999','admin','admin123', %s, 'Administrador Central')", (super_id,))
-        cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('vendedor','1234','vendedor',NULL, %s, 'Vendedor Mostrador')", (vendedor_id,))
-        cur.execute("UPDATE users SET password='admin123' WHERE username='admin' AND (password IS NULL OR password='')")
-    
-        # Legacy user mapping if users existed before roles
-        cur.execute("UPDATE users SET role_id = %s WHERE rol = 'admin' AND role_id IS NULL", (super_id,))
-        cur.execute("UPDATE users SET role_id = %s WHERE rol = 'vendedor' AND role_id IS NULL", (vendedor_id,))
+            # Seed users if they don't exist
+            cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('admin','9999','admin',%s, %s, 'Administrador Central')", (hash_password('admin123'), super_id))
+            cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('vendedor','1234','vendedor',NULL, %s, 'Vendedor Mostrador')", (vendedor_id,))
+        
+            # Legacy user mapping if users existed before roles
+            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'admin' AND role_id IS NULL", (super_id,))
+            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'vendedor' AND role_id IS NULL", (vendedor_id,))
 
-
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Error during database initialization: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn and conn.is_connected():
+            conn.close()
 
 def _migrate(cur):
     # products

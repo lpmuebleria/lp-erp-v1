@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from database import db
 from schemas import PaymentCreate, PaymentCancel
 from utils import today_iso
+from api.notifications import trigger_notification
 import datetime
 
 router = APIRouter()
@@ -58,6 +59,16 @@ def create_payment(data: PaymentCreate):
         """, (nuevo_anticipo, nuevo_saldo, nuevo_estatus, data.order_id))
         
         conn.commit()
+
+        # Notify Admin
+        trigger_notification(
+            role_target="admin",
+            type="success",
+            title="Pago Recibido",
+            message=f"Se recibió un pago de ${monto:,.2f} para el pedido {o['folio']} ({data.metodo})",
+            related_order_id=data.order_id
+        )
+
         return {"id": data.order_id, "status": nuevo_estatus, "saldo": nuevo_saldo}
     except Exception as e:
         conn.rollback()
@@ -130,6 +141,16 @@ def cancel_payment(payment_id: int, data: PaymentCancel):
             """, (order_id, "Sistema", f"Pago de ${monto_anular:,.2f} fue ANULADO. Motivo: {data.motivo_anulacion}", today_iso()))
 
         conn.commit()
+
+        # Notify Admin
+        trigger_notification(
+            role_target="admin",
+            type="error",
+            title="Pago Anulado",
+            message=f"Se anuló un pago de ${monto_anular:,.2f} del pedido {o['folio']}. Motivo: {data.motivo_anulacion}",
+            related_order_id=order_id
+        )
+
         return {"status": "success", "message": "Pago anulado correctamente"}
     except Exception as e:
         conn.rollback()

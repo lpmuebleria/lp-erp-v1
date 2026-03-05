@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from database import db
 from schemas import ExpenseCreate
 from utils import compute_bolsas, today_iso
+from api.notifications import trigger_notification
 
 router = APIRouter()
 
@@ -71,14 +72,31 @@ def get_concept_details(concepto: str, start_date: str, end_date: str):
 
 @router.post("/expenses")
 def create_expense(data: ExpenseCreate):
+    # Validation against whitespace-only strings
+    if not data.concepto.strip():
+        raise HTTPException(status_code=400, detail="El concepto del gasto no puede estar vacío.")
+    if not data.descripcion.strip():
+        raise HTTPException(status_code=400, detail="La descripción del gasto no puede estar vacía.")
+    if not data.fecha.strip():
+        raise HTTPException(status_code=400, detail="La fecha del gasto no puede estar vacía.")
+
     conn = db()
     cur = conn.cursor()
     try:
         cur.execute("""
             INSERT INTO expenses (concepto, monto, descripcion, fecha, created_at)
             VALUES (%s, %s, %s, %s, %s)
-        """, (data.concepto, data.monto, data.descripcion, data.fecha, today_iso()))
+        """, (data.concepto.strip(), data.monto, data.descripcion.strip(), data.fecha.strip(), today_iso()))
         conn.commit()
+        
+        # Notify Admin
+        trigger_notification(
+            role_target="admin",
+            type="warning",
+            title="Gasto Registrado",
+            message=f"Se registró un gasto de ${data.monto:,.2f} en '{data.concepto}': {data.descripcion}"
+        )
+
         return {"status": "success", "message": "Gasto registrado correctamente"}
     except Exception as e:
         conn.rollback()

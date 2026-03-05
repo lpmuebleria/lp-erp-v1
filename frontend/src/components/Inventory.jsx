@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -103,7 +104,7 @@ function Inventory({ role, isSuperadmin }) {
                             link.parentNode.removeChild(link);
                         } catch (err) {
                             console.error("Error generating catalog", err);
-                            alert("Hubo un error al generar el catálogo. Por favor intenta de nuevo.");
+                            toast.error("Hubo un error al generar el catálogo. Por favor intenta de nuevo.");
                         } finally {
                             setGeneratingCatalog(false);
                             setShowCatalogModal(false);
@@ -322,7 +323,7 @@ function ProductModal({ onClose, onSave, product }) {
         } catch (err) {
             console.error("Error al subir imagen:", err);
             const msg = err.response?.data?.detail || err.message;
-            alert("Error al subir imagen: " + msg);
+            toast.error("Error al subir imagen: " + msg);
         } finally {
             setUploading(false);
         }
@@ -332,16 +333,22 @@ function ProductModal({ onClose, onSave, product }) {
         e.preventDefault();
         setSaving(true);
         try {
+            if (!form.codigo?.trim() || !form.modelo?.trim() || !form.tamano?.trim()) {
+                toast.error("Código, modelo y tamaño son obligatorios");
+                setSaving(false);
+                return;
+            }
             if (product) {
                 await axios.put(`${API_URL}/products/${product.id}`, form);
             } else {
                 await axios.post(`${API_URL}/products`, form);
             }
+            toast.success("Producto guardado correctamente");
             onSave();
             onClose();
         } catch (err) {
             console.error(err);
-            alert("Error al guardar producto");
+            toast.error("Error al guardar producto");
         } finally {
             setSaving(false);
         }
