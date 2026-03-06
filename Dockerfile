@@ -2,7 +2,6 @@
 FROM python:3.11-slim
 
 # Install system dependencies for WeasyPrint and MySQL
-# Simplified to avoid conflicts and reduce build time
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
@@ -14,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     libgdk-pixbuf2.0-0 \
     shared-mime-info \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
