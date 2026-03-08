@@ -253,6 +253,21 @@ def init_db():
             cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('admin','9999','admin',%s, %s, 'Administrador Central')", (hash_password('admin123'), super_id))
             cur.execute("INSERT IGNORE INTO users(username,pin,rol,password,role_id,nombre_completo) VALUES ('vendedor','1234','vendedor',NULL, %s, 'Vendedor Mostrador')", (vendedor_id,))
         
+            # Seed base permissions for these roles
+            roles_to_seed = [
+                (super_id, True), # Admin General
+                (admin_c1_id, False), # Gerente
+                (vendedor_id, False) # Vendedor
+            ]
+            modulos_base = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda", "settings"]
+            for r_id, is_super in roles_to_seed:
+                for mod in modulos_base:
+                    # Superadmins get '1' (True), others '1' by default for now or '0' depending on preference.
+                    # Based on screenshots, it seems Gerente had everything green and Vendedor some.
+                    # Let's give Gerente and Admin everything, and Vendedor almost everything as a safe start.
+                    can_v = 1 if (is_super or r_id == admin_c1_id) else (1 if mod in ["inventory", "sales", "quotes", "apartados"] else 0)
+                    cur.execute("INSERT IGNORE INTO role_permissions (role_id, modulo, can_view) VALUES (%s, %s, %s)", (r_id, mod, can_v))
+
             # Legacy user mapping if users existed before roles
             cur.execute("UPDATE users SET role_id = %s WHERE rol = 'admin' AND role_id IS NULL", (super_id,))
             cur.execute("UPDATE users SET role_id = %s WHERE rol = 'vendedor' AND role_id IS NULL", (vendedor_id,))
