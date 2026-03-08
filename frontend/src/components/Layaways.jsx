@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, Archive, CreditCard, User, Calendar, Wallet, ChevronRight, Loader2, Filter, AlertCircle } from 'lucide-react';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function Layaways() {
     const [orders, setOrders] = useState([]);
@@ -171,3 +171,4 @@ function getStatusStyles(status) {
 }
 
 export default Layaways;
+

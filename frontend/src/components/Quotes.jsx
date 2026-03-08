@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Search, FileText, ArrowRight, User, Phone, Mail, Calendar, DollarSign, Loader2, CheckCircle2, ChevronRight, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function Quotes() {
     const [quotes, setQuotes] = useState([]);
@@ -310,3 +310,4 @@ function ConvertModal({ quote, onClose, onConverted }) {
 }
 
 export default Quotes;
+

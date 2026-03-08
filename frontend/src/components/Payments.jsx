@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Loader2, Search, FileText, XCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function Payments() {
     const [payments, setPayments] = useState([]);
@@ -146,3 +146,4 @@ function Payments() {
 }
 
 export default Payments;
+

@@ -26,7 +26,7 @@ import {
     XCircle
 } from 'lucide-react';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
     const [order, setOrder] = useState(null);
@@ -715,3 +715,4 @@ function TabButton({ active, onClick, label, disabled }) {
 }
 
 export default OrderDetails;
+
