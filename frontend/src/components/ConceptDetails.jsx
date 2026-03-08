@@ -24,7 +24,7 @@ function ConceptDetails({ concepto, onBack }) {
     const [loading, setLoading] = useState(true);
 
     const [showExpenseModal, setShowExpenseModal] = useState(false);
-    const [expenseForm, setExpenseForm] = useState({ monto: '', descripcion: '', fecha: new Date().toISOString().split('T')[0] });
+    const [expenseForm, setExpenseForm] = useState({ monto: '', descripcion: '', fecha: new Date().toISOString().split('T')[0], metodo_pago: 'efectivo' });
     const [addingExpense, setAddingExpense] = useState(false);
 
     // Humanize label
@@ -70,10 +70,11 @@ function ConceptDetails({ concepto, onBack }) {
                 concepto: concepto,
                 monto: parseFloat(expenseForm.monto),
                 descripcion: expenseForm.descripcion,
-                fecha: expenseForm.fecha
+                fecha: expenseForm.fecha,
+                metodo_pago: expenseForm.metodo_pago
             });
             setShowExpenseModal(false);
-            setExpenseForm({ monto: '', descripcion: '', fecha: new Date().toISOString().split('T')[0] });
+            setExpenseForm({ monto: '', descripcion: '', fecha: new Date().toISOString().split('T')[0], metodo_pago: 'efectivo' });
             fetchDetails();
             alert("Gasto registrado exitosamente.");
         } catch (err) {
@@ -287,6 +288,20 @@ function ConceptDetails({ concepto, onBack }) {
                                     onChange={(e) => setExpenseForm({ ...expenseForm, fecha: e.target.value })}
                                     className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-sm font-bold text-white outline-none focus:border-premium-gold/50 transition-colors"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black tracking-widest uppercase text-slate-500 block mb-2 ml-2">Método de Pago</label>
+                                <select
+                                    value={expenseForm.metodo_pago}
+                                    onChange={(e) => setExpenseForm({ ...expenseForm, metodo_pago: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-sm font-bold text-white outline-none focus:border-premium-gold/50 transition-colors cursor-pointer"
+                                >
+                                    <option value="efectivo" className="text-black">Efectivo</option>
+                                    <option value="transferencia" className="text-black">Transferencia</option>
+                                    <option value="tarjeta_credito" className="text-black">Tarjeta de Crédito</option>
+                                    <option value="tarjeta_debito" className="text-black">Tarjeta de Débito</option>
+                                </select>
                             </div>
 
                             <button

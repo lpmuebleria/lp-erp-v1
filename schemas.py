@@ -117,6 +117,7 @@ class ExpenseCreate(BaseModel):
     monto: float = Field(..., gt=0)
     descripcion: str = Field(..., min_length=1)
     fecha: str = Field(..., min_length=1)
+    metodo_pago: str = "efectivo"
 
 class RoleCreate(BaseModel):
     nombre: str = Field(..., min_length=1)

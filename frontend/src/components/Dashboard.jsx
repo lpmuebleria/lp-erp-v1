@@ -6,14 +6,43 @@ import {
     Users,
     Calendar,
     ArrowUpRight,
-    Loader2
+    Loader2,
+    X,
+    FileSpreadsheet,
+    Download,
+    Wallet
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api' : 'https://lp-erp-v1.onrender.com/api');
+
+const FAMILIAS_OPCIONES = [
+    'maniobras',
+    'empaque',
+    'comision',
+    'garantias',
+    'muebles',
+    'fletes',
+    'envios',
+    'utilidad_bruta'
+];
 
 function Dashboard({ onConceptClick }) {
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Report Modal State
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportLoading, setReportLoading] = useState(false);
+    const [showCashFlowModal, setShowCashFlowModal] = useState(false);
+    const [cashFlowLoading, setCashFlowLoading] = useState(false);
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(1); // First day of current month
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [selectedFamilies, setSelectedFamilies] = useState(FAMILIAS_OPCIONES);
+    const [includeExpenses, setIncludeExpenses] = useState(true);
 
     useEffect(() => {
         fetchMetrics();
@@ -38,6 +67,129 @@ function Dashboard({ onConceptClick }) {
             </div>
         );
     }
+
+    const toggleFamily = (fam) => {
+        if (selectedFamilies.includes(fam)) {
+            setSelectedFamilies(selectedFamilies.filter(f => f !== fam));
+        } else {
+            setSelectedFamilies([...selectedFamilies, fam]);
+        }
+    };
+
+    const handleGenerateReport = async () => {
+        if (!startDate || !endDate) {
+            alert("Por favor selecciona las fechas de inicio y fin.");
+            return;
+        }
+        if (selectedFamilies.length === 0) {
+            alert("Por favor selecciona al menos una familia para el reporte.");
+            return;
+        }
+
+        setReportLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/reports/team-activity`, {
+                start_date: startDate,
+                end_date: endDate,
+                selected_families: selectedFamilies,
+                include_expenses: includeExpenses
+            }, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                responseType: 'blob'
+            });
+
+            // Fallback for blob detection if backend sends JSON error instead
+            if (res.data.type === 'application/json') {
+                const text = await res.data.text();
+                console.error("Server returned JSON error:", text);
+                alert("Ocurrió un error en el servidor. Revisa los logs.");
+                setReportLoading(false);
+                return;
+            }
+
+            // Create download link
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `reporte_actividad_${startDate}_al_${endDate}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+
+            setShowReportModal(false);
+        } catch (err) {
+            console.error("Error generating report:", err);
+            // More specific error alerting
+            if (err.response && err.response.data && err.response.data instanceof Blob) {
+                const text = await err.response.data.text();
+                alert(`Error del servidor: ${text}`);
+            } else if (err.response && err.response.data) {
+                alert(`Error del servidor: ${JSON.stringify(err.response.data)}`);
+            } else {
+                alert(`Ocurrió un error al generar el reporte: ${err.message}. Verifica la consola.`);
+            }
+        } finally {
+            setReportLoading(false);
+        }
+    };
+
+    const handleGenerateCashFlowReport = async () => {
+        if (!startDate || !endDate) {
+            alert("Por favor selecciona las fechas de inicio y fin.");
+            return;
+        }
+
+        setCashFlowLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/reports/cash-flow`, {
+                start_date: startDate,
+                end_date: endDate,
+                selected_families: [], // Ignored by backend
+                include_expenses: true // Ignored by backend
+            }, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                responseType: 'blob'
+            });
+
+            if (res.data.type === 'application/json') {
+                const text = await res.data.text();
+                console.error("Server returned JSON error:", text);
+                alert("Ocurrió un error en el servidor. Revisa los logs.");
+                setCashFlowLoading(false);
+                return;
+            }
+
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `flujo_caja_${startDate}_al_${endDate}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+
+            setShowCashFlowModal(false);
+        } catch (err) {
+            console.error("Error generating cash flow report:", err);
+            if (err.response && err.response.data && err.response.data instanceof Blob) {
+                const text = await err.response.data.text();
+                alert(`Error del servidor: ${text}`);
+            } else if (err.response && err.response.data) {
+                alert(`Error del servidor: ${JSON.stringify(err.response.data)}`);
+            } else {
+                alert(`Ocurrió un error al generar el reporte: ${err.message}. Verifica la consola.`);
+            }
+        } finally {
+            setCashFlowLoading(false);
+        }
+    };
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
@@ -125,14 +277,190 @@ function Dashboard({ onConceptClick }) {
                         <div className="w-16 h-16 bg-premium-gold/10 rounded-2xl mx-auto mb-6 flex items-center justify-center border border-premium-gold/20">
                             <Users className="text-premium-gold" size={28} />
                         </div>
-                        <h4 className="text-lg font-black text-white mb-2">Actividad de Equipo</h4>
-                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-8 italic">Rendimiento óptimo detectado</p>
-                        <button className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white">
-                            Generar Reporte PDF
-                        </button>
+                        <h4 className="text-lg font-black text-white mb-2">Reportes Financieros</h4>
+                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-8 italic">Desempeño y Flujo de Caja</p>
+
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setShowReportModal(true)}
+                                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white flex items-center justify-center gap-2">
+                                <FileSpreadsheet size={16} />
+                                Actividad de Equipo (Operativo)
+                            </button>
+
+                            <button
+                                onClick={() => setShowCashFlowModal(true)}
+                                className="w-full bg-premium-gold/10 hover:bg-premium-gold/20 border border-premium-gold/30 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-premium-gold hover:text-yellow-400 flex items-center justify-center gap-2">
+                                <Wallet size={16} />
+                                Flujo de Caja (Corte y Bancos)
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Report Modal */}
+            {showReportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0f172a] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-premium-gold/10 rounded-xl border border-premium-gold/20">
+                                    <FileSpreadsheet className="text-premium-gold" size={24} />
+                                </div>
+                                <h2 className="text-xl font-black text-white">Reporte de Actividad</h2>
+                            </div>
+                            <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 hover:bg-white/10">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Fecha Inicio</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-premium-gold/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Fecha Fin</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-premium-gold/50"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Familias a Incluir</label>
+                                    <button
+                                        onClick={() => setSelectedFamilies(selectedFamilies.length === FAMILIAS_OPCIONES.length ? [] : FAMILIAS_OPCIONES)}
+                                        className="text-[10px] text-premium-gold hover:text-white transition-colors"
+                                    >
+                                        {selectedFamilies.length === FAMILIAS_OPCIONES.length ? 'Deseleccionar Todas' : 'Seleccionar Todas'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                    {FAMILIAS_OPCIONES.map(fam => (
+                                        <label key={fam} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedFamilies.includes(fam) ? 'bg-premium-gold/10 border-premium-gold/30' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
+                                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${selectedFamilies.includes(fam) ? 'bg-premium-gold border-premium-gold' : 'border-slate-500'}`}>
+                                                {selectedFamilies.includes(fam) && <div className="w-2 h-2 bg-white rounded-sm" />}
+                                            </div>
+                                            <span className="text-xs font-bold text-white uppercase tracking-wider">{fam.replace('_', ' ')}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-white/10">
+                                <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${includeExpenses ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={includeExpenses}
+                                        onChange={(e) => setIncludeExpenses(e.target.checked)}
+                                        className="hidden"
+                                    />
+                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${includeExpenses ? 'bg-blue-500 border-blue-500' : 'border-slate-500'}`}>
+                                        {includeExpenses && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                                    </div>
+                                    <span className="text-sm font-black text-white uppercase tracking-wider">Desglosar Gastos (Egresos)</span>
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleGenerateReport}
+                                disabled={reportLoading}
+                                className="w-full bg-gradient-to-r from-premium-gold to-yellow-500 hover:from-yellow-400 hover:to-yellow-300 text-black font-black uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {reportLoading ? (
+                                    <>
+                                        <Loader2 className="animate-spin" size={20} />
+                                        Generando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={20} />
+                                        Descargar Excel
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Cash Flow Modal */}
+            {showCashFlowModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0f172a] border border-premium-gold/30 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-premium-gold/10 rounded-xl border border-premium-gold/20">
+                                    <Wallet className="text-premium-gold" size={24} />
+                                </div>
+                                <h2 className="text-xl font-black text-white">Flujo de Caja</h2>
+                            </div>
+                            <button onClick={() => setShowCashFlowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 hover:bg-white/10">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-4 bg-premium-slate/50 border border-white/5 rounded-2xl mb-6">
+                                <p className="text-xs text-slate-400 leading-relaxed text-center">
+                                    Este reporte estrictamente financiero desglosa el ingreso recibido por su respectivo método de pago (Efectivo y Cuentas Bancarias). Ideal para cortes de caja.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Fecha Inicio</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-premium-gold/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Fecha Fin</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-premium-gold/50"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleGenerateCashFlowReport}
+                                disabled={cashFlowLoading}
+                                className="w-full mt-4 bg-gradient-to-r from-premium-gold to-yellow-500 hover:from-yellow-400 hover:to-yellow-300 text-black font-black uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {cashFlowLoading ? (
+                                    <>
+                                        <Loader2 className="animate-spin" size={20} />
+                                        Calculando Cuadre...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={20} />
+                                        Descargar Flujo Excel
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

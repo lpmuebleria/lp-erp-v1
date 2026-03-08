@@ -14,7 +14,7 @@ def get_concept_details(concepto: str, start_date: str, end_date: str):
     try:
         # 1. Fetch Egresos (Expenses)
         cur.execute("""
-            SELECT id, monto, descripcion, fecha, created_at 
+            SELECT id, monto, descripcion, fecha, created_at, metodo_pago 
             FROM expenses 
             WHERE concepto = %s AND fecha BETWEEN %s AND %s
             ORDER BY fecha DESC, id DESC
@@ -84,9 +84,9 @@ def create_expense(data: ExpenseCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO expenses (concepto, monto, descripcion, fecha, created_at)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (data.concepto.strip(), data.monto, data.descripcion.strip(), data.fecha.strip(), today_iso()))
+            INSERT INTO expenses (concepto, monto, descripcion, fecha, created_at, metodo_pago)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (data.concepto.strip(), data.monto, data.descripcion.strip(), data.fecha.strip(), today_iso(), data.metodo_pago))
         conn.commit()
         
         # Notify Admin

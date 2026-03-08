@@ -1,0 +1,326 @@
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List, Optional
+import io
+import pandas as pd
+from database import db
+from utils import compute_bolsas
+
+router = APIRouter()
+
+class ReportRequest(BaseModel):
+    start_date: str
+    end_date: str
+    selected_families: List[str]
+    include_expenses: bool = True
+
+@router.post("/reports/team-activity")
+def generate_team_activity_report(request: ReportRequest):
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+
+    try:
+        # 1. Fetch Orders in date range
+        cur.execute("""
+            SELECT o.id, o.folio, o.created_at, o.estatus, o.anticipo_pagado, q.cliente_nombre, q.id as quote_id, q.costo_envio
+            FROM orders o
+            JOIN quotes q ON o.quote_id = q.id
+            WHERE DATE(o.created_at) BETWEEN %s AND %s
+            AND o.estatus != 'CANCELADO'
+            ORDER BY o.created_at DESC
+        """, (request.start_date, request.end_date))
+        orders = cur.fetchall()
+
+        if not orders:
+            # Return empty response early
+            df_activity = pd.DataFrame(columns=["Folio", "Fecha", "Cliente", "Estatus"] + [f.capitalize() for f in request.selected_families])
+            df_expenses = None
+        else:
+            # Batch fetch all lines for these quotes to avoid N+1 query
+            quote_ids = tuple(o["quote_id"] for o in orders)
+            format_quote_ids = ','.join(['%s'] * len(quote_ids))
+            
+            cur.execute(f"""
+                SELECT ql.quote_id, ql.cantidad, ql.total_linea, p.tamano, p.costo_total
+                FROM quote_lines ql
+                JOIN products p ON p.id = ql.product_id
+                WHERE ql.quote_id IN ({format_quote_ids})
+            """, quote_ids)
+            all_lines = cur.fetchall()
+
+            # Pre-fetch flete_unitario
+            cur.execute("SELECT v FROM settings WHERE k='flete_unitario'")
+            row_flete = cur.fetchone()
+            flete_unitario = float(row_flete["v"]) if row_flete else 0.0
+
+            # Pre-fetch configs mapped by tamano
+            cur.execute("SELECT tamano, maniobras, empaque, comision, garantias FROM cost_config")
+            config_rows = cur.fetchall()
+            configs_by_tamano = {r["tamano"]: r for r in config_rows}
+            default_cfg = {"maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0}
+
+            # Map quote_id -> computed_bolsas
+            bolsas_by_quote = {}
+            for q_id in quote_ids:
+                 bolsas_by_quote[q_id] = {
+                     "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
+                     "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0
+                 }
+
+            for row in all_lines:
+                qid = row["quote_id"]
+                b = bolsas_by_quote[qid]
+                cfg = configs_by_tamano.get(row["tamano"], default_cfg)
+                
+                qty = float(row["cantidad"] or 0)
+                b["maniobras"] += float(cfg["maniobras"] or 0) * qty
+                b["empaque"] += float(cfg["empaque"] or 0) * qty
+                b["comision"] += float(cfg["comision"] or 0) * qty
+                b["garantias"] += float(cfg["garantias"] or 0) * qty
+                b["muebles"] += float(row["costo_total"] or 0) * qty
+                b["fletes"] += flete_unitario * qty
+                b["costo"] += float(row["costo_total"] or 0) * qty
+                b["venta"] += float(row["total_linea"] or 0)
+
+            # Priority order for money allocation (Waterfall)
+            PRIORITY_ORDER = [
+                "comision",
+                "muebles",
+                "empaque",
+                "garantias",
+                "maniobras",
+                "fletes",
+                "envios",
+                "utilidad_bruta"
+            ]
+
+            # Build data for the Activity Sheet
+            activity_data = []
+            totals = {fam: 0.0 for fam in request.selected_families}
+
+            for o in orders:
+                qid = o["quote_id"]
+                bolsas_teoricas = bolsas_by_quote[qid]
+                
+                # Add envios (costo_envio) from quote level
+                bolsas_teoricas["envios"] = float(o["costo_envio"] or 0.0)
+                
+                bolsas_teoricas["utilidad_bruta"] = (
+                    bolsas_teoricas["venta"] - bolsas_teoricas["costo"] - 
+                    (bolsas_teoricas["maniobras"] + bolsas_teoricas["empaque"] + bolsas_teoricas["comision"] + bolsas_teoricas["garantias"] + bolsas_teoricas["fletes"])
+                )
+
+                # Waterfall (Cascada) Distribution
+                anticipo = float(o["anticipo_pagado"] or 0.0)
+                fondos_disponibles = anticipo
+                
+                bolsas_reales = {k: 0.0 for k in bolsas_teoricas.keys()}
+
+                for bolsa in PRIORITY_ORDER:
+                    monto_teorico = bolsas_teoricas.get(bolsa, 0.0)
+                    
+                    if fondos_disponibles <= 0:
+                        bolsas_reales[bolsa] = 0.0
+                    else:
+                        if fondos_disponibles >= monto_teorico:
+                            bolsas_reales[bolsa] = monto_teorico
+                            fondos_disponibles -= monto_teorico
+                        else:
+                            bolsas_reales[bolsa] = fondos_disponibles
+                            fondos_disponibles = 0.0
+                            
+                # Special cases: "venta" and "costo" are reference columns, not distribution buckets, so keep them as is if needed, 
+                # but since they aren't in PRIORITY_ORDER we'll just copy them over (or keep logic clean for user selected families)
+                bolsas_reales["venta"] = bolsas_teoricas["venta"]
+                bolsas_reales["costo"] = bolsas_teoricas["costo"]
+                
+                row_act = {
+                    "Folio": o["folio"],
+                    "Fecha": o["created_at"],
+                    "Cliente": o["cliente_nombre"],
+                    "Estatus": o["estatus"]
+                }
+                
+                has_relevant_data = False
+                for fam in request.selected_families:
+                    val = bolsas_reales.get(fam, 0.0)
+                    row_act[fam.capitalize()] = val
+                    totals[fam] += val
+                    if val > 0:
+                        has_relevant_data = True
+                
+                if has_relevant_data:
+                    activity_data.append(row_act)
+
+            if activity_data:
+                totals_row = {"Folio": "TOTALES", "Fecha": "", "Cliente": "", "Estatus": ""}
+                for fam in request.selected_families:
+                    totals_row[fam.capitalize()] = totals[fam]
+                activity_data.append(totals_row)
+
+            df_activity = pd.DataFrame(activity_data)
+
+        # 2. Fetch Expenses if requested
+        df_expenses = None
+        if request.include_expenses:
+            # Create a tuple of selected families for the IN clause
+            # We map families to lower/capitalized as they are stored in DB.
+            # Usually stored exactly as typed or lowercase. Let's use lower for safety, or exact match.
+            family_tuple = tuple(request.selected_families)
+            
+            if family_tuple:
+                 format_strings = ','.join(['%s'] * len(family_tuple))
+                 cur.execute(f"""
+                     SELECT concepto, monto, descripcion, fecha 
+                     FROM expenses 
+                     WHERE fecha BETWEEN %s AND %s
+                     AND concepto IN ({format_strings})
+                     ORDER BY fecha DESC
+                 """, (request.start_date, request.end_date, *family_tuple))
+                 expenses = cur.fetchall()
+                 
+                 if expenses:
+                     df_expenses = pd.DataFrame(expenses)
+                     # Rename columns for presentation
+                     df_expenses.rename(columns={
+                         "concepto": "Concepto",
+                         "monto": "Monto",
+                         "descripcion": "Descripción",
+                         "fecha": "Fecha"
+                     }, inplace=True)
+                     
+                     # Add total row
+                     total_expenses = df_expenses["Monto"].sum()
+                     df_expenses.loc[len(df_expenses)] = ["TOTAL", total_expenses, "", ""]
+
+        # 3. Generate Excel file
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            if not df_activity.empty:
+                df_activity.to_excel(writer, sheet_name='Actividad de Equipo', index=False)
+            else:
+                # Empty sheet with columns
+                pd.DataFrame(columns=["Folio", "Fecha", "Cliente", "Estatus"] + [f.capitalize() for f in request.selected_families]).to_excel(writer, sheet_name='Actividad de Equipo', index=False)
+                
+            if request.include_expenses and df_expenses is not None and not df_expenses.empty:
+                df_expenses.to_excel(writer, sheet_name='Gastos', index=False)
+            elif request.include_expenses:
+                 pd.DataFrame(columns=["Concepto", "Monto", "Descripción", "Fecha"]).to_excel(writer, sheet_name='Gastos', index=False)
+                 
+        output.seek(0)
+
+        filename = f"reporte_actividad_{request.start_date}_al_{request.end_date}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.post("/reports/cash-flow")
+def generate_cash_flow_report(request: ReportRequest): # Reusing the ReportRequest schema but ignoring selected_families and include_expenses
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+
+    try:
+        # 1. Fetch Incomes (Ingresos) from payments table
+        cur.execute("""
+            SELECT p.id, p.created_at as fecha, p.metodo, p.monto, p.referencia, o.folio as relacion
+            FROM payments p
+            JOIN orders o ON p.order_id = o.id
+            WHERE DATE(p.created_at) BETWEEN %s AND %s
+            AND p.anulado = 0
+            ORDER BY p.created_at DESC
+        """, (request.start_date, request.end_date))
+        ingresos_raw = cur.fetchall()
+
+        # 2. Fetch Expenses (Egresos) from expenses table
+        cur.execute("""
+            SELECT id, fecha, metodo_pago as metodo, monto, descripcion as referencia, concepto as relacion
+            FROM expenses
+            WHERE fecha BETWEEN %s AND %s
+            ORDER BY fecha DESC
+        """, (request.start_date, request.end_date))
+        egresos_raw = cur.fetchall()
+
+        # Processing totals
+        ingresos_banco = 0.0
+        ingresos_efectivo = 0.0
+        egresos_banco = 0.0
+        egresos_efectivo = 0.0
+
+        for ing in ingresos_raw:
+            if ing["metodo"] == "efectivo":
+                ingresos_efectivo += float(ing["monto"])
+            else: # transferencia, tarjeta_credito, tarjeta_debito
+                ingresos_banco += float(ing["monto"])
+
+        for eg in egresos_raw:
+            if eg["metodo"] == "efectivo":
+                egresos_efectivo += float(eg["monto"])
+            else:
+                egresos_banco += float(eg["monto"])
+
+        # Create Dataframes
+        df_ingresos = pd.DataFrame(ingresos_raw) if ingresos_raw else pd.DataFrame(columns=["id", "fecha", "metodo", "monto", "referencia", "relacion"])
+        df_egresos = pd.DataFrame(egresos_raw) if egresos_raw else pd.DataFrame(columns=["id", "fecha", "metodo", "monto", "referencia", "relacion"])
+
+        # Rename cols
+        col_map = {"fecha": "Fecha", "metodo": "Método de Pago", "monto": "Monto", "referencia": "Referencia / Descripción", "relacion": "Pedido / Concepto"}
+        df_ingresos.rename(columns=col_map, inplace=True, errors='ignore')
+        df_egresos.rename(columns=col_map, inplace=True, errors='ignore')
+
+        if not df_ingresos.empty and "id" in df_ingresos.columns: df_ingresos.drop(columns=["id"], inplace=True)
+        if not df_egresos.empty and "id" in df_egresos.columns: df_egresos.drop(columns=["id"], inplace=True)
+
+        # Totals Row for Incomes
+        if not df_ingresos.empty:
+            df_ingresos.loc[len(df_ingresos)] = ["TOTAL INGRESOS", "", sum(float(i["monto"]) for i in ingresos_raw), "", ""]
+            
+        # Totals Row for Expenses
+        if not df_egresos.empty:
+            df_egresos.loc[len(df_egresos)] = ["TOTAL EGRESOS", "", sum(float(e["monto"]) for e in egresos_raw), "", ""]
+
+        # 3. Create Summary Cuadre DataFrame
+        cuadre_data = [
+            {"Concepto": "Ingresos en Efectivo", "Total": ingresos_efectivo},
+            {"Concepto": "Menos: Egresos en Efectivo", "Total": -egresos_efectivo},
+            {"Concepto": "FONDO FÍSICO ESPERADO (CAJA)", "Total": ingresos_efectivo - egresos_efectivo},
+            {"Concepto": "", "Total": ""},
+            {"Concepto": "Ingresos en Banco (Transf/Tarjetas)", "Total": ingresos_banco},
+            {"Concepto": "Menos: Egresos pagados en Banco", "Total": -egresos_banco},
+            {"Concepto": "SALDO BANCARIO ESPERADO (CUENTAS)", "Total": ingresos_banco - egresos_banco},
+            {"Concepto": "", "Total": ""},
+            {"Concepto": "BALANCE GLOBAL TOTAL", "Total": (ingresos_efectivo + ingresos_banco) - (egresos_efectivo + egresos_banco)}
+        ]
+        df_cuadre = pd.DataFrame(cuadre_data)
+
+        # 4. Excel Generation
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_cuadre.to_excel(writer, sheet_name='RESUMEN DE CUADRE', index=False)
+            df_ingresos.to_excel(writer, sheet_name='Desglose Ingresos', index=False)
+            df_egresos.to_excel(writer, sheet_name='Desglose Egresos', index=False)
+
+        output.seek(0)
+        filename = f"flujo_caja_{request.start_date}_al_{request.end_date}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
