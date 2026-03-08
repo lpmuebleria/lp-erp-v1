@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from database import db
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
+# from weasyprint import HTML
 from io import BytesIO
 import os
 import datetime

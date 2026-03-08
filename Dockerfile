@@ -1,24 +1,16 @@
 # Use official Python image
 FROM python:3.11-slim
 
-# Set environment variables for non-interactive installs
-ENV DEBIAN_FRONTEND=noninteractive
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
 
 # Set working directory
 WORKDIR /app
 
-# Split RUN commands to handle caching better and identify failure points
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends \
-    libcairo2 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
-    libffi-dev \
-    shared-mime-info \
+# Minimal system dependencies for the "Lite" boot
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    python3-dev
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
 COPY requirements.txt .
