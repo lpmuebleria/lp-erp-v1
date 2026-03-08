@@ -304,9 +304,9 @@ def _migrate(cur):
 
     # orders
     if not col_exists(cur, "orders", "tipo"):
-        cur.execute("ALTER TABLE orders ADD COLUMN tipo TEXT NOT NULL DEFAULT 'VENTA_STOCK'")
+        cur.execute("ALTER TABLE orders ADD COLUMN tipo VARCHAR(255) NOT NULL DEFAULT 'VENTA_STOCK'")
     if not col_exists(cur, "orders", "apartado_vence"):
-        cur.execute("ALTER TABLE orders ADD COLUMN apartado_vence TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE orders ADD COLUMN apartado_vence VARCHAR(255) NOT NULL DEFAULT ''")
     if not col_exists(cur, "orders", "apartado_prorroga_dias"):
         cur.execute("ALTER TABLE orders ADD COLUMN apartado_prorroga_dias INTEGER NOT NULL DEFAULT 0")
     if not col_exists(cur, "orders", "apartado_liberado"):
@@ -344,7 +344,7 @@ def _migrate(cur):
     if not col_exists(cur, "payments", "anulado"):
         cur.execute("ALTER TABLE payments ADD COLUMN anulado INTEGER NOT NULL DEFAULT 0")
     if not col_exists(cur, "payments", "motivo_anulacion"):
-        cur.execute("ALTER TABLE payments ADD COLUMN motivo_anulacion TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE payments ADD COLUMN motivo_anulacion VARCHAR(1000) NOT NULL DEFAULT ''")
 
     # users
     if not col_exists(cur, "users", "password"):
