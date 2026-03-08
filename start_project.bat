@@ -14,7 +14,7 @@ timeout /t 5 /nobreak >nul
 :: Abrir el Frontend en una nueva ventana
 echo [2/2] Iniciando Interfaz Frontend (React/Vite)...
 cd frontend
-start cmd /k "npm run dev"
+start cmd /k "npm run dev -- --mode development"
 
 echo.
 echo ==========================================
