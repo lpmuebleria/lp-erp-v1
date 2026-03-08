@@ -7,9 +7,18 @@ ENV PYTHONUNBUFFERED=1
 # Set working directory
 WORKDIR /app
 
-# Minimal system dependencies for the "Lite" boot
+# Full system dependencies for WeasyPrint and MySQL
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    python3-dev \
+    libffi-dev \
+    libpango-1.0-0 \
+    libharfbuzz0b \
+    libpangoft2-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    shared-mime-info \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
