@@ -268,9 +268,17 @@ def init_db():
                     can_v = 1 if (is_super or r_id == admin_c1_id) else (1 if mod in ["inventory", "sales", "quotes", "apartados"] else 0)
                     cur.execute("INSERT IGNORE INTO role_permissions (role_id, modulo, can_view) VALUES (%s, %s, %s)", (r_id, mod, can_v))
 
-            # Legacy user mapping if users existed before roles
-            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'admin' AND role_id IS NULL", (super_id,))
-            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'vendedor' AND role_id IS NULL", (vendedor_id,))
+        # --- HEALING / MIGRATION (Runs every startup for existing data) ---
+        # 1. Ensure existing users have a role_id based on their legacy 'rol' column if it's NULL
+        cur.execute("SELECT id FROM roles WHERE nombre = 'Administrador General' LIMIT 1")
+        res_admin = cur.fetchone()
+        if res_admin:
+            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'admin' AND role_id IS NULL", (res_admin['id'],))
+        
+        cur.execute("SELECT id FROM roles WHERE nombre = 'Vendedor' LIMIT 1")
+        res_vend = cur.fetchone()
+        if res_vend:
+            cur.execute("UPDATE users SET role_id = %s WHERE rol = 'vendedor' AND role_id IS NULL", (res_vend['id'],))
 
         conn.commit()
     except Exception as e:

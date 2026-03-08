@@ -26,11 +26,11 @@ function Settings() {
     const fetchConfigs = async () => {
         try {
             const [uRes, cRes, pRes, fRes, ivaRes] = await Promise.all([
-                axios.get(`${API_URL}/config/utility`),
-                axios.get(`${API_URL}/config/costs`),
-                axios.get(`${API_URL}/promotions`),
-                axios.get(`${API_URL}/config/flete`),
-                axios.get(`${API_URL}/config/iva`)
+                axios.get(`${API_URL}/config/utility`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/costs`, { withCredentials: true }),
+                axios.get(`${API_URL}/promotions`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/flete`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/iva`, { withCredentials: true })
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
@@ -50,12 +50,12 @@ function Settings() {
         try {
             if (activeTab === 'utilidades') {
                 await Promise.all([
-                    axios.put(`${API_URL}/config/utility`, utilities),
-                    axios.put(`${API_URL}/config/flete`, { costo: globalFlete }),
-                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico })
+                    axios.put(`${API_URL}/config/utility`, utilities, { withCredentials: true }),
+                    axios.put(`${API_URL}/config/flete`, { costo: globalFlete }, { withCredentials: true }),
+                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico }, { withCredentials: true })
                 ]);
             } else if (activeTab === 'costos') {
-                await axios.put(`${API_URL}/config/costs`, costs);
+                await axios.put(`${API_URL}/config/costs`, costs, { withCredentials: true });
             }
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
@@ -69,7 +69,7 @@ function Settings() {
 
     const handlePromoToggle = async (promo) => {
         try {
-            const res = await axios.put(`${API_URL}/promotions/${promo.id}`, { ...promo, is_active: promo.is_active ? 0 : 1 });
+            const res = await axios.put(`${API_URL}/promotions/${promo.id}`, { ...promo, is_active: promo.is_active ? 0 : 1 }, { withCredentials: true });
             setPromotions(promotions.map(p => p.id === promo.id ? res.data : p));
         } catch (err) {
             console.error(err);
@@ -79,7 +79,7 @@ function Settings() {
     const handlePromoDelete = async (id) => {
         if (!confirm("¿Eliminar promoción?")) return;
         try {
-            await axios.delete(`${API_URL}/promotions/${id}`);
+            await axios.delete(`${API_URL}/promotions/${id}`, { withCredentials: true });
             setPromotions(promotions.filter(p => p.id !== id));
         } catch (err) {
             console.error(err);
@@ -97,7 +97,7 @@ function Settings() {
         }
 
         try {
-            const res = await axios.post(`${API_URL}/promotions`, { name, discount_pct, is_active: 1 });
+            const res = await axios.post(`${API_URL}/promotions`, { name, discount_pct, is_active: 1 }, { withCredentials: true });
             setPromotions([...promotions, res.data]);
             form.reset();
         } catch (err) {
