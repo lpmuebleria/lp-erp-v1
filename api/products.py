@@ -189,6 +189,47 @@ async def upload_image(file: UploadFile = File(...)):
         print(f"Error uploading to Cloudinary: {e}")
         raise HTTPException(status_code=500, detail=f"No se pudo subir la imagen a la nube: {str(e)}")
 
+@router.get("/products/template")
+def download_template():
+    """Generates a template Excel for product import."""
+    try:
+        cols = ['codigo', 'modelo', 'tamano', 'precio_lista', 'costo_total', 'costo_fabrica', 'flete', 'maniobras', 'empaque', 'comision', 'garantias', 'utilidad_nivel', 'activo', 'stock', 'imagen_url', 'in_catalog']
+        # Sample data
+        data = [{
+            'codigo': 'PROD001',
+            'modelo': 'Sofa Cama Luxury',
+            'tamano': 'King Size',
+            'precio_lista': 5500.00,
+            'costo_total': 3200.00,
+            'costo_fabrica': 2800.00,
+            'flete': 400.00,
+            'maniobras': 50.00,
+            'empaque': 100.00,
+            'comision': 0.05,
+            'garantias': 0.02,
+            'utilidad_nivel': 0.30,
+            'activo': True,
+            'stock': 10,
+            'imagen_url': 'https://example.com/image.jpg',
+            'in_catalog': True
+        }]
+        
+        df = pd.DataFrame(data, columns=cols) # Ensure all columns are present even if sample data is partial
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Productos')
+        
+        output.seek(0)
+        
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=plantilla_inventario_lp.xlsx"}
+        )
+    except Exception as e:
+        logger.error(f"Error generating template: {e}")
+        raise HTTPException(status_code=500, detail="Error al generar la plantilla")
+
 @router.post("/products/import")
 async def import_products(file: UploadFile = File(...)):
     if not file.filename.endswith(('.xlsx', '.xls')):

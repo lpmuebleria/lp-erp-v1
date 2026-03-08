@@ -13,6 +13,7 @@ function Inventory({ role, isSuperadmin }) {
     const [showCatalogModal, setShowCatalogModal] = useState(false);
     const [generatingCatalog, setGeneratingCatalog] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     const isAdmin = isSuperadmin || role === 'admin';
 
@@ -51,32 +52,13 @@ function Inventory({ role, isSuperadmin }) {
                     <span>{products.length} productos encontrados</span>
                     {isAdmin && (
                         <div className="flex space-x-3">
-                            <label className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10 cursor-pointer">
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
+                            >
                                 <Upload size={16} />
                                 <span>Importar Excel</span>
-                                <input
-                                    type="file"
-                                    className="hidden"
-                                    accept=".xlsx, .xls"
-                                    onChange={async (e) => {
-                                        const file = e.target.files[0];
-                                        if (!file) return;
-                                        const formData = new FormData();
-                                        formData.append('file', file);
-                                        const loadingToast = toast.loading("Importando productos...");
-                                        try {
-                                            await axios.post(`${API_URL}/products/import`, formData, {
-                                                headers: { 'Content-Type': 'multipart/form-data' }
-                                            });
-                                            toast.success("Inventario importado con éxito", { id: loadingToast });
-                                            fetchProducts();
-                                        } catch (err) {
-                                            console.error(err);
-                                            toast.error("Error al importar Excel: " + (err.response?.data?.detail || err.message), { id: loadingToast });
-                                        }
-                                    }}
-                                />
-                            </label>
+                            </button>
                             <button
                                 onClick={() => setShowCatalogModal(true)}
                                 className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
@@ -136,6 +118,13 @@ function Inventory({ role, isSuperadmin }) {
                             setShowCatalogModal(false);
                         }
                     }}
+                />
+            )}
+
+            {showImportModal && (
+                <ImportExcelModal
+                    onClose={() => setShowImportModal(false)}
+                    onImport={fetchProducts}
                 />
             )}
 
@@ -614,6 +603,109 @@ function CatalogOptionsModal({ onClose, onGenerate, isGenerating }) {
                         {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <span>Descargar Documento</span>}
                     </button>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function ImportExcelModal({ onClose, onImport }) {
+    const [importing, setImporting] = useState(false);
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/products/template`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'plantilla_inventario_lp.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            toast.success("Plantilla descargada");
+        } catch (err) {
+            console.error("Error downloading template", err);
+            toast.error("Error al descargar la plantilla");
+        }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setImporting(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        const loadingToast = toast.loading("Importando inventario...");
+
+        try {
+            await axios.post(`${API_URL}/products/import`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success("Inventario actualizado con éxito", { id: loadingToast });
+            onImport();
+            onClose();
+        } catch (err) {
+            console.error(err);
+            const msg = err.response?.data?.detail || err.message;
+            toast.error("Error al importar: " + msg, { id: loadingToast });
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-premium-slate w-full max-w-md rounded-3xl border border-white/10 shadow-2xl p-8 overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-premium-gold/20 rounded-xl text-premium-gold">
+                        <Upload size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-white leading-tight">Importar Inventario</h3>
+                        <p className="text-xs text-slate-400">Actualización masiva desde Excel</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4 mb-8 text-sm text-slate-400 leading-relaxed">
+                    <p>Para cargar tus productos correctamente, sigue estas instrucciones:</p>
+                    <ul className="list-disc list-inside space-y-2 marker:text-premium-gold">
+                        <li>Usa la <strong>plantilla oficial</strong> para asegurar que las columnas coincidan.</li>
+                        <li>El <span className="text-white">Código</span> es obligatorio y único para cada producto.</li>
+                        <li>Los precios deben ser números (ej. 1500.50) sin símbolos de moneda.</li>
+                        <li>Si el código ya existe, el producto se <strong>actualizará</strong> con los nuevos datos.</li>
+                    </ul>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                    <button
+                        onClick={handleDownloadTemplate}
+                        className="w-full bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-all flex items-center justify-center space-x-2"
+                    >
+                        <FileText size={18} className="text-premium-gold" />
+                        <span>Descargar Plantilla Excel</span>
+                    </button>
+
+                    <label className="w-full bg-premium-gold text-black font-black py-4 rounded-xl flex items-center justify-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10 cursor-pointer">
+                        {importing ? (
+                            <Loader2 className="animate-spin" size={20} />
+                        ) : (
+                            <>
+                                <Upload size={20} />
+                                <span>Seleccionar y Subir Archivo</span>
+                            </>
+                        )}
+                        <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} disabled={importing} />
+                    </label>
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="w-full mt-4 text-xs font-bold text-slate-500 hover:text-white transition-all uppercase tracking-widest"
+                >
+                    Cerrar
+                </button>
             </div>
         </div>
     );
