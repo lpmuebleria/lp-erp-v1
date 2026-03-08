@@ -10,3 +10,4 @@ itsdangerous
 weasyprint
 python-dotenv
 passlib[bcrypt]
+cloudinary

@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 import shutil
 import os
 import uuid
+import cloudinary
+import cloudinary.uploader
 from typing import List, Optional
 from database import db
 from schemas import Product, ProductCreate
@@ -9,6 +11,14 @@ from utils import money
 from api.notifications import trigger_notification
 
 router = APIRouter()
+
+# Cloudinary Configuration
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
 
 @router.get("/products", response_model=List[Product])
@@ -167,19 +177,17 @@ async def upload_image(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    ext = os.path.splitext(file.filename)[1]
-    filename = f"{uuid.uuid4()}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Upload directly to Cloudinary
+        result = cloudinary.uploader.upload(
+            file.file,
+            folder="lp_erp_inventory",
+            resource_type="image"
+        )
+        return {"url": result.get("secure_url")}
     except Exception as e:
-        print(f"Error saving file: {e}")
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar la imagen: {str(e)}")
-
-    return {"url": f"https://lp-erp-v1.onrender.com/static/uploads/{filename}"}
+        print(f"Error uploading to Cloudinary: {e}")
+        raise HTTPException(status_code=500, detail=f"No se pudo subir la imagen a la nube: {str(e)}")
 
 @router.post("/products/import")
 async def import_products(file: UploadFile = File(...)):
