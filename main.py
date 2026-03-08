@@ -18,7 +18,7 @@ origins = [
 ]
 
 # Add production URLs from environment variable (comma separated)
-frontend_urls = os.getenv("FRONTEND_URL", "https://lp-erp-v1.vercel.app")
+frontend_urls = os.getenv("FRONTEND_URL", "https://lp-erp-v1.vercel.app,https://lpmuebleria.vercel.app")
 for url in frontend_urls.split(","):
     if url.strip():
         origins.append(url.strip())
