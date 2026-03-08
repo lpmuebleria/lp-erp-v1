@@ -13,18 +13,20 @@ app = FastAPI(title="LP ERP API v2")
 # CORS Configuration for React
 origins = [
     "http://localhost:3000",
-    "http://localhost:5173", # Vite default
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-# Add production frontend URL from environment variable
-prod_frontend_url = os.getenv("FRONTEND_URL")
-if prod_frontend_url:
-    origins.append(prod_frontend_url)
+# Add production URLs from environment variable (comma separated)
+frontend_urls = os.getenv("FRONTEND_URL", "https://lp-erp-v1.vercel.app")
+for url in frontend_urls.split(","):
+    if url.strip():
+        origins.append(url.strip())
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app", # Permite subdominios de Vercel (previews)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
