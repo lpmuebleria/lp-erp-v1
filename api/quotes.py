@@ -71,8 +71,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
 
         # 1) Insert Quote
         cur.execute("""
-            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.get("folio", f"COT-{int(datetime.datetime.now().timestamp())}"),
             today_iso(),
@@ -84,7 +84,12 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             data.get("cliente_email"),
             data.get("descuento_global_val", 0),
             data.get("cp_envio"),
-            data.get("costo_envio", 0)
+            data.get("costo_envio", 0),
+            data.get("calle_envio"),
+            data.get("numero_envio"),
+            data.get("colonia_envio"),
+            data.get("referencia_envio"),
+            data.get("nota_envio")
         ))
         quote_id = cur.lastrowid
 
@@ -153,9 +158,9 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                     folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, 
                     estatus, entrega_estimada, tipo, nota, iva, 
                     factura_rfc, factura_razon, factura_cp, factura_regimen, factura_uso_cfdi, factura_metodo_pago, factura_forma_pago,
-                    cp_envio, costo_envio
+                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio
                 )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 folio_o,
                 today_iso(),
@@ -178,7 +183,12 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 data.get("factura_metodo_pago", ""),
                 data.get("factura_forma_pago", ""),
                 data.get("cp_envio"),
-                data.get("costo_envio", 0)
+                data.get("costo_envio", 0),
+                data.get("calle_envio"),
+                data.get("numero_envio"),
+                data.get("colonia_envio"),
+                data.get("referencia_envio"),
+                data.get("nota_envio")
             ))
             
             order_id = cur.lastrowid
@@ -259,8 +269,8 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
 
         # 2) Create Order
         cur.execute("""
-            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             folio_o,
             today_iso(),
@@ -274,7 +284,12 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
             entrega,
             "VENTA_DIRECTA",
             q.get("cp_envio"),
-            q.get("costo_envio", 0)
+            q.get("costo_envio", 0),
+            q.get("calle_envio"),
+            q.get("numero_envio"),
+            q.get("colonia_envio"),
+            q.get("referencia_envio"),
+            q.get("nota_envio")
         ))
         order_id = cur.lastrowid
 
@@ -350,7 +365,12 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "sum_desc_manual": sum((l.get("descuento_val") or 0) for l in lines),
                 "descuento_global_val": q.get("descuento_global_val") or 0,
                 "total": q["total"],
-                "costo_envio": q.get("costo_envio") or 0
+                "costo_envio": q.get("costo_envio") or 0,
+                "calle_envio": q.get("calle_envio") or "",
+                "numero_envio": q.get("numero_envio") or "",
+                "colonia_envio": q.get("colonia_envio") or "",
+                "referencia_envio": q.get("referencia_envio") or "",
+                "nota_envio": q.get("nota_envio") or ""
             }
             
         else:
@@ -394,6 +414,11 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "descuento_global_val": parent_quote.get("descuento_global_val") or 0,
                 "total": order_info["total"],
                 "costo_envio": order_info.get("costo_envio") or 0,
+                "calle_envio": order_info.get("calle_envio") or "",
+                "numero_envio": order_info.get("numero_envio") or "",
+                "colonia_envio": order_info.get("colonia_envio") or "",
+                "referencia_envio": order_info.get("referencia_envio") or "",
+                "nota_envio": order_info.get("nota_envio") or "",
                 "anticipo_pagado": order_info["anticipo_pagado"],
                 "saldo": order_info["saldo"],
                 "entrega_estimada": order_info.get("entrega_estimada") or ""

@@ -54,6 +54,10 @@ function Sales({ vendedor }) {
         return saved ? JSON.parse(saved) : {
             cp: '',
             colonia: '',
+            calle: '',
+            numero: '',
+            referencia: '',
+            nota: '',
             costo: 0,
             isCustom: false,
             errorMsg: ''
@@ -242,11 +246,16 @@ function Sales({ vendedor }) {
             lines: cart,
             promo_id: selectedPromoId || null,
             descuento_global_val: descGlobalVal,
-            // Delivery
+            // Delivery & Shipping
             entrega_fecha: status === 'VENTA_STOCK' ? delivery.fecha : null,
             entrega_turno: status === 'VENTA_STOCK' ? delivery.turno : null,
             cp_envio: shipping.cp,
             costo_envio: parseFloat(shipping.costo) || 0,
+            calle_envio: shipping.calle,
+            numero_envio: shipping.numero,
+            colonia_envio: shipping.colonia,
+            referencia_envio: shipping.referencia,
+            nota_envio: shipping.nota,
             // Billing
             requiere_factura: billing.requiere_factura,
             factura_rfc: billing.rfc,
@@ -281,7 +290,7 @@ function Sales({ vendedor }) {
         if (confirm("¿Estás seguro de que deseas limpiar toda la información (carrito, cliente, envío, etc)?")) {
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
-            setShipping({ cp: '', colonia: '', costo: 0, isCustom: false, errorMsg: '' });
+            setShipping({ cp: '', colonia: '', calle: '', numero: '', referencia: '', nota: '', costo: 0, isCustom: false, errorMsg: '' });
             setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
             setBilling({
                 requiere_factura: false,
@@ -421,6 +430,50 @@ function Sales({ vendedor }) {
                                 className={`w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-8 text-sm text-white font-mono focus:outline-none focus:border-premium-gold/50 transition-all ${!shipping.isCustom && 'opacity-70 cursor-not-allowed'}`}
                             />
                         </div>
+                    </div>
+                </div>
+
+                {/* Additional Detailed Address Info */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                    <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Calle</label>
+                        <input
+                            type="text"
+                            value={shipping.calle}
+                            onChange={(e) => setShipping({ ...shipping, calle: e.target.value })}
+                            placeholder="Nombre de la calle..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Núm (Ext/Int)</label>
+                        <input
+                            type="text"
+                            value={shipping.numero}
+                            onChange={(e) => setShipping({ ...shipping, numero: e.target.value })}
+                            placeholder="Ej. 123 Int B"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1 md:col-span-4">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Referencia de Domicilio</label>
+                        <input
+                            type="text"
+                            value={shipping.referencia}
+                            onChange={(e) => setShipping({ ...shipping, referencia: e.target.value })}
+                            placeholder="Entre calles, color de casa, portón, etc..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1 md:col-span-4">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Comentarios / Horarios Preferidos</label>
+                        <input
+                            type="text"
+                            value={shipping.nota}
+                            onChange={(e) => setShipping({ ...shipping, nota: e.target.value })}
+                            placeholder="Ej. El cliente solo puede recibir después de las 5PM..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-yellow-400 focus:outline-none focus:border-premium-gold/50 transition-all font-medium"
+                        />
                     </div>
                 </div>
                 {shipping.errorMsg && (

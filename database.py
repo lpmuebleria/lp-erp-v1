@@ -105,6 +105,13 @@ def init_db():
                 total DECIMAL(15,2) NOT NULL,
                 notas TEXT,
                 status VARCHAR(100) NOT NULL DEFAULT 'COTIZACION',
+                cp_envio VARCHAR(20) DEFAULT NULL,
+                costo_envio DECIMAL(15,2) DEFAULT NULL,
+                calle_envio TEXT,
+                numero_envio VARCHAR(100),
+                colonia_envio TEXT,
+                referencia_envio TEXT,
+                nota_envio TEXT,
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
             """CREATE TABLE IF NOT EXISTS quote_lines(
@@ -134,6 +141,13 @@ def init_db():
                 entrega_estimada TEXT NOT NULL,
                 tipo VARCHAR(100) NOT NULL DEFAULT 'VENTA_STOCK',
                 nota TEXT NOT NULL,
+                cp_envio VARCHAR(20) DEFAULT NULL,
+                costo_envio DECIMAL(15,2) DEFAULT NULL,
+                calle_envio TEXT,
+                numero_envio VARCHAR(100),
+                colonia_envio TEXT,
+                referencia_envio TEXT,
+                nota_envio TEXT,
                 FOREIGN KEY(quote_id) REFERENCES quotes(id),
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
@@ -301,6 +315,16 @@ def _migrate(cur):
         cur.execute("ALTER TABLE quotes ADD COLUMN cp_envio VARCHAR(20) DEFAULT NULL")
     if not col_exists(cur, "quotes", "costo_envio"):
         cur.execute("ALTER TABLE quotes ADD COLUMN costo_envio DECIMAL(15,2) DEFAULT NULL")
+    if not col_exists(cur, "quotes", "calle_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN calle_envio TEXT")
+    if not col_exists(cur, "quotes", "numero_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN numero_envio VARCHAR(100)")
+    if not col_exists(cur, "quotes", "colonia_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN colonia_envio TEXT")
+    if not col_exists(cur, "quotes", "referencia_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN referencia_envio TEXT")
+    if not col_exists(cur, "quotes", "nota_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN nota_envio TEXT")
 
     # orders
     if not col_exists(cur, "orders", "tipo"):
@@ -321,6 +345,16 @@ def _migrate(cur):
         cur.execute("ALTER TABLE orders ADD COLUMN cp_envio VARCHAR(20) DEFAULT NULL")
     if not col_exists(cur, "orders", "costo_envio"):
         cur.execute("ALTER TABLE orders ADD COLUMN costo_envio DECIMAL(15,2) DEFAULT NULL")
+    if not col_exists(cur, "orders", "calle_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN calle_envio TEXT")
+    if not col_exists(cur, "orders", "numero_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN numero_envio VARCHAR(100)")
+    if not col_exists(cur, "orders", "colonia_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN colonia_envio TEXT")
+    if not col_exists(cur, "orders", "referencia_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN referencia_envio TEXT")
+    if not col_exists(cur, "orders", "nota_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN nota_envio TEXT")
     
     # Billing / Facturacion
     if not col_exists(cur, "orders", "factura_rfc"):
