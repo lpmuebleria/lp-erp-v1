@@ -4,7 +4,7 @@ import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Lo
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
 function Settings() {
     const [activeTab, setActiveTab] = useState('utilidades'); // 'utilidades', 'costos', 'promociones'

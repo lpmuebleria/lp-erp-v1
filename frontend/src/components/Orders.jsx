@@ -16,7 +16,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
 const STATUS_COLUMNS = [
     { id: 'REGISTRADO', label: 'Registrado', color: 'yellow' },
