@@ -126,13 +126,26 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             # Default delivery date for non-stock
             entrega_estimada = data.get("entrega_fecha") if tipo_pedido == "VENTA_STOCK" else (datetime.date.today() + datetime.timedelta(days=FAB_DAYS_DEFAULT)).isoformat()
             
-            # Min deposit
-            min_deposit_pct = 0.30 if tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"] else float(DEPOSIT_PCT)
-            anticipo_req = round(final_total * min_deposit_pct, 2)
-            
+            # Extract costs for strict validation
+            costo_envio = float(data.get("costo_envio", 0))
             monto_pago = float(data.get("monto_pago", 0))
-            if monto_pago < anticipo_req and tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"]:
-                raise HTTPException(status_code=400, detail=f"El anticipo mínimo debe ser de ${anticipo_req:,.2f}")
+
+            if tipo_pedido == "VENTA_STOCK":
+                # Strict: The furniture must be paid 100% upfront
+                furniture_cost = final_total - costo_envio
+                if monto_pago < furniture_cost:
+                    raise HTTPException(status_code=400, detail=f"Venta de Stock requiere el pago total del mueble (${furniture_cost:,.2f}). Solo el envío puede quedar pendiente.")
+                if monto_pago > furniture_cost and monto_pago < final_total:
+                    raise HTTPException(status_code=400, detail=f"El envío a contra-entrega debe pagarse completo o dejarse pendiente completo. Montos válidos: ${furniture_cost:,.2f} o ${final_total:,.2f}")
+                
+                anticipo_req = furniture_cost
+            else:
+                # Min deposit for Fabrication and Layaway
+                min_deposit_pct = 0.30 if tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"] else float(DEPOSIT_PCT)
+                anticipo_req = round(final_total * min_deposit_pct, 2)
+                
+                if monto_pago < anticipo_req:
+                    raise HTTPException(status_code=400, detail=f"El anticipo mínimo debe ser de ${anticipo_req:,.2f}")
 
             # 4) Creates the Order with Billing Fields
             cur.execute("""

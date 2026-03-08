@@ -214,6 +214,19 @@ function Sales({ vendedor }) {
             }
         }
 
+        // Venta de Stock strict validation
+        if (status === 'VENTA_STOCK') {
+            const furnitureCost = baseTotal + ivaAmount;
+            if (payment.monto < furnitureCost) {
+                setLoading(false);
+                return toast.error(`En Venta de Stock el mueble debe pagarse al 100% ($${furnitureCost.toLocaleString()}). Solo el envío puede quedar pendiente a contra-entrega.`);
+            }
+            if (payment.monto > furnitureCost && payment.monto < total) {
+                setLoading(false);
+                return toast.error(`El envío a contra-entrega no acepta abonos parciales. Paga $${furnitureCost.toLocaleString()} o el total exacto de $${total.toLocaleString()}`);
+            }
+        }
+
         const payload = {
             folio: `${prefix}-${Date.now()}`,
             vendedor,
@@ -578,6 +591,13 @@ function Sales({ vendedor }) {
                             )}
 
                             {/* WARNING MESSAGES */}
+                            {status === 'VENTA_STOCK' && (
+                                <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between">
+                                    <span className="text-xs text-blue-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Mueble al 100%</span>
+                                    <span className="text-[10px] text-blue-400 font-black uppercase bg-blue-500/20 px-2 py-1 rounded">Envío a Contra-entrega</span>
+                                </div>
+                            )}
+
                             {status === 'PEDIDO_FABRICACION' && (
                                 <div className="bg-pink-500/10 border border-pink-500/30 p-4 rounded-xl flex items-center justify-between">
                                     <span className="text-xs text-pink-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Anticipo min: 30%</span>
@@ -607,6 +627,11 @@ function Sales({ vendedor }) {
                                                 className="w-full bg-premium-gold/10 border border-premium-gold/30 rounded-xl p-3 pl-8 text-premium-gold font-black focus:outline-none focus:border-premium-gold shadow-highlight"
                                             />
                                         </div>
+                                        {status === 'VENTA_STOCK' && (
+                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
+                                                Mínimo Requerido: <span className="text-white">${(baseTotal + ivaAmount).toLocaleString()}</span> (Mueble)
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-[10px] text-slate-500 uppercase font-black ml-2 tracking-widest">Método de Pago</label>
@@ -621,6 +646,17 @@ function Sales({ vendedor }) {
                                             <option value="credito">T. CRÉDITO</option>
                                         </select>
                                     </div>
+                                    {status === 'VENTA_STOCK' && payment.monto < total && payment.monto >= (baseTotal + ivaAmount) && shippingAmount > 0 && (
+                                        <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl animate-in fade-in duration-300">
+                                            <div className="flex items-center space-x-2 text-yellow-400 mb-1">
+                                                <MapPin size={14} />
+                                                <span className="text-xs font-black uppercase tracking-widest">Contra-entrega</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400">
+                                                Al dejar un saldo pendiente de <strong className="text-white">${(total - payment.monto).toLocaleString()}</strong>, este monto corresponde al envío y el cliente <strong>deberá liquidar en efectivo</strong> al recibir los muebles.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
                         </div>
