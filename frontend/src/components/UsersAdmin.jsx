@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Users as UsersIcon, Shield, Check, X, Plus, Trash2, Loader2, Save, Edit, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
 
 function UsersAdmin() {
     const [activeSubTab, setActiveSubTab] = useState('directorio'); // 'directorio', 'roles', 'permisos'

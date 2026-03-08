@@ -11,7 +11,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
 
 function Agenda() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);

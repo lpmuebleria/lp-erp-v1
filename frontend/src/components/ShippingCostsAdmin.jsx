@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Truck, Search, Plus, Trash2, Edit2, CheckCircle2, X, MapPin } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
 
 function ShippingCostsAdmin() {
     const [costs, setCosts] = useState([]);

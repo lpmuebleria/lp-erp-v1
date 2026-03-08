@@ -5,7 +5,7 @@ import {
     ArrowDownRight, ArrowUpRight, Wallet, Plus, X
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
 
 function ConceptDetails({ concepto, onBack }) {
     // Current month by default

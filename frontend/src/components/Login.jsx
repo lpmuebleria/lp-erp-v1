@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Lock, User, Key, ShieldCheck, Info } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lp-erp-v1.onrender.com/api';
 
 function Login({ onLoginSuccess }) {
     const [mode, setMode] = useState('pin'); // 'admin' or 'pin'
