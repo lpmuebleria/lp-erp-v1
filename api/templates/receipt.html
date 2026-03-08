@@ -245,12 +245,13 @@
                     {% endif %}
                 </td>
                 <td style="text-align: right; font-size: 12px;">
-                    <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado) }}</p>
+                    <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado)
+                        }}</p>
                     <p style="margin: 2px 0; color: #d00;">
                         <strong>
-                            Saldo Restante 
+                            Saldo Restante
                             {% if status == 'VENTA_STOCK' and saldo == costo_envio and costo_envio > 0 %}
-                                (Envío Contra-entrega)
+                            (Envío Contra-entrega)
                             {% endif %}:
                         </strong> ${{ "{:,.2f}".format(saldo) }}
                     </p>
@@ -260,21 +261,60 @@
         {% endif %}
 
         {% if calle_envio %}
-        <div style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; text-align: left; font-size: 11px; border-radius: 5px;">
-            <p style="margin: 0 0 5px 0;"><strong style="color: #444; text-transform: uppercase;">📍 Dirección de Entrega</strong></p>
+        <div
+            style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; text-align: left; font-size: 11px; border-radius: 5px;">
+            <p style="margin: 0 0 5px 0;"><strong style="color: #444; text-transform: uppercase;">📍 Dirección de
+                    Entrega</strong></p>
             <p style="margin: 0; color: #555;">
                 <strong>Calle:</strong> {{ calle_envio }} #{{ numero_envio }}<br>
                 <strong>Colonia:</strong> {{ colonia_envio }} {% if cp_envio %} (CP: {{ cp_envio }}) {% endif %}<br>
                 <strong>Referencia:</strong> {{ referencia_envio }}<br>
                 {% if nota_envio %}
-                <strong style="color: #b8860b;">Notas / Horario:</strong> <span style="color: #b8860b;">{{ nota_envio }}</span>
+                <strong style="color: #b8860b;">Notas / Horario:</strong> <span style="color: #b8860b;">{{ nota_envio
+                    }}</span>
                 {% endif %}
             </p>
+        </div>
+        {% endif %}
+
+        {% if factura_rfc %}
+        <div
+            style="margin-top: 15px; padding: 10px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 5px;">
+            <p style="margin: 0 0 5px 0;"><strong style="color: #004085; text-transform: uppercase;">📄 Datos de
+                    Facturación Requerida</strong></p>
+            <table style="width: 100%; border: none; font-size: 11px; color: #555;">
+                <tr>
+                    <td style="width: 50%; padding: 2px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
+                    <td style="width: 50%; padding: 2px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
+                    <td style="padding: 2px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
+                    <td style="padding: 2px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
+                </tr>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if status != 'COTIZACION' %}
+        <div style="margin-top: 60px; text-align: center;">
+            <div style="display: inline-block; width: 250px; border-top: 1px solid #000; padding-top: 5px;">
+                <p style="margin: 0; font-size: 12px; font-weight: bold;">Recibí de Conformidad</p>
+                <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">{{ cliente_nombre }}</p>
+            </div>
         </div>
         {% endif %}
     </div>
 
     <div class="footer">
+        <p style="font-weight: bold; color: #d00;">ESTE DOCUMENTO ES DE CARÁCTER INTERNO Y NO REPRESENTA UN COMPROBANTE
+            FISCAL.</p>
         <p>Los precios en esta {{ 'cotización' if status == 'COTIZACION' else 'nota' }} pueden estar sujetos a cambios
             sin previo aviso.</p>
         {% if status == 'APARTADO' %}

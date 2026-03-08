@@ -423,7 +423,14 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "nota_envio": order_info.get("nota_envio") or "",
                 "anticipo_pagado": order_info["anticipo_pagado"],
                 "saldo": order_info["saldo"],
-                "entrega_estimada": order_info.get("entrega_estimada") or ""
+                "entrega_estimada": order_info.get("entrega_estimada") or "",
+                "factura_rfc": order_info.get("factura_rfc") or "",
+                "factura_razon": order_info.get("factura_razon") or "",
+                "factura_cp": order_info.get("factura_cp") or "",
+                "factura_regimen": order_info.get("factura_regimen") or "",
+                "factura_uso_cfdi": order_info.get("factura_uso_cfdi") or "",
+                "factura_metodo_pago": order_info.get("factura_metodo_pago") or "",
+                "factura_forma_pago": order_info.get("factura_forma_pago") or ""
             }
         # Use the isolated PDF service
         pdf = generate_receipt_pdf(context)
