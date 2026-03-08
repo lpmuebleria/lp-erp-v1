@@ -670,12 +670,25 @@ function ImportExcelModal({ onClose, onImport }) {
 
                 <div className="space-y-4 mb-8 text-sm text-slate-400 leading-relaxed">
                     <p>Para cargar tus productos correctamente, sigue estas instrucciones:</p>
-                    <ul className="list-disc list-inside space-y-2 marker:text-premium-gold">
-                        <li>Usa la <strong>plantilla oficial</strong> para asegurar que las columnas coincidan.</li>
-                        <li>El <span className="text-white">Código</span> es obligatorio y único para cada producto.</li>
-                        <li>Los precios deben ser números (ej. 1500.50) sin símbolos de moneda.</li>
-                        <li>Si el código ya existe, el producto se <strong>actualizará</strong> con los nuevos datos.</li>
-                    </ul>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-premium-gold/80 bg-premium-gold/10 px-2 py-0.5 rounded">Obligatorio</span>
+                            <ul className="list-disc list-inside space-y-1 text-xs">
+                                <li><strong>Código</strong> (Único)</li>
+                                <li><strong>Modelo</strong></li>
+                                <li><strong>Precio Lista</strong></li>
+                            </ul>
+                        </div>
+                        <div className="space-y-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white/5 px-2 py-0.5 rounded">Opcional</span>
+                            <ul className="list-disc list-inside space-y-1 text-xs">
+                                <li>Stock (Default: 0)</li>
+                                <li>Imagen URL</li>
+                                <li>Costos y Flete</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <p className="text-[11px] italic mt-2">Nota: Si el código ya existe, los datos se <strong>actualizarán</strong> automáticamente.</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
