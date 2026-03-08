@@ -51,6 +51,32 @@ function Inventory({ role, isSuperadmin }) {
                     <span>{products.length} productos encontrados</span>
                     {isAdmin && (
                         <div className="flex space-x-3">
+                            <label className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10 cursor-pointer">
+                                <Upload size={16} />
+                                <span>Importar Excel</span>
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".xlsx, .xls"
+                                    onChange={async (e) => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        const loadingToast = toast.loading("Importando productos...");
+                                        try {
+                                            await axios.post(`${API_URL}/products/import`, formData, {
+                                                headers: { 'Content-Type': 'multipart/form-data' }
+                                            });
+                                            toast.success("Inventario importado con éxito", { id: loadingToast });
+                                            fetchProducts();
+                                        } catch (err) {
+                                            console.error(err);
+                                            toast.error("Error al importar Excel: " + (err.response?.data?.detail || err.message), { id: loadingToast });
+                                        }
+                                    }}
+                                />
+                            </label>
                             <button
                                 onClick={() => setShowCatalogModal(true)}
                                 className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"

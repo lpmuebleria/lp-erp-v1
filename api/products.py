@@ -179,4 +179,29 @@ async def upload_image(file: UploadFile = File(...)):
         print(f"Error saving file: {e}")
         raise HTTPException(status_code=500, detail=f"No se pudo guardar la imagen: {str(e)}")
 
-    return {"url": f"http://localhost:8000/static/uploads/{filename}"}
+    return {"url": f"https://lp-erp-v1.onrender.com/static/uploads/{filename}"}
+
+@router.post("/products/import")
+async def import_products(file: UploadFile = File(...)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx o .xls)")
+
+    # Save temporary file
+    temp_path = os.path.join(UPLOAD_DIR, f"import_{uuid.uuid4()}_{file.filename}")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    
+    try:
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Call seed service
+        from services.excel_service import seed_from_excel
+        seed_from_excel(temp_path)
+        
+        return {"status": "success", "message": "Productos importados correctamente"}
+    except Exception as e:
+        logger.error(f"Error importing excel: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar el Excel: {str(e)}")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
