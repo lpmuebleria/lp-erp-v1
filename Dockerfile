@@ -1,5 +1,5 @@
-# Use official Python image
-FROM python:3.11-slim
+# Use official Python image (stable Bookworm version)
+FROM python:3.11-slim-bookworm
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -8,6 +8,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Full system dependencies for WeasyPrint and MySQL
+# Using stable package names for Debian Bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
