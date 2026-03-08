@@ -126,6 +126,7 @@ class RoleCreate(BaseModel):
 class RolePermissionUpdate(BaseModel):
     modulo: str
     can_view: bool
+    sub_permissions: Optional[dict] = None
 
 class RolePermissionBulk(BaseModel):
     permissions: List[RolePermissionUpdate]

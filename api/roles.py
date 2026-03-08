@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
+import json
 from database import db
 from schemas import RoleCreate, RolePermissionBulk
 
@@ -19,8 +20,19 @@ def get_roles(request: Request):
         
         # Load permissions block for each
         for r in roles:
-            cur.execute("SELECT modulo, can_view FROM role_permissions WHERE role_id=%s", (r["id"],))
-            r["permissions"] = cur.fetchall()
+            cur.execute("SELECT modulo, can_view, sub_permissions FROM role_permissions WHERE role_id=%s", (r["id"],))
+            perms = cur.fetchall()
+            # parse json sub_permissions
+            for p in perms:
+                p["can_view"] = bool(p["can_view"])
+                if p["sub_permissions"]:
+                    try:
+                        p["sub_permissions"] = json.loads(p["sub_permissions"])
+                    except:
+                        p["sub_permissions"] = {}
+                else:
+                    p["sub_permissions"] = {}
+            r["permissions"] = perms
             
         return roles
     finally:
@@ -39,11 +51,11 @@ def create_role(request: Request, role: RoleCreate):
         cur.execute("INSERT INTO roles (nombre, is_superadmin) VALUES (%s, %s)", (role.nombre.strip(), role.is_superadmin))
         new_id = cur.lastrowid
         
-        # Default all modules to hidden for a safety-first approach
+        # Default all modules to hidden for a safety-first approach with empty sub_permissions
         modulos = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda"]
         for mod in modulos:
             cur.execute(
-                "INSERT INTO role_permissions (role_id, modulo, can_view) VALUES (%s, %s, %s)", 
+                "INSERT INTO role_permissions (role_id, modulo, can_view, sub_permissions) VALUES (%s, %s, %s, '{}')", 
                 (new_id, mod, False)
             )
             
@@ -72,14 +84,21 @@ def update_role_permissions(request: Request, role_id: int, data: RolePermission
             
         # Iterate and update each given permission
         for p in data.permissions:
+            # Prepare json string if given
+            sub_perms_str = json.dumps(p.sub_permissions) if p.sub_permissions is not None else '{}'
+            
             # Upsert mechanic logic for permissions
             cur.execute("SELECT id FROM role_permissions WHERE role_id=%s AND modulo=%s", (role_id, p.modulo))
             ext = cur.fetchone()
             if ext:
-                cur.execute("UPDATE role_permissions SET can_view=%s WHERE id=%s", (p.can_view, ext["id"]))
+                # If sub_permissions was explicitly passed, update it, otherwise preserve existing
+                if p.sub_permissions is not None:
+                    cur.execute("UPDATE role_permissions SET can_view=%s, sub_permissions=%s WHERE id=%s", (p.can_view, sub_perms_str, ext["id"]))
+                else:
+                    cur.execute("UPDATE role_permissions SET can_view=%s WHERE id=%s", (p.can_view, ext["id"]))
             else:
-                cur.execute("INSERT INTO role_permissions (role_id, modulo, can_view) VALUES (%s, %s, %s)", 
-                            (role_id, p.modulo, p.can_view))
+                cur.execute("INSERT INTO role_permissions (role_id, modulo, can_view, sub_permissions) VALUES (%s, %s, %s, %s)", 
+                            (role_id, p.modulo, p.can_view, sub_perms_str))
 
         conn.commit()
         return {"status": "success", "message": "Matriz de permisos actualizada"}

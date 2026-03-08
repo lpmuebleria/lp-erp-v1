@@ -60,6 +60,15 @@ function Dashboard({ onConceptClick }) {
         }
     };
 
+    const hasFinancialAccess = () => {
+        const auth = JSON.parse(localStorage.getItem('lp_erp_auth'));
+        if (!auth) return false;
+        if (auth.is_superadmin) return true;
+
+        // Check if dashboard sub_permissions exists and view_financials is true
+        return auth.permissions?.dashboard?.sub_permissions?.view_financials === true;
+    };
+
     if (loading) {
         return (
             <div className="h-96 flex items-center justify-center">
@@ -202,13 +211,24 @@ function Dashboard({ onConceptClick }) {
                     icon={<TrendingUp className="text-green-400" size={24} />}
                     color="green"
                 />
-                <StatCard
-                    title="Utilidad Estimada"
-                    value={`$${(metrics?.utilidad_bruta_mes || 0).toLocaleString()}`}
-                    trend="+8.2%"
-                    icon={<ArrowUpRight className="text-blue-400" size={24} />}
-                    color="blue"
-                />
+
+                {hasFinancialAccess() ? (
+                    <StatCard
+                        title="Utilidad Estimada"
+                        value={`$${(metrics?.utilidad_bruta_mes || 0).toLocaleString()}`}
+                        trend="+8.2%"
+                        icon={<ArrowUpRight className="text-blue-400" size={24} />}
+                        color="blue"
+                    />
+                ) : (
+                    <StatCard
+                        title="Artículos Vendidos"
+                        value={metrics?.pedidos_por_estatus?.["Aprobado"] || 0}
+                        icon={<Package className="text-blue-400" size={24} />}
+                        color="blue"
+                    />
+                )}
+
                 <StatCard
                     title="Ventas de Hoy"
                     value={`$${(metrics?.ventas_hoy || 0).toLocaleString()}`}
@@ -246,7 +266,7 @@ function Dashboard({ onConceptClick }) {
 
                 {/* Team / Actions */}
                 <div className="space-y-6">
-                    {metrics?.bolsas_mes && (
+                    {metrics?.bolsas_mes && hasFinancialAccess() && (
                         <div className="bg-premium-slate/40 backdrop-blur-md rounded-[2.5rem] p-8 border border-white/5 shadow-2xl">
                             <h4 className="text-sm font-black text-slate-500 uppercase tracking-[4px] mb-6 text-center">Acumulado Mensual</h4>
                             <div className="space-y-4">
@@ -273,34 +293,36 @@ function Dashboard({ onConceptClick }) {
                         </div>
                     )}
 
-                    <div className="bg-premium-slate/40 backdrop-blur-md rounded-[2.5rem] p-10 border border-white/5 shadow-2xl flex flex-col justify-center text-center">
-                        <div className="w-16 h-16 bg-premium-gold/10 rounded-2xl mx-auto mb-6 flex items-center justify-center border border-premium-gold/20">
-                            <Users className="text-premium-gold" size={28} />
-                        </div>
-                        <h4 className="text-lg font-black text-white mb-2">Reportes Financieros</h4>
-                        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-8 italic">Desempeño y Flujo de Caja</p>
+                    {hasFinancialAccess() && (
+                        <div className="bg-premium-slate/40 backdrop-blur-md rounded-[2.5rem] p-10 border border-white/5 shadow-2xl flex flex-col justify-center text-center">
+                            <div className="w-16 h-16 bg-premium-gold/10 rounded-2xl mx-auto mb-6 flex items-center justify-center border border-premium-gold/20">
+                                <Users className="text-premium-gold" size={28} />
+                            </div>
+                            <h4 className="text-lg font-black text-white mb-2">Reportes Financieros</h4>
+                            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mb-8 italic">Desempeño y Flujo de Caja</p>
 
-                        <div className="space-y-3">
-                            <button
-                                onClick={() => setShowReportModal(true)}
-                                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white flex items-center justify-center gap-2">
-                                <FileSpreadsheet size={16} />
-                                Actividad de Equipo (Operativo)
-                            </button>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => setShowReportModal(true)}
+                                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white flex items-center justify-center gap-2">
+                                    <FileSpreadsheet size={16} />
+                                    Actividad de Equipo (Operativo)
+                                </button>
 
-                            <button
-                                onClick={() => setShowCashFlowModal(true)}
-                                className="w-full bg-premium-gold/10 hover:bg-premium-gold/20 border border-premium-gold/30 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-premium-gold hover:text-yellow-400 flex items-center justify-center gap-2">
-                                <Wallet size={16} />
-                                Flujo de Caja (Corte y Bancos)
-                            </button>
+                                <button
+                                    onClick={() => setShowCashFlowModal(true)}
+                                    className="w-full bg-premium-gold/10 hover:bg-premium-gold/20 border border-premium-gold/30 rounded-2xl py-4 transition-all text-[10px] font-black uppercase tracking-widest text-premium-gold hover:text-yellow-400 flex items-center justify-center gap-2">
+                                    <Wallet size={16} />
+                                    Flujo de Caja (Corte y Bancos)
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
             {/* Report Modal */}
-            {showReportModal && (
+            {showReportModal && hasFinancialAccess() && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-[#0f172a] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-8">

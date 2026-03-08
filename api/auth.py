@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Form
+import json
 from database import db
 from schemas import LoginRequest
 from security import verify_password
@@ -40,14 +41,22 @@ def login(request: Request, login_data: LoginRequest):
             }
         elif u["role_id"]:
             # Fetch custom matrix
-            cur.execute("SELECT modulo, can_view FROM role_permissions WHERE role_id=%s", (u["role_id"],))
+            cur.execute("SELECT modulo, can_view, sub_permissions FROM role_permissions WHERE role_id=%s", (u["role_id"],))
             perms = cur.fetchall()
             for p in perms:
+                sub_perms = {}
+                if p["sub_permissions"]:
+                    try:
+                        sub_perms = json.loads(p["sub_permissions"])
+                    except:
+                        pass
+                
                 permissions[p["modulo"]] = {
-                    "can_view": bool(p["can_view"])
+                    "can_view": bool(p["can_view"]),
+                    "sub_permissions": sub_perms
                 }
             # Hardcode settings off for non-superadmins just in case
-            permissions["settings"] = {"can_view": False}
+            permissions["settings"] = {"can_view": False, "sub_permissions": {}}
         else:
             # Fallback legacy safety
             permissions = {

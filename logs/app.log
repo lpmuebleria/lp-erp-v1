@@ -1120,3 +1120,13 @@ mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'o.referen
 2026-03-08 10:16:26 - lp_erp - INFO - ✅ Database connection pool created.
 2026-03-08 10:16:43 - lp_erp - INFO - 🚀 Logging system initialized.
 2026-03-08 10:16:43 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 15:07:38 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 15:07:38 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 15:12:25 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 15:12:25 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 15:12:28 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 15:12:28 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 15:14:31 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 15:14:32 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 15:14:34 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 15:14:34 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined

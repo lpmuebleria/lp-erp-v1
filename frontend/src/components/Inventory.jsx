@@ -15,7 +15,19 @@ function Inventory({ role, isSuperadmin }) {
     const [editingProduct, setEditingProduct] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
 
-    const isAdmin = isSuperadmin || role === 'admin';
+    const checkEditAccess = () => {
+        if (isSuperadmin) return true;
+
+        try {
+            const auth = JSON.parse(localStorage.getItem('lp_erp_auth'));
+            if (!auth) return false;
+            return auth.permissions?.inventory?.sub_permissions?.edit_products === true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    const hasEditAccess = checkEditAccess();
 
     useEffect(() => {
         fetchProducts();
@@ -50,8 +62,8 @@ function Inventory({ role, isSuperadmin }) {
                 </div>
                 <div className="flex items-center space-x-4 text-slate-400 text-sm">
                     <span>{products.length} productos encontrados</span>
-                    {isAdmin && (
-                        <div className="flex space-x-3">
+                    <div className="flex space-x-3">
+                        {hasEditAccess && (
                             <button
                                 onClick={() => setShowImportModal(true)}
                                 className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
@@ -59,13 +71,15 @@ function Inventory({ role, isSuperadmin }) {
                                 <Upload size={16} />
                                 <span>Importar Excel</span>
                             </button>
-                            <button
-                                onClick={() => setShowCatalogModal(true)}
-                                className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
-                            >
-                                <FileText size={16} />
-                                <span>Generar Catálogo PDF</span>
-                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowCatalogModal(true)}
+                            className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
+                        >
+                            <FileText size={16} />
+                            <span>Generar Catálogo PDF</span>
+                        </button>
+                        {hasEditAccess && (
                             <button
                                 onClick={() => setShowModal(true)}
                                 className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
@@ -73,8 +87,8 @@ function Inventory({ role, isSuperadmin }) {
                                 <Plus size={16} />
                                 <span>Nuevo Producto</span>
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -138,7 +152,7 @@ function Inventory({ role, isSuperadmin }) {
                         <ProductCard
                             key={product.id}
                             product={product}
-                            isAdmin={isAdmin}
+                            hasEditAccess={hasEditAccess}
                             onToggleCatalog={async () => {
                                 try {
                                     await axios.put(`${API_URL}/products/${product.id}`, {
@@ -167,7 +181,7 @@ function Inventory({ role, isSuperadmin }) {
     );
 }
 
-function ProductCard({ product, isAdmin, onEdit, onToggleCatalog }) {
+function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
     const isLowStock = product.stock <= 2;
     const [showPreview, setShowPreview] = useState(false);
 
@@ -186,7 +200,7 @@ function ProductCard({ product, isAdmin, onEdit, onToggleCatalog }) {
                             <h4 className="text-lg font-bold text-white group-hover:text-premium-gold transition-colors line-clamp-1">{product.modelo}</h4>
                         </div>
                         <div className="flex items-center space-x-2">
-                            {isAdmin && (
+                            {hasEditAccess && (
                                 <button
                                     onClick={onToggleCatalog}
                                     className={`p-2 rounded-lg transition-colors border ${product.in_catalog === 1 ? 'bg-premium-gold/20 text-premium-gold border-premium-gold/50' : 'bg-black/30 text-slate-500 border-white/10'}`}
@@ -205,7 +219,7 @@ function ProductCard({ product, isAdmin, onEdit, onToggleCatalog }) {
                                     <ImageIcon size={18} />
                                 </button>
                             )}
-                            {isAdmin && (
+                            {hasEditAccess && (
                                 <button
                                     onClick={onEdit}
                                     className="p-2 bg-premium-gold text-black rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"

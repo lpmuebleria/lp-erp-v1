@@ -26,10 +26,22 @@ function UsersAdmin() {
 
     const [newRole, setNewRole] = useState({ nombre: '' });
 
-    // Modulos del sistema hardcoded to map against matrix
+    // Modulos del sistema with their advanced sub-permissions
     const modulos = [
-        { id: 'dashboard', label: 'Dashboard' },
-        { id: 'inventory', label: 'Inventario' },
+        {
+            id: 'dashboard',
+            label: 'Dashboard',
+            sub: [
+                { id: 'view_financials', label: 'Ver Utilidades y Dinero' }
+            ]
+        },
+        {
+            id: 'inventory',
+            label: 'Inventario',
+            sub: [
+                { id: 'edit_products', label: 'Editar Precios y Productos' }
+            ]
+        },
         { id: 'sales', label: 'Ventas de Mostrador' },
         { id: 'orders', label: 'Gestión de Pedidos' },
         { id: 'quotes', label: 'Cotizaciones' },
@@ -161,7 +173,7 @@ function UsersAdmin() {
         }
     };
 
-    const togglePermission = async (roleId, modulo, currentVal) => {
+    const togglePermission = async (roleId, modulo, subId = null) => {
         // Find role, ensure it's not superadmin
         const role = roles.find(r => r.id === roleId);
         if (role?.is_superadmin) {
@@ -169,15 +181,43 @@ function UsersAdmin() {
             return;
         }
 
+        // Keep a copy of the exact permission state to send to backend
+        let pToPersist = { modulo, can_view: false, sub_permissions: {} };
+
         // Optimistic UI update
         setRoles(roles.map(r => {
             if (r.id === roleId) {
                 const newPerms = [...r.permissions];
                 const pIdx = newPerms.findIndex(p => p.modulo === modulo);
+
                 if (pIdx >= 0) {
-                    newPerms[pIdx] = { ...newPerms[pIdx], can_view: !currentVal };
+                    const currentPerm = { ...newPerms[pIdx] };
+                    if (!currentPerm.sub_permissions) currentPerm.sub_permissions = {};
+
+                    if (subId) {
+                        // Toggling a sub-permission
+                        currentPerm.sub_permissions[subId] = !currentPerm.sub_permissions[subId];
+                        // If turning ON a sub-permission, forcefully turn ON the main module
+                        if (currentPerm.sub_permissions[subId]) {
+                            currentPerm.can_view = true;
+                        }
+                    } else {
+                        // Toggling the main module
+                        currentPerm.can_view = !currentPerm.can_view;
+                        // Optional: Could cascade false to sub-permissions here, but leaving them intact is fine
+                    }
+
+                    newPerms[pIdx] = currentPerm;
+                    pToPersist = currentPerm;
                 } else {
-                    newPerms.push({ modulo, can_view: !currentVal });
+                    // Creating new permission entry
+                    const newPerm = { modulo, can_view: !subId, sub_permissions: {} };
+                    if (subId) {
+                        newPerm.sub_permissions[subId] = true;
+                        newPerm.can_view = true; // Implicitly grant main access
+                    }
+                    newPerms.push(newPerm);
+                    pToPersist = newPerm;
                 }
                 return { ...r, permissions: newPerms };
             }
@@ -187,11 +227,12 @@ function UsersAdmin() {
         // Fire API request silently
         try {
             await axios.put(`${API_URL}/roles/${roleId}/permissions`, {
-                permissions: [{ modulo, can_view: !currentVal }]
+                permissions: [pToPersist]
             }, { withCredentials: true });
         } catch (err) {
             console.error("Error toggling permission", err);
-            // Revert on fail if needed...
+            toast.error("Error al guardar permiso en el servidor");
+            fetchData(); // Rollback UI if failed
         }
     };
 
@@ -357,34 +398,65 @@ function UsersAdmin() {
                             </thead>
                             <tbody>
                                 {modulos.map(m => (
-                                    <tr key={m.id} className="hover:bg-white/[0.02] border-b border-white/5 transition-colors">
-                                        <td className="p-4 text-sm font-bold text-slate-300 sticky left-0 bg-premium-slate/90 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                                            {m.label}
-                                        </td>
+                                    <React.Fragment key={m.id}>
+                                        {/* Main Module Row */}
+                                        <tr className="hover:bg-white/[0.02] border-b border-white/5 transition-colors">
+                                            <td className="p-4 text-sm font-bold text-slate-300 sticky left-0 bg-premium-slate/90 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                                {m.label}
+                                            </td>
 
-                                        {roles.map(r => {
-                                            // Check current status in role permissions array
-                                            const pEntry = r.permissions?.find(p => p.modulo === m.id);
-                                            // Superadmins have implicit TRUE
-                                            const canView = r.is_superadmin ? true : (pEntry?.can_view ? true : false);
+                                            {roles.map(r => {
+                                                const pEntry = r.permissions?.find(p => p.modulo === m.id);
+                                                const canView = r.is_superadmin ? true : (pEntry?.can_view ? true : false);
 
-                                            return (
-                                                <td key={`${r.id}-${m.id}`} className="p-4 border-l border-white/5 text-center">
-                                                    <button
-                                                        disabled={r.is_superadmin}
-                                                        onClick={() => togglePermission(r.id, m.id, canView)}
-                                                        className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-all ${canView
-                                                            ? (r.is_superadmin ? 'bg-premium-gold/20 text-premium-gold cursor-not-allowed' : 'bg-green-500/20 text-green-400 hover:bg-green-500/40')
-                                                            : 'bg-white/5 text-slate-600 hover:bg-white/10 hover:text-white'
-                                                            }`}
-                                                        title={r.is_superadmin ? 'Acceso inamovible' : 'Clic para alternar'}
-                                                    >
-                                                        {canView ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
-                                                    </button>
+                                                return (
+                                                    <td key={`${r.id}-${m.id}`} className="p-4 border-l border-white/5 text-center">
+                                                        <button
+                                                            disabled={r.is_superadmin}
+                                                            onClick={() => togglePermission(r.id, m.id)}
+                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-all ${canView
+                                                                ? (r.is_superadmin ? 'bg-premium-gold/20 text-premium-gold cursor-not-allowed' : 'bg-green-500/20 text-green-400 hover:bg-green-500/40')
+                                                                : 'bg-white/5 text-slate-600 hover:bg-white/10 hover:text-white'
+                                                                }`}
+                                                            title={r.is_superadmin ? 'Acceso inamovible' : 'Clic para alternar Módulo Completo'}
+                                                        >
+                                                            {canView ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
+                                                        </button>
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+
+                                        {/* Nested Sub-Permissions */}
+                                        {m.sub && m.sub.map(sub => (
+                                            <tr key={sub.id} className="bg-black/10 border-b border-white/5">
+                                                <td className="py-2 px-4 pl-12 text-[11px] font-medium text-slate-400 sticky left-0 bg-premium-slate/90 shadow-[2px_0_5px_rgba(0,0,0,0.5)] border-l-2 border-premium-gold/30">
+                                                    ↳ {sub.label}
                                                 </td>
-                                            );
-                                        })}
-                                    </tr>
+                                                {roles.map(r => {
+                                                    const pEntry = r.permissions?.find(p => p.modulo === m.id);
+                                                    const subPerms = pEntry?.sub_permissions || {};
+                                                    const canViewSub = r.is_superadmin ? true : !!subPerms[sub.id];
+
+                                                    return (
+                                                        <td key={`${r.id}-${m.id}-${sub.id}`} className="py-2 px-4 border-l border-white/5 text-center">
+                                                            <button
+                                                                disabled={r.is_superadmin}
+                                                                onClick={() => togglePermission(r.id, m.id, sub.id)}
+                                                                className={`w-6 h-6 rounded flex items-center justify-center mx-auto transition-all ${canViewSub
+                                                                    ? (r.is_superadmin ? 'bg-premium-gold/10 text-premium-gold/50 cursor-not-allowed' : 'bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/30')
+                                                                    : 'bg-white/5 border border-white/10 text-slate-600 hover:text-white hover:border-white/30'
+                                                                    }`}
+                                                                title={r.is_superadmin ? 'Acceso inamovible' : 'Clic para alternar Sub-permiso'}
+                                                            >
+                                                                {canViewSub ? <Check size={12} strokeWidth={4} /> : null}
+                                                            </button>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
