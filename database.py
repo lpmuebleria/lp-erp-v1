@@ -280,7 +280,7 @@ def _migrate(cur):
     if not col_exists(cur, "products", "garantias"):
         cur.execute("ALTER TABLE products ADD COLUMN garantias REAL NOT NULL DEFAULT 0")
     if not col_exists(cur, "products", "utilidad_nivel"):
-        cur.execute("ALTER TABLE products ADD COLUMN utilidad_nivel TEXT NOT NULL DEFAULT 'media'")
+        cur.execute("ALTER TABLE products ADD COLUMN utilidad_nivel VARCHAR(255) NOT NULL DEFAULT 'media'")
     if not col_exists(cur, "products", "imagen_url"):
         cur.execute("ALTER TABLE products ADD COLUMN imagen_url TEXT")
     if not col_exists(cur, "products", "costo_fabrica"):
@@ -312,7 +312,7 @@ def _migrate(cur):
     if not col_exists(cur, "orders", "apartado_liberado"):
         cur.execute("ALTER TABLE orders ADD COLUMN apartado_liberado INTEGER NOT NULL DEFAULT 0")
     if not col_exists(cur, "orders", "nota"):
-        cur.execute("ALTER TABLE orders ADD COLUMN nota TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE orders ADD COLUMN nota VARCHAR(1000) NOT NULL DEFAULT ''")
     if not col_exists(cur, "orders", "estatus_solicitado"):
         cur.execute("ALTER TABLE orders ADD COLUMN estatus_solicitado VARCHAR(255) NOT NULL DEFAULT ''")
     if not col_exists(cur, "orders", "entrega_promesa"):
