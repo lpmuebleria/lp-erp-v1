@@ -662,7 +662,7 @@ function Sales({ vendedor }) {
                             {status === 'APARTADO' && (
                                 <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex items-center justify-between">
                                     <span className="text-xs text-yellow-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Anticipo min: 30%</span>
-                                    <span className="text-[10px] text-yellow-400 font-black uppercase bg-yellow-500/20 px-2 py-1 rounded">Límite: 30 Días</span>
+                                    <span className="text-[10px] text-yellow-400 font-black uppercase bg-yellow-500/20 px-2 py-1 rounded">Límite: 3 Meses (6 Quincenas)</span>
                                 </div>
                             )}
 
@@ -687,8 +687,13 @@ function Sales({ vendedor }) {
                                             </div>
                                         )}
                                         {(status === 'PEDIDO_FABRICACION' || status === 'APARTADO') && (
-                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
-                                                Mínimo Requerido: <span className="text-white">${(total * 0.30).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (30%)
+                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2 flex flex-col gap-1">
+                                                <span>Mínimo Requerido: <span className="text-white">${(total * 0.30).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (30%)</span>
+                                                {status === 'APARTADO' && payment.monto >= (total * 0.30) && payment.monto < total && (
+                                                    <span className="text-yellow-400 bg-yellow-400/10 inline-block px-2 py-1 mt-1 rounded text-xs">
+                                                        Pago Quincenal Sugerido (6 pagos): <span className="text-white">${((total - payment.monto) / 6).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>

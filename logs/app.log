@@ -1130,3 +1130,36 @@ mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'o.referen
 2026-03-08 15:14:32 - lp_erp - INFO - ✅ Database connection pool created.
 2026-03-08 15:14:34 - lp_erp - INFO - ✅ Database initialized successfully.
 2026-03-08 15:14:34 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 16:07:44 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 16:07:44 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 16:07:46 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 16:07:46 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 16:17:44 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 16:17:44 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 16:17:45 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 16:17:45 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 16:26:33 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 16:26:34 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 16:26:35 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 16:26:35 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 16:27:40 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 16:27:41 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 16:27:42 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 16:27:42 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 17:36:39 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 17:36:39 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 17:36:41 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 17:36:41 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 17:46:36 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 17:46:37 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 17:46:39 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 17:46:39 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 17:46:39 - lp_erp - ERROR - ❌ Pool exhausted or connection error: Failed getting connection; pool exhausted
+2026-03-08 18:11:42 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 18:11:42 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 18:11:44 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 18:11:44 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined
+2026-03-08 18:44:38 - lp_erp - INFO - 🚀 Logging system initialized.
+2026-03-08 18:44:39 - lp_erp - INFO - ✅ Database connection pool created.
+2026-03-08 18:44:41 - lp_erp - INFO - ✅ Database initialized successfully.
+2026-03-08 18:44:42 - lp_erp - ERROR - ❌ Seeding from Excel failed: name 'os' is not defined

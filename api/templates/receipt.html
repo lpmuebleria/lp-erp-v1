@@ -318,8 +318,22 @@
         <p>Los precios en esta {{ 'cotización' if status == 'COTIZACION' else 'nota' }} pueden estar sujetos a cambios
             sin previo aviso.</p>
         {% if status == 'APARTADO' %}
-        <p><strong>Nota Apartado:</strong> Tiene usted 30 días para liquidar el saldo total de este apartado o perderá
-            su anticipo según nuestras políticas.</p>
+        <div
+            style="font-size: 10px; text-align: justify; margin-top: 10px; padding: 5px; border: 1px solid #eee; background-color: #fdfbf7;">
+            <p style="margin: 0 0 4px 0;"><strong>Condiciones de Apartado (3 Meses / 6 Quincenas):</strong></p>
+            <ul style="margin: 0; padding-left: 15px; color: #444;">
+                <li>Su saldo restante podrá ser cubierto mediante pagos sugeridos de <strong>${{
+                        "{:,.2f}".format(pago_quincenal) }}</strong>.</li>
+                <li>Las fechas límite para abonar son los días <strong>2 y 17</strong> de cada mes. <strong>(Primer
+                        corte: {{ primer_pago_fecha }})</strong></li>
+                <li><strong style="color: #d00;">Importante:</strong> Los pagos extemporáneos generarán un cargo por
+                    penalización automática de <strong>$200.00 MXN</strong>.</li>
+                <li><strong>Entrega:</strong> El artículo de exhibición está sujeto a venta al público y disponibilidad.
+                    En caso de venderse, su mueble se enviará a Fabricación y se entregará totalmente nuevo a más tardar
+                    2 semanas posteriores a su liquidación. De mantenerse disponible al momento de liquidar, se
+                    entregará la pieza física apartada.</li>
+            </ul>
+        </div>
         {% endif %}
         {% if status == 'PEDIDO_FABRICACION' %}
         <p><strong>Nota Fabricación:</strong> El tiempo estimado de fabricación es de 25 días hábiles a partir de la

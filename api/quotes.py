@@ -210,10 +210,7 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 for ln in lines:
                     cur.execute("UPDATE products SET stock = stock - %s WHERE id = %s AND stock >= %s", (ln.get("cantidad"), ln.get("product_id"), ln.get("cantidad")))
 
-            # 7) If it's APARTADO, deduct stock but no delivery scheduling yet
-            if tipo_pedido == "APARTADO":
-                for ln in lines:
-                    cur.execute("UPDATE products SET stock = stock - %s WHERE id = %s AND stock >= %s", (ln.get("cantidad"), ln.get("product_id"), ln.get("cantidad")))
+            # 7) APARTADO: No stock deduction here. The user confirmed Apartados do not deduct stock.
 
 
             # 8) Notify admin
@@ -429,6 +426,19 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "factura_metodo_pago": order_info.get("factura_metodo_pago") or "",
                 "factura_forma_pago": order_info.get("factura_forma_pago") or ""
             }
+
+            if tipo == "APARTADO":
+                import datetime
+                doc_date = order_info["created_at"].date() if isinstance(order_info["created_at"], datetime.datetime) else datetime.datetime.strptime(str(order_info["created_at"])[:10], '%Y-%m-%d').date()
+                if doc_date.day <= 15:
+                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                    primer_pago = next_month.replace(day=2)
+                else:
+                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                    primer_pago = next_month.replace(day=17)
+                context["primer_pago_fecha"] = primer_pago.strftime('%d/%m/%Y')
+                context["pago_quincenal"] = round(order_info["saldo"] / 6, 2)
+
         # Use the isolated PDF service
         pdf = generate_receipt_pdf(context)
         
