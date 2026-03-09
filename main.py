@@ -32,11 +32,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Detect if we are in production
+is_prod = os.getenv("RENDER", "false").lower() == "true" or os.getenv("PROD", "false").lower() == "true"
+
 app.add_middleware(
     SessionMiddleware, 
     secret_key=os.getenv("SECRET_KEY", "LP-ERP-FALLBACK-SECRET-REPLACE-IN-PROD"),
     max_age=14 * 24 * 60 * 60, # 14 days
-    same_site="lax"
+    same_site="none" if is_prod else "lax",
+    https_only=is_prod
 )
 
 from fastapi.exceptions import RequestValidationError

@@ -5,7 +5,7 @@ from mysql.connector import Error
 from security import hash_password
 from fastapi import HTTPException
 
-load_dotenv()
+load_dotenv(override=True)
 
 # --- MySQL Connection Config ---
 MYSQL_CONFIG = {
