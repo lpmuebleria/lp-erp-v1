@@ -37,3 +37,6 @@ frontend/.env*
 # IDEs
 .vscode/
 .idea/
+
+# Logs
+logs/
