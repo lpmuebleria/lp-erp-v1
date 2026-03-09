@@ -50,7 +50,9 @@ def login(request: Request, login_data: LoginRequest):
                         sub_perms = json.loads(p["sub_permissions"])
                     except:
                         pass
-                
+                permissions[p["modulo"]] = {
+                    "can_view": bool(p["can_view"]),
+                    "sub_permissions": sub_perms
                 }
         else:
             # Fallback legacy safety
