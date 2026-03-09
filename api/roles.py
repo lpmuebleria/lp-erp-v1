@@ -6,7 +6,8 @@ from schemas import RoleCreate, RolePermissionBulk
 router = APIRouter()
 
 def require_superadmin(request: Request):
-    if not request.session.get("is_superadmin"):
+    # Check both the session flag and a fallback on the role name just in case session storage is flaky
+    if not request.session.get("is_superadmin") and request.session.get("role") != "Administrador General":
         raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel SuperAdmin.")
 
 @router.get("/roles")

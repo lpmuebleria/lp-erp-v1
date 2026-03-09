@@ -40,6 +40,13 @@ app.add_middleware(
     https_only=True
 )
 
+@app.middleware("http")
+async def force_https_scheme(request: Request, call_next):
+    # Ensure scheme is detected correctly behind Render proxy for Session Cookies
+    if request.headers.get("x-forwarded-proto") == "https":
+        request.scope["scheme"] = "https"
+    return await call_next(request)
+
 from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
 from starlette.requests import Request
