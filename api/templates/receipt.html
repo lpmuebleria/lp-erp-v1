@@ -7,7 +7,7 @@
     <style>
         @page {
             size: letter;
-            margin: 25mm 10mm 30mm 10mm;
+            margin: 15mm 10mm 15mm 10mm;
 
             @top-center {
                 content: element(compact_header);
@@ -19,7 +19,7 @@
         }
 
         @page :first {
-            margin-top: 35mm;
+            margin-top: 20mm;
 
             @top-center {
                 content: element(full_header);
@@ -77,21 +77,21 @@
         .totals {
             text-align: right;
             font-weight: bold;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
         }
 
         .totals p {
-            margin: 5px 0;
+            margin: 2px 0;
         }
 
         .footer {
             position: running(footer);
             width: 100%;
             border-top: 1px solid #eee;
-            padding-top: 15px;
+            padding-top: 5px;
             text-align: center;
             color: #777;
-            font-size: 11px;
+            font-size: 10px;
         }
 
         .gold {
@@ -303,7 +303,7 @@
         {% endif %}
 
         {% if status != 'COTIZACION' %}
-        <div style="margin-top: 60px; text-align: center;">
+        <div style="margin-top: 15px; text-align: center;">
             <div style="display: inline-block; width: 250px; border-top: 1px solid #000; padding-top: 5px;">
                 <p style="margin: 0; font-size: 12px; font-weight: bold;">Recibí de Conformidad</p>
                 <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">{{ cliente_nombre }}</p>
@@ -319,8 +319,8 @@
             sin previo aviso.</p>
         {% if status == 'APARTADO' %}
         <div
-            style="font-size: 10px; text-align: justify; margin-top: 10px; padding: 5px; border: 1px solid #eee; background-color: #fdfbf7;">
-            <p style="margin: 0 0 4px 0;"><strong>Condiciones de Apartado (3 Meses / 6 Quincenas):</strong></p>
+            style="font-size: 9px; text-align: justify; margin-top: 5px; padding: 3px 5px; border: 1px solid #eee; background-color: #fdfbf7;">
+            <p style="margin: 0 0 2px 0;"><strong>Condiciones de Apartado (3 Meses / 6 Quincenas):</strong></p>
             <ul style="margin: 0; padding-left: 15px; color: #444;">
                 <li>Su saldo restante podrá ser cubierto mediante pagos sugeridos de <strong>${{
                         "{:,.2f}".format(pago_quincenal) }}</strong>.</li>
