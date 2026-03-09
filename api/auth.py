@@ -51,12 +51,7 @@ def login(request: Request, login_data: LoginRequest):
                     except:
                         pass
                 
-                permissions[p["modulo"]] = {
-                    "can_view": bool(p["can_view"]),
-                    "sub_permissions": sub_perms
                 }
-            # Hardcode settings off for non-superadmins just in case
-            permissions["settings"] = {"can_view": False, "sub_permissions": {}}
         else:
             # Fallback legacy safety
             permissions = {

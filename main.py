@@ -36,7 +36,8 @@ app.add_middleware(
     SessionMiddleware, 
     secret_key=os.getenv("SECRET_KEY", "LP-ERP-FALLBACK-SECRET-REPLACE-IN-PROD"),
     max_age=14 * 24 * 60 * 60, # 14 days
-    same_site="lax"
+    same_site="none",
+    https_only=True
 )
 
 from fastapi.exceptions import RequestValidationError
