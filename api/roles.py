@@ -6,9 +6,31 @@ from schemas import RoleCreate, RolePermissionBulk
 router = APIRouter()
 
 def require_superadmin(request: Request):
-    # Check both the session flag and a fallback on the role name just in case session storage is flaky
-    if not request.session.get("is_superadmin") and request.session.get("role") != "Administrador General":
-        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel SuperAdmin.")
+    # 1. Try Session (Standard)
+    if request.session.get("is_superadmin") or request.session.get("role") == "Administrador General":
+        return
+
+    # 2. Try Header Fallback (for cross-domain environments like Vercel/Render where cookies are often blocked)
+    user_id = request.headers.get("x-user-id")
+    if user_id:
+        conn = db()
+        cur = conn.cursor(dictionary=True)
+        try:
+            cur.execute("""
+                SELECT r.is_superadmin, r.nombre 
+                FROM users u 
+                JOIN roles r ON u.role_id = r.id 
+                WHERE u.username=%s
+            """, (user_id,))
+            u = cur.fetchone()
+            if u and (u["is_superadmin"] or u["nombre"] == "Administrador General"):
+                request.session["is_superadmin"] = True
+                request.session["role"] = u["nombre"]
+                return
+        finally:
+            conn.close()
+
+    raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel SuperAdmin.")
 
 @router.get("/roles")
 def get_roles(request: Request):
