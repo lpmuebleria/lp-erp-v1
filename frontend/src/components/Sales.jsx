@@ -682,7 +682,12 @@ function Sales({ vendedor }) {
                                         </div>
                                         {status === 'VENTA_STOCK' && (
                                             <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
-                                                Mínimo Requerido: <span className="text-white">${(baseTotal + ivaAmount).toLocaleString()}</span> (Mueble)
+                                                Mínimo Requerido: <span className="text-white">${(baseTotal + ivaAmount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (Mueble)
+                                            </div>
+                                        )}
+                                        {(status === 'PEDIDO_FABRICACION' || status === 'APARTADO') && (
+                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
+                                                Mínimo Requerido: <span className="text-white">${(total * 0.30).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (30%)
                                             </div>
                                         )}
                                     </div>
