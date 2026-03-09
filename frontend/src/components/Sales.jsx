@@ -234,7 +234,8 @@ function Sales({ vendedor }) {
         const payload = {
             folio: `${prefix}-${Date.now()}`,
             vendedor,
-            total: baseTotal, // Backend adds IVA if requested
+            total: baseTotal,
+            iva_amount: ivaAmount,
             status: status === 'COTIZACION' ? 'COTIZACION' : 'REGISTRADO',
             tipo: status,
             cliente_nombre: customer.nombre,

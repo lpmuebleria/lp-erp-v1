@@ -61,13 +61,10 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
     cur = conn.cursor(dictionary=True)
     
     try:
-        # Calculate IVA if facturation is requested
-        iva_amount = 0.0
+        # Use frontend-provided amounts to avoid rounding/logic mis-matches
         total = float(data.get("total", 0))
         costo_envio = float(data.get("costo_envio", 0))
-        
-        if data.get("requiere_factura"):
-            iva_amount = round(total * 0.16, 2)
+        iva_amount = float(data.get("iva_amount", 0))
         
         final_total = total + iva_amount + costo_envio
 
