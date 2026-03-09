@@ -53,7 +53,7 @@ def create_role(request: Request, role: RoleCreate):
         new_id = cur.lastrowid
         
         # Default all modules to hidden for a safety-first approach with empty sub_permissions
-        modulos = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda", "settings"]
+        modulos = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda"]
         for mod in modulos:
             cur.execute(
                 "INSERT INTO role_permissions (role_id, modulo, can_view, sub_permissions) VALUES (%s, %s, %s, '{}')", 

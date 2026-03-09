@@ -7,7 +7,7 @@
     <style>
         @page {
             size: letter;
-            margin: 25mm 10mm 30mm 10mm;
+            margin: 15mm 10mm 15mm 10mm;
 
             @top-center {
                 content: element(compact_header);
@@ -19,7 +19,7 @@
         }
 
         @page :first {
-            margin-top: 35mm;
+            margin-top: 20mm;
 
             @top-center {
                 content: element(full_header);
@@ -77,21 +77,21 @@
         .totals {
             text-align: right;
             font-weight: bold;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
         }
 
         .totals p {
-            margin: 5px 0;
+            margin: 2px 0;
         }
 
         .footer {
             position: running(footer);
             width: 100%;
             border-top: 1px solid #eee;
-            padding-top: 15px;
+            padding-top: 5px;
             text-align: center;
             color: #777;
-            font-size: 11px;
+            font-size: 10px;
         }
 
         .gold {
@@ -247,19 +247,93 @@
                 <td style="text-align: right; font-size: 12px;">
                     <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado)
                         }}</p>
-                    <p style="margin: 2px 0;"><strong>Saldo Restante:</strong> ${{ "{:,.2f}".format(saldo) }}</p>
+                    <p style="margin: 2px 0; color: #d00;">
+                        <strong>
+                            Saldo Restante
+                            {% if status == 'VENTA_STOCK' and saldo == costo_envio and costo_envio > 0 %}
+                            (Envío Contra-entrega)
+                            {% endif %}:
+                        </strong> ${{ "{:,.2f}".format(saldo) }}
+                    </p>
                 </td>
             </tr>
         </table>
         {% endif %}
+
+        {% if calle_envio %}
+        <div
+            style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; text-align: left; font-size: 11px; border-radius: 5px;">
+            <p style="margin: 0 0 5px 0;"><strong style="color: #444; text-transform: uppercase;">📍 Dirección de
+                    Entrega</strong></p>
+            <p style="margin: 0; color: #555;">
+                <strong>Calle:</strong> {{ calle_envio }} #{{ numero_envio }}<br>
+                <strong>Colonia:</strong> {{ colonia_envio }} {% if cp_envio %} (CP: {{ cp_envio }}) {% endif %}<br>
+                <strong>Referencia:</strong> {{ referencia_envio }}<br>
+                {% if nota_envio %}
+                <strong style="color: #b8860b;">Notas / Horario:</strong> <span style="color: #b8860b;">{{ nota_envio
+                    }}</span>
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if factura_rfc %}
+        <div
+            style="margin-top: 15px; padding: 10px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 5px;">
+            <p style="margin: 0 0 5px 0;"><strong style="color: #004085; text-transform: uppercase;">📄 Datos de
+                    Facturación Requerida</strong></p>
+            <table style="width: 100%; border: none; font-size: 11px; color: #555;">
+                <tr>
+                    <td style="width: 50%; padding: 2px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
+                    <td style="width: 50%; padding: 2px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
+                    <td style="padding: 2px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
+                    <td style="padding: 2px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
+                </tr>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if status != 'COTIZACION' %}
+        <div style="margin-top: 15px; text-align: center;">
+            <div style="display: inline-block; width: 250px; border-top: 1px solid #000; padding-top: 5px;">
+                <p style="margin: 0; font-size: 12px; font-weight: bold;">Recibí de Conformidad</p>
+                <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">{{ cliente_nombre }}</p>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="footer">
+        <p style="font-weight: bold; color: #d00;">ESTE DOCUMENTO ES DE CARÁCTER INTERNO Y NO REPRESENTA UN COMPROBANTE
+            FISCAL.</p>
         <p>Los precios en esta {{ 'cotización' if status == 'COTIZACION' else 'nota' }} pueden estar sujetos a cambios
             sin previo aviso.</p>
         {% if status == 'APARTADO' %}
-        <p><strong>Nota Apartado:</strong> Tiene usted 30 días para liquidar el saldo total de este apartado o perderá
-            su anticipo según nuestras políticas.</p>
+        <div
+            style="font-size: 9px; text-align: justify; margin-top: 5px; padding: 3px 5px; border: 1px solid #eee; background-color: #fdfbf7;">
+            <p style="margin: 0 0 2px 0;"><strong>Condiciones de Apartado (3 Meses / 6 Quincenas):</strong></p>
+            <ul style="margin: 0; padding-left: 15px; color: #444;">
+                <li>Su saldo restante podrá ser cubierto mediante pagos sugeridos de <strong>${{
+                        "{:,.2f}".format(pago_quincenal) }}</strong>.</li>
+                <li>Las fechas límite para abonar son los días <strong>2 y 17</strong> de cada mes. <strong>(Primer
+                        corte: {{ primer_pago_fecha }})</strong></li>
+                <li><strong style="color: #d00;">Importante:</strong> Los pagos extemporáneos generarán un cargo por
+                    penalización automática de <strong>$200.00 MXN</strong>.</li>
+                <li><strong>Entrega:</strong> El artículo de exhibición está sujeto a venta al público y disponibilidad.
+                    En caso de venderse, su mueble se enviará a Fabricación y se entregará totalmente nuevo a más tardar
+                    2 semanas posteriores a su liquidación. De mantenerse disponible al momento de liquidar, se
+                    entregará la pieza física apartada.</li>
+            </ul>
+        </div>
         {% endif %}
         {% if status == 'PEDIDO_FABRICACION' %}
         <p><strong>Nota Fabricación:</strong> El tiempo estimado de fabricación es de 25 días hábiles a partir de la

@@ -5,7 +5,7 @@ from mysql.connector import Error
 from security import hash_password
 from fastapi import HTTPException
 
-load_dotenv()
+load_dotenv(override=True)
 
 # --- MySQL Connection Config ---
 MYSQL_CONFIG = {
@@ -16,6 +16,12 @@ MYSQL_CONFIG = {
     'port': int(os.getenv('DB_PORT', 3306)),
     'raise_on_warnings': False
 }
+
+# Auto-enable SSL for remote connections (Required for Aiven/Render DBs)
+if MYSQL_CONFIG['host'] not in ['localhost', '127.0.0.1']:
+    MYSQL_CONFIG['ssl_disabled'] = False
+    # Some providers might need allow_native_password for older tool compatibility
+    MYSQL_CONFIG['auth_plugin'] = 'mysql_native_password'
 
 from mysql.connector import pooling
 from logger_config import logger
@@ -105,6 +111,13 @@ def init_db():
                 total DECIMAL(15,2) NOT NULL,
                 notas TEXT,
                 status VARCHAR(100) NOT NULL DEFAULT 'COTIZACION',
+                cp_envio VARCHAR(20) DEFAULT NULL,
+                costo_envio DECIMAL(15,2) DEFAULT NULL,
+                calle_envio TEXT,
+                numero_envio VARCHAR(100),
+                colonia_envio TEXT,
+                referencia_envio TEXT,
+                nota_envio TEXT,
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
             """CREATE TABLE IF NOT EXISTS quote_lines(
@@ -134,6 +147,13 @@ def init_db():
                 entrega_estimada TEXT NOT NULL,
                 tipo VARCHAR(100) NOT NULL DEFAULT 'VENTA_STOCK',
                 nota TEXT NOT NULL,
+                cp_envio VARCHAR(20) DEFAULT NULL,
+                costo_envio DECIMAL(15,2) DEFAULT NULL,
+                calle_envio TEXT,
+                numero_envio VARCHAR(100),
+                colonia_envio TEXT,
+                referencia_envio TEXT,
+                nota_envio TEXT,
                 FOREIGN KEY(quote_id) REFERENCES quotes(id),
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
@@ -324,6 +344,16 @@ def _migrate(cur):
         cur.execute("ALTER TABLE quotes ADD COLUMN cp_envio VARCHAR(20) DEFAULT NULL")
     if not col_exists(cur, "quotes", "costo_envio"):
         cur.execute("ALTER TABLE quotes ADD COLUMN costo_envio DECIMAL(15,2) DEFAULT NULL")
+    if not col_exists(cur, "quotes", "calle_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN calle_envio TEXT")
+    if not col_exists(cur, "quotes", "numero_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN numero_envio VARCHAR(100)")
+    if not col_exists(cur, "quotes", "colonia_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN colonia_envio TEXT")
+    if not col_exists(cur, "quotes", "referencia_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN referencia_envio TEXT")
+    if not col_exists(cur, "quotes", "nota_envio"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN nota_envio TEXT")
 
     # orders
     if not col_exists(cur, "orders", "tipo"):
@@ -344,6 +374,16 @@ def _migrate(cur):
         cur.execute("ALTER TABLE orders ADD COLUMN cp_envio VARCHAR(20) DEFAULT NULL")
     if not col_exists(cur, "orders", "costo_envio"):
         cur.execute("ALTER TABLE orders ADD COLUMN costo_envio DECIMAL(15,2) DEFAULT NULL")
+    if not col_exists(cur, "orders", "calle_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN calle_envio TEXT")
+    if not col_exists(cur, "orders", "numero_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN numero_envio VARCHAR(100)")
+    if not col_exists(cur, "orders", "colonia_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN colonia_envio TEXT")
+    if not col_exists(cur, "orders", "referencia_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN referencia_envio TEXT")
+    if not col_exists(cur, "orders", "nota_envio"):
+        cur.execute("ALTER TABLE orders ADD COLUMN nota_envio TEXT")
     
     # Billing / Facturacion
     if not col_exists(cur, "orders", "factura_rfc"):

@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # Detect if we are in production
-is_prod = os.getenv("RENDER", "False") == "True" or os.getenv("PROD", "False") == "True"
+is_prod = os.getenv("RENDER", "false").lower() == "true" or os.getenv("PROD", "false").lower() == "true"
 
 app.add_middleware(
     SessionMiddleware, 
