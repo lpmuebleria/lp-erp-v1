@@ -17,6 +17,12 @@ MYSQL_CONFIG = {
     'raise_on_warnings': False
 }
 
+# Auto-enable SSL for remote connections (Required for Aiven/Render DBs)
+if MYSQL_CONFIG['host'] not in ['localhost', '127.0.0.1']:
+    MYSQL_CONFIG['ssl_disabled'] = False
+    # Some providers might need allow_native_password for older tool compatibility
+    MYSQL_CONFIG['auth_plugin'] = 'mysql_native_password'
+
 from mysql.connector import pooling
 from logger_config import logger
 
