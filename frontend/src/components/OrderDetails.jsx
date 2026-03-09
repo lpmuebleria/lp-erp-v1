@@ -460,6 +460,55 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
 
                 {/* Right Column: Accordion Panels */}
                 <div className="space-y-4">
+                    {/* 0. CONTROL DE APARTADO (Sólo si es APARTADO) */}
+                    {order.tipo === 'APARTADO' && (
+                        <CollapsibleCard
+                            id="apartado"
+                            title="Control de Apartado"
+                            icon={Calendar}
+                            preview={
+                                <p className="text-[10px] text-yellow-500 font-black uppercase tracking-widest">
+                                    Multas y Sugerencias
+                                </p>
+                            }
+                        >
+                            <div className="space-y-4 py-4">
+                                <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-400 font-black mb-1 tracking-widest">Cuota Quincenal Sugerida</p>
+                                        <p className="text-2xl font-black text-white font-mono">${(order.saldo > 0 ? order.saldo / 6 : 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                        <p className="text-[9px] text-slate-500 mt-1">Calculado sobre saldo actual dividido en 6 pagos base.</p>
+                                    </div>
+                                    <Calculator size={32} className="text-white/10" />
+                                </div>
+
+                                <div className="bg-red-500/10 border border-red-500/20 p-5 rounded-2xl">
+                                    <p className="text-sm font-black text-red-400 mb-2 flex items-center gap-2"><AlertCircle size={16} /> Penalización por Atraso</p>
+                                    <p className="text-xs text-slate-400 mb-4">Si el cliente no ha cubierto su abono después del día 2 o 17, aplica una multa automática de <strong>$200 MXN</strong>.</p>
+                                    <button
+                                        onClick={async () => {
+                                            if (window.confirm("¿Seguro que deseas aplicar $200 de multa por atraso? Esto se sumará a la deuda total.")) {
+                                                try {
+                                                    setUpdating(true);
+                                                    await axios.post(`${API_URL}/orders/${orderId}/penalty`);
+                                                    await fetchDetails();
+                                                    alert("Multa aplicada correctamente.");
+                                                } catch (err) {
+                                                    alert(err.response?.data?.detail || "Error al aplicar multa.");
+                                                } finally {
+                                                    setUpdating(false);
+                                                }
+                                            }
+                                        }}
+                                        disabled={updating || order.saldo <= 0}
+                                        className="bg-red-500 hover:bg-red-600 text-white text-xs font-black py-3 px-4 rounded-xl transition-all w-full flex justify-center items-center gap-2 disabled:opacity-50"
+                                    >
+                                        <AlertTriangle size={14} /> APLICAR MULTA DE $200
+                                    </button>
+                                </div>
+                            </div>
+                        </CollapsibleCard>
+                    )}
 
                     {/* 1. REGISTRO DE ABONOS */}
                     <CollapsibleCard

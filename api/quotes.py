@@ -61,18 +61,17 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
     cur = conn.cursor(dictionary=True)
     
     try:
-        # Calculate IVA if facturation is requested
-        iva_amount = 0.0
+        # Use frontend-provided amounts to avoid rounding/logic mis-matches
         total = float(data.get("total", 0))
-        if data.get("requiere_factura"):
-            iva_amount = round(total * 0.16, 2)
+        costo_envio = float(data.get("costo_envio", 0))
+        iva_amount = float(data.get("iva_amount", 0))
         
-        final_total = total + iva_amount
+        final_total = total + iva_amount + costo_envio
 
         # 1) Insert Quote
         cur.execute("""
-            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.get("folio", f"COT-{int(datetime.datetime.now().timestamp())}"),
             today_iso(),
@@ -84,7 +83,12 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             data.get("cliente_email"),
             data.get("descuento_global_val", 0),
             data.get("cp_envio"),
-            data.get("costo_envio", 0)
+            data.get("costo_envio", 0),
+            data.get("calle_envio"),
+            data.get("numero_envio"),
+            data.get("colonia_envio"),
+            data.get("referencia_envio"),
+            data.get("nota_envio")
         ))
         quote_id = cur.lastrowid
 
@@ -126,13 +130,26 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             # Default delivery date for non-stock
             entrega_estimada = data.get("entrega_fecha") if tipo_pedido == "VENTA_STOCK" else (datetime.date.today() + datetime.timedelta(days=FAB_DAYS_DEFAULT)).isoformat()
             
-            # Min deposit
-            min_deposit_pct = 0.30 if tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"] else float(DEPOSIT_PCT)
-            anticipo_req = round(final_total * min_deposit_pct, 2)
-            
+            # Extract costs for strict validation
+            costo_envio = float(data.get("costo_envio", 0))
             monto_pago = float(data.get("monto_pago", 0))
-            if monto_pago < anticipo_req and tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"]:
-                raise HTTPException(status_code=400, detail=f"El anticipo mínimo debe ser de ${anticipo_req:,.2f}")
+
+            if tipo_pedido == "VENTA_STOCK":
+                # Strict: The furniture must be paid 100% upfront
+                furniture_cost = final_total - costo_envio
+                if monto_pago < furniture_cost:
+                    raise HTTPException(status_code=400, detail=f"Venta de Stock requiere el pago total del mueble (${furniture_cost:,.2f}). Solo el envío puede quedar pendiente.")
+                if monto_pago > furniture_cost and monto_pago < final_total:
+                    raise HTTPException(status_code=400, detail=f"El envío a contra-entrega debe pagarse completo o dejarse pendiente completo. Montos válidos: ${furniture_cost:,.2f} o ${final_total:,.2f}")
+                
+                anticipo_req = furniture_cost
+            else:
+                # Min deposit for Fabrication and Layaway
+                min_deposit_pct = 0.30 if tipo_pedido in ["PEDIDO_FABRICACION", "APARTADO"] else float(DEPOSIT_PCT)
+                anticipo_req = round(final_total * min_deposit_pct, 2)
+                
+                if monto_pago < anticipo_req:
+                    raise HTTPException(status_code=400, detail=f"El anticipo mínimo debe ser de ${anticipo_req:,.2f}")
 
             # 4) Creates the Order with Billing Fields
             cur.execute("""
@@ -140,9 +157,9 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                     folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, 
                     estatus, entrega_estimada, tipo, nota, iva, 
                     factura_rfc, factura_razon, factura_cp, factura_regimen, factura_uso_cfdi, factura_metodo_pago, factura_forma_pago,
-                    cp_envio, costo_envio
+                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio
                 )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 folio_o,
                 today_iso(),
@@ -165,7 +182,12 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 data.get("factura_metodo_pago", ""),
                 data.get("factura_forma_pago", ""),
                 data.get("cp_envio"),
-                data.get("costo_envio", 0)
+                data.get("costo_envio", 0),
+                data.get("calle_envio"),
+                data.get("numero_envio"),
+                data.get("colonia_envio"),
+                data.get("referencia_envio"),
+                data.get("nota_envio")
             ))
             
             order_id = cur.lastrowid
@@ -188,10 +210,7 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 for ln in lines:
                     cur.execute("UPDATE products SET stock = stock - %s WHERE id = %s AND stock >= %s", (ln.get("cantidad"), ln.get("product_id"), ln.get("cantidad")))
 
-            # 7) If it's APARTADO, deduct stock but no delivery scheduling yet
-            if tipo_pedido == "APARTADO":
-                for ln in lines:
-                    cur.execute("UPDATE products SET stock = stock - %s WHERE id = %s AND stock >= %s", (ln.get("cantidad"), ln.get("product_id"), ln.get("cantidad")))
+            # 7) APARTADO: No stock deduction here. The user confirmed Apartados do not deduct stock.
 
 
             # 8) Notify admin
@@ -246,8 +265,8 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
 
         # 2) Create Order
         cur.execute("""
-            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             folio_o,
             today_iso(),
@@ -261,7 +280,12 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
             entrega,
             "VENTA_DIRECTA",
             q.get("cp_envio"),
-            q.get("costo_envio", 0)
+            q.get("costo_envio", 0),
+            q.get("calle_envio"),
+            q.get("numero_envio"),
+            q.get("colonia_envio"),
+            q.get("referencia_envio"),
+            q.get("nota_envio")
         ))
         order_id = cur.lastrowid
 
@@ -337,7 +361,12 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "sum_desc_manual": sum((l.get("descuento_val") or 0) for l in lines),
                 "descuento_global_val": q.get("descuento_global_val") or 0,
                 "total": q["total"],
-                "costo_envio": q.get("costo_envio") or 0
+                "costo_envio": q.get("costo_envio") or 0,
+                "calle_envio": q.get("calle_envio") or "",
+                "numero_envio": q.get("numero_envio") or "",
+                "colonia_envio": q.get("colonia_envio") or "",
+                "referencia_envio": q.get("referencia_envio") or "",
+                "nota_envio": q.get("nota_envio") or ""
             }
             
         else:
@@ -381,10 +410,35 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "descuento_global_val": parent_quote.get("descuento_global_val") or 0,
                 "total": order_info["total"],
                 "costo_envio": order_info.get("costo_envio") or 0,
+                "calle_envio": order_info.get("calle_envio") or "",
+                "numero_envio": order_info.get("numero_envio") or "",
+                "colonia_envio": order_info.get("colonia_envio") or "",
+                "referencia_envio": order_info.get("referencia_envio") or "",
+                "nota_envio": order_info.get("nota_envio") or "",
                 "anticipo_pagado": order_info["anticipo_pagado"],
                 "saldo": order_info["saldo"],
-                "entrega_estimada": order_info.get("entrega_estimada") or ""
+                "entrega_estimada": order_info.get("entrega_estimada") or "",
+                "factura_rfc": order_info.get("factura_rfc") or "",
+                "factura_razon": order_info.get("factura_razon") or "",
+                "factura_cp": order_info.get("factura_cp") or "",
+                "factura_regimen": order_info.get("factura_regimen") or "",
+                "factura_uso_cfdi": order_info.get("factura_uso_cfdi") or "",
+                "factura_metodo_pago": order_info.get("factura_metodo_pago") or "",
+                "factura_forma_pago": order_info.get("factura_forma_pago") or ""
             }
+
+            if tipo == "APARTADO":
+                import datetime
+                doc_date = order_info["created_at"].date() if isinstance(order_info["created_at"], datetime.datetime) else datetime.datetime.strptime(str(order_info["created_at"])[:10], '%Y-%m-%d').date()
+                if doc_date.day <= 15:
+                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                    primer_pago = next_month.replace(day=2)
+                else:
+                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                    primer_pago = next_month.replace(day=17)
+                context["primer_pago_fecha"] = primer_pago.strftime('%d/%m/%Y')
+                context["pago_quincenal"] = round(order_info["saldo"] / 6, 2)
+
         # Use the isolated PDF service
         pdf = generate_receipt_pdf(context)
         

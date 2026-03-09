@@ -54,6 +54,10 @@ function Sales({ vendedor }) {
         return saved ? JSON.parse(saved) : {
             cp: '',
             colonia: '',
+            calle: '',
+            numero: '',
+            referencia: '',
+            nota: '',
             costo: 0,
             isCustom: false,
             errorMsg: ''
@@ -214,10 +218,24 @@ function Sales({ vendedor }) {
             }
         }
 
+        // Venta de Stock strict validation
+        if (status === 'VENTA_STOCK') {
+            const furnitureCost = baseTotal + ivaAmount;
+            if (payment.monto < furnitureCost) {
+                setLoading(false);
+                return toast.error(`En Venta de Stock el mueble debe pagarse al 100% ($${furnitureCost.toLocaleString()}). Solo el envío puede quedar pendiente a contra-entrega.`);
+            }
+            if (payment.monto > furnitureCost && payment.monto < total) {
+                setLoading(false);
+                return toast.error(`El envío a contra-entrega no acepta abonos parciales. Paga $${furnitureCost.toLocaleString()} o el total exacto de $${total.toLocaleString()}`);
+            }
+        }
+
         const payload = {
             folio: `${prefix}-${Date.now()}`,
             vendedor,
-            total: baseTotal, // Backend adds IVA if requested
+            total: baseTotal,
+            iva_amount: ivaAmount,
             status: status === 'COTIZACION' ? 'COTIZACION' : 'REGISTRADO',
             tipo: status,
             cliente_nombre: customer.nombre,
@@ -229,11 +247,16 @@ function Sales({ vendedor }) {
             lines: cart,
             promo_id: selectedPromoId || null,
             descuento_global_val: descGlobalVal,
-            // Delivery
+            // Delivery & Shipping
             entrega_fecha: status === 'VENTA_STOCK' ? delivery.fecha : null,
             entrega_turno: status === 'VENTA_STOCK' ? delivery.turno : null,
             cp_envio: shipping.cp,
             costo_envio: parseFloat(shipping.costo) || 0,
+            calle_envio: shipping.calle,
+            numero_envio: shipping.numero,
+            colonia_envio: shipping.colonia,
+            referencia_envio: shipping.referencia,
+            nota_envio: shipping.nota,
             // Billing
             requiere_factura: billing.requiere_factura,
             factura_rfc: billing.rfc,
@@ -268,7 +291,7 @@ function Sales({ vendedor }) {
         if (confirm("¿Estás seguro de que deseas limpiar toda la información (carrito, cliente, envío, etc)?")) {
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
-            setShipping({ cp: '', colonia: '', costo: 0, isCustom: false, errorMsg: '' });
+            setShipping({ cp: '', colonia: '', calle: '', numero: '', referencia: '', nota: '', costo: 0, isCustom: false, errorMsg: '' });
             setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
             setBilling({
                 requiere_factura: false,
@@ -408,6 +431,50 @@ function Sales({ vendedor }) {
                                 className={`w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-8 text-sm text-white font-mono focus:outline-none focus:border-premium-gold/50 transition-all ${!shipping.isCustom && 'opacity-70 cursor-not-allowed'}`}
                             />
                         </div>
+                    </div>
+                </div>
+
+                {/* Additional Detailed Address Info */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                    <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Calle</label>
+                        <input
+                            type="text"
+                            value={shipping.calle}
+                            onChange={(e) => setShipping({ ...shipping, calle: e.target.value })}
+                            placeholder="Nombre de la calle..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Núm (Ext/Int)</label>
+                        <input
+                            type="text"
+                            value={shipping.numero}
+                            onChange={(e) => setShipping({ ...shipping, numero: e.target.value })}
+                            placeholder="Ej. 123 Int B"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1 md:col-span-4">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Referencia de Domicilio</label>
+                        <input
+                            type="text"
+                            value={shipping.referencia}
+                            onChange={(e) => setShipping({ ...shipping, referencia: e.target.value })}
+                            placeholder="Entre calles, color de casa, portón, etc..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold/50 transition-all"
+                        />
+                    </div>
+                    <div className="space-y-1 md:col-span-4">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black ml-2">Comentarios / Horarios Preferidos</label>
+                        <input
+                            type="text"
+                            value={shipping.nota}
+                            onChange={(e) => setShipping({ ...shipping, nota: e.target.value })}
+                            placeholder="Ej. El cliente solo puede recibir después de las 5PM..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-yellow-400 focus:outline-none focus:border-premium-gold/50 transition-all font-medium"
+                        />
                     </div>
                 </div>
                 {shipping.errorMsg && (
@@ -578,6 +645,13 @@ function Sales({ vendedor }) {
                             )}
 
                             {/* WARNING MESSAGES */}
+                            {status === 'VENTA_STOCK' && (
+                                <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between">
+                                    <span className="text-xs text-blue-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Mueble al 100%</span>
+                                    <span className="text-[10px] text-blue-400 font-black uppercase bg-blue-500/20 px-2 py-1 rounded">Envío a Contra-entrega</span>
+                                </div>
+                            )}
+
                             {status === 'PEDIDO_FABRICACION' && (
                                 <div className="bg-pink-500/10 border border-pink-500/30 p-4 rounded-xl flex items-center justify-between">
                                     <span className="text-xs text-pink-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Anticipo min: 30%</span>
@@ -588,7 +662,7 @@ function Sales({ vendedor }) {
                             {status === 'APARTADO' && (
                                 <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex items-center justify-between">
                                     <span className="text-xs text-yellow-300 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Anticipo min: 30%</span>
-                                    <span className="text-[10px] text-yellow-400 font-black uppercase bg-yellow-500/20 px-2 py-1 rounded">Límite: 30 Días</span>
+                                    <span className="text-[10px] text-yellow-400 font-black uppercase bg-yellow-500/20 px-2 py-1 rounded">Límite: 3 Meses (6 Quincenas)</span>
                                 </div>
                             )}
 
@@ -607,6 +681,21 @@ function Sales({ vendedor }) {
                                                 className="w-full bg-premium-gold/10 border border-premium-gold/30 rounded-xl p-3 pl-8 text-premium-gold font-black focus:outline-none focus:border-premium-gold shadow-highlight"
                                             />
                                         </div>
+                                        {status === 'VENTA_STOCK' && (
+                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
+                                                Mínimo Requerido: <span className="text-white">${(baseTotal + ivaAmount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (Mueble)
+                                            </div>
+                                        )}
+                                        {(status === 'PEDIDO_FABRICACION' || status === 'APARTADO') && (
+                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2 flex flex-col gap-1">
+                                                <span>Mínimo Requerido: <span className="text-white">${(total * 0.30).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (30%)</span>
+                                                {status === 'APARTADO' && payment.monto >= (total * 0.30) && payment.monto < total && (
+                                                    <span className="text-yellow-400 bg-yellow-400/10 inline-block px-2 py-1 mt-1 rounded text-xs">
+                                                        Pago Quincenal Sugerido (6 pagos): <span className="text-white">${((total - payment.monto) / 6).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-[10px] text-slate-500 uppercase font-black ml-2 tracking-widest">Método de Pago</label>
@@ -621,6 +710,17 @@ function Sales({ vendedor }) {
                                             <option value="credito">T. CRÉDITO</option>
                                         </select>
                                     </div>
+                                    {status === 'VENTA_STOCK' && payment.monto < total && payment.monto >= (baseTotal + ivaAmount) && shippingAmount > 0 && (
+                                        <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl animate-in fade-in duration-300">
+                                            <div className="flex items-center space-x-2 text-yellow-400 mb-1">
+                                                <MapPin size={14} />
+                                                <span className="text-xs font-black uppercase tracking-widest">Contra-entrega</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400">
+                                                Al dejar un saldo pendiente de <strong className="text-white">${(total - payment.monto).toLocaleString()}</strong>, este monto corresponde al envío y el cliente <strong>deberá liquidar en efectivo</strong> al recibir los muebles.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
                         </div>

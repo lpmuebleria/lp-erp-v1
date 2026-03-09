@@ -62,6 +62,11 @@ class QuoteBase(BaseModel):
     cliente_email: Optional[str] = None
     cp_envio: Optional[str] = None
     costo_envio: Optional[float] = 0.0
+    calle_envio: Optional[str] = None
+    numero_envio: Optional[str] = None
+    colonia_envio: Optional[str] = None
+    referencia_envio: Optional[str] = None
+    nota_envio: Optional[str] = None
     monto_pago: Optional[float] = 0
     metodo_pago: Optional[str] = 'efectivo'
     referencia: Optional[str] = ''

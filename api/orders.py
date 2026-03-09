@@ -344,3 +344,36 @@ def add_order_note(order_id: int, data: OrderNoteCreate):
     conn.close()
     return {"status": "success"}
 
+@router.post("/orders/{order_id}/penalty")
+async def apply_penalty(order_id: int, request: Request):
+    role = request.headers.get("X-Role", "vendedor")
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    
+    try:
+        cur.execute("SELECT total, saldo, folio, tipo FROM orders WHERE id=%s", (order_id,))
+        o = cur.fetchone()
+        if not o:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+        
+        if o["tipo"] != "APARTADO":
+            raise HTTPException(status_code=400, detail="Solo se pueden aplicar multas de quincena a pedidos de APARTADO.")
+
+        penalty_amount = 200.0
+        new_total = float(o["total"]) + penalty_amount
+        new_saldo = float(o["saldo"]) + penalty_amount
+
+        cur.execute("UPDATE orders SET total=%s, saldo=%s WHERE id=%s", (new_total, new_saldo, order_id))
+        
+        # Log this action
+        author = "Admin" if role == "admin" else "Vendedor"
+        cur.execute("INSERT INTO order_notes(order_id, author, content) VALUES (%s,%s,%s)", 
+                    (order_id, author, f"🔴 SE APLICÓ MULTA POR ATRASO EN QUINCENA: +$200.00 MXN. (Total anterior: ${o['total']}, Nuevo: ${new_total})"))
+        
+        conn.commit()
+        return {"msg": "Multa aplicada exitosamente"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
