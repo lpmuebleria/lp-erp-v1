@@ -17,7 +17,8 @@ import {
     Clock,
     FileSpreadsheet,
     MapPin,
-    AlertTriangle
+    AlertTriangle,
+    X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -40,8 +41,8 @@ function Sales({ vendedor }) {
     // Tab Types: COTIZACION, VENTA_STOCK, PEDIDO_FABRICACION, APARTADO
     const [status, setStatus] = useState('COTIZACION');
 
-    // Payment & Billing State
-    const [payment, setPayment] = useState({ monto: 0, metodo: 'efectivo', referencia: '' });
+    // Payment & Billing State (Multi-payment)
+    const [payments, setPayments] = useState([{ id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }]);
     const [billing, setBilling] = useState({
         requiere_factura: false,
         rfc: '', razon: '', cp: '', regimen: '', uso_cfdi: '',
@@ -127,7 +128,8 @@ function Sales({ vendedor }) {
                 cantidad: 1,
                 precio_unit: product.precio_lista,
                 total_linea: product.precio_lista,
-                descuento_manual: 0 // In dollars
+                descuento_manual: 0, // Absolute value
+                descuento_pct: 0 // Percentage value
             }]);
         }
         setSearchTerm('');
@@ -147,11 +149,20 @@ function Sales({ vendedor }) {
         ));
     };
 
-    const updateDiscount = (id, val) => {
-        const desc = parseFloat(val) || 0;
+    const updateDiscount = (id, val, unitPrice) => {
+        let pct = parseFloat(val) || 0;
+        
+        // Enforce 10% cap
+        if (pct > 10) {
+            pct = 10;
+            toast.error("El descuento máximo permitido es del 10%");
+        }
+
+        const absDesc = (unitPrice * pct) / 100;
+
         setCart(cart.map(item =>
             item.product_id === id
-                ? { ...item, descuento_manual: desc }
+                ? { ...item, descuento_pct: pct, descuento_manual: absDesc }
                 : item
         ));
     };
@@ -173,6 +184,18 @@ function Sales({ vendedor }) {
     const shippingAmount = parseFloat(shipping.costo) || 0;
     const ivaAmount = (billing.requiere_factura && !ivaAutomatico) ? baseTotal * 0.16 : 0;
     const total = baseTotal + shippingAmount + ivaAmount;
+
+    const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
+
+    // Change calculation (only if total paid > total and there is at least one cash payment)
+    const hasCash = payments.some(p => p.metodo === 'efectivo');
+    const cambio = (hasCash && totalPaid > total) ? (totalPaid - total) : 0;
+    const furnitureCost = baseTotal + ivaAmount;
+    const minDeposit = total * 0.30;
+    const requiredAmount = status === 'VENTA_STOCK' ? furnitureCost : minDeposit;
+
+    const saldoMuebles = Math.max(0, furnitureCost - totalPaid);
+    const saldoTotal = Math.max(0, total - totalPaid);
 
     // --- Actions ---
     const handleCpLookup = async () => {
@@ -209,25 +232,32 @@ function Sales({ vendedor }) {
         if (status === 'PEDIDO_FABRICACION') prefix = 'PF';
         if (status === 'APARTADO') prefix = 'APT';
 
-        // Min deposit validation
-        if (status === 'PEDIDO_FABRICACION' || status === 'APARTADO') {
-            const minDeposit = total * 0.30;
-            if (payment.monto < minDeposit) {
-                setLoading(false);
-                return toast.error(`El anticipo mínimo es del 30% ($${minDeposit.toLocaleString()})`);
-            }
-        }
+        // Payment validation logic
+        const nameType = status === 'VENTA_STOCK' ? 'el total del mueble' : 'el anticipo mínimo (30%)';
 
-        // Venta de Stock strict validation
-        if (status === 'VENTA_STOCK') {
-            const furnitureCost = baseTotal + ivaAmount;
-            if (payment.monto < furnitureCost) {
-                setLoading(false);
-                return toast.error(`En Venta de Stock el mueble debe pagarse al 100% ($${furnitureCost.toLocaleString()}). Solo el envío puede quedar pendiente a contra-entrega.`);
+        if (status !== 'COTIZACION') {
+            // Validate each payment
+            for (const p of payments) {
+                if (p.metodo !== 'efectivo' && p.monto > total) {
+                    setLoading(false);
+                    return toast.error(`El monto de ${p.metodo.toUpperCase()} no puede exceder el total.`);
+                }
             }
-            if (payment.monto > furnitureCost && payment.monto < total) {
+
+            // Cards/Transfer MUST match exactly what they say they are paying (no change/excess for them)
+            // But if they combine, they just need to reach the target.
+            // Actually, the user says "Tarjeta/Transfer exacto", meaning no change from those.
+            
+            if (totalPaid < requiredAmount - 0.01) {
                 setLoading(false);
-                return toast.error(`El envío a contra-entrega no acepta abonos parciales. Paga $${furnitureCost.toLocaleString()} o el total exacto de $${total.toLocaleString()}`);
+                return toast.error(`Monto insuficiente. Se requiere al menos ${nameType}: $${requiredAmount.toLocaleString()}`);
+            }
+
+            // If paying with card/transfer and totalPaid > total without enough cash to cover the excess
+            const nonCashTotal = payments.filter(p => p.metodo !== 'efectivo').reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
+            if (nonCashTotal > total) {
+                setLoading(false);
+                return toast.error("Los pagos con Tarjeta/Transferencia no pueden superar el total de la venta.");
             }
         }
 
@@ -238,12 +268,11 @@ function Sales({ vendedor }) {
             iva_amount: ivaAmount,
             status: status === 'COTIZACION' ? 'COTIZACION' : 'REGISTRADO',
             tipo: status,
-            cliente_nombre: customer.nombre,
             cliente_tel: customer.tel,
             cliente_email: customer.email,
-            monto_pago: status !== 'COTIZACION' ? payment.monto : 0,
-            metodo_pago: payment.metodo,
-            referencia: payment.referencia,
+            monto_pago: status !== 'COTIZACION' ? totalPaid : 0,
+            cambio: cambio,
+            payments: status !== 'COTIZACION' ? payments : [],
             lines: cart,
             promo_id: selectedPromoId || null,
             descuento_global_val: descGlobalVal,
@@ -274,7 +303,7 @@ function Sales({ vendedor }) {
             setSuccess({ folio: res.data.folio, id: res.data.id });
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
-            setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
+            setPayments([{ id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }]);
             setShipping({ cp: '', colonia: '', costo: 0, isCustom: false, errorMsg: '' });
             localStorage.removeItem('lp_erp_cart');
             localStorage.removeItem('lp_erp_customer');
@@ -292,7 +321,7 @@ function Sales({ vendedor }) {
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
             setShipping({ cp: '', colonia: '', calle: '', numero: '', referencia: '', nota: '', costo: 0, isCustom: false, errorMsg: '' });
-            setPayment({ monto: 0, metodo: 'efectivo', referencia: '' });
+            setPayments([{ id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }]);
             setBilling({
                 requiere_factura: false,
                 rfc: '', razon: '', cp: '', regimen: '', uso_cfdi: '',
@@ -545,7 +574,7 @@ function Sales({ vendedor }) {
                                         <th className="pb-3 px-2">Descripción</th>
                                         <th className="pb-3 px-2 w-20">Cant.</th>
                                         <th className="pb-3 px-2 text-right">Unitario</th>
-                                        {status === 'COTIZACION' && <th className="pb-3 px-2 text-right w-24">Desc. ($)</th>}
+                                        <th className="pb-3 px-2 text-right w-24">Desc. ($)</th>
                                         <th className="pb-3 px-2 text-right">Subtotal</th>
                                         <th className="pb-3 px-2 w-10"></th>
                                     </tr>
@@ -569,18 +598,21 @@ function Sales({ vendedor }) {
                                             <td className="py-4 px-2 text-right text-slate-400 font-mono">
                                                 ${item.precio_unit.toLocaleString()}
                                             </td>
-                                            {status === 'COTIZACION' && (
                                                 <td className="py-4 px-2 text-right">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="100"
-                                                        value={item.descuento_manual || 0}
-                                                        onChange={(e) => updateDiscount(item.product_id, e.target.value)}
-                                                        className="bg-red-500/10 border border-red-500/30 rounded-lg w-20 p-2 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
-                                                    />
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="10"
+                                                            step="1"
+                                                            title="Máximo 10% de descuento"
+                                                            value={item.descuento_pct || 0}
+                                                            onChange={(e) => updateDiscount(item.product_id, e.target.value, item.precio_unit)}
+                                                            className="bg-red-500/10 border border-red-500/30 rounded-lg w-16 p-2 pr-6 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
+                                                        />
+                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-red-400 opacity-70">%</span>
+                                                    </div>
                                                 </td>
-                                            )}
                                             <td className="py-4 px-2 text-right font-black text-premium-gold font-mono">
                                                 ${(item.total_linea - (item.descuento_manual * item.cantidad)).toLocaleString()}
                                             </td>
@@ -666,58 +698,146 @@ function Sales({ vendedor }) {
                                 </div>
                             )}
 
-                            {/* PAYMENT CONFIG */}
+                            {/* PAYMENT CONFIG (MULTIPLE) */}
                             <section className="bg-premium-slate/50 p-6 rounded-[30px] border border-white/5">
-                                <h4 className="text-sm font-black text-white uppercase mb-4 flex items-center"><Calculator size={16} className="mr-2 text-green-500" /> Registro de Pago</h4>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[10px] text-slate-500 uppercase font-black ml-2 tracking-widest">Anticipo / Monto Recibido</label>
-                                        <div className="relative mt-1">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-premium-gold font-black">$</span>
-                                            <input
-                                                type="number"
-                                                value={payment.monto}
-                                                onChange={(e) => setPayment({ ...payment, monto: parseFloat(e.target.value) || 0 })}
-                                                className="w-full bg-premium-gold/10 border border-premium-gold/30 rounded-xl p-3 pl-8 text-premium-gold font-black focus:outline-none focus:border-premium-gold shadow-highlight"
-                                            />
-                                        </div>
-                                        {status === 'VENTA_STOCK' && (
-                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2">
-                                                Mínimo Requerido: <span className="text-white">${(baseTotal + ivaAmount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (Mueble)
-                                            </div>
-                                        )}
-                                        {(status === 'PEDIDO_FABRICACION' || status === 'APARTADO') && (
-                                            <div className="mt-2 text-[10px] text-slate-400 font-bold ml-2 flex flex-col gap-1">
-                                                <span>Mínimo Requerido: <span className="text-white">${(total * 0.30).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> (30%)</span>
-                                                {status === 'APARTADO' && payment.monto >= (total * 0.30) && payment.monto < total && (
-                                                    <span className="text-yellow-400 bg-yellow-400/10 inline-block px-2 py-1 mt-1 rounded text-xs">
-                                                        Pago Quincenal Sugerido (6 pagos): <span className="text-white">${((total - payment.monto) / 6).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-slate-500 uppercase font-black ml-2 tracking-widest">Método de Pago</label>
-                                        <select
-                                            value={payment.metodo}
-                                            onChange={(e) => setPayment({ ...payment, metodo: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold appearance-none cursor-pointer font-bold mt-1"
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="text-sm font-black text-white uppercase flex items-center"><Calculator size={16} className="mr-2 text-green-500" /> Registro de Pago</h4>
+                                    {payments.length < 3 && (
+                                        <button 
+                                            onClick={() => setPayments([...payments, { id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }])}
+                                            className="text-[10px] bg-green-500/10 text-green-400 px-2 py-1 rounded-lg border border-green-500/20 hover:bg-green-500/20 transition-all font-black uppercase"
                                         >
-                                            <option value="efectivo">EFECTIVO</option>
-                                            <option value="transferencia">TRANSFERENCIA</option>
-                                            <option value="debito">T. DÉBITO</option>
-                                            <option value="credito">T. CRÉDITO</option>
-                                        </select>
+                                            + Agregar Pago
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    {payments.map((p, idx) => (
+                                        <div key={p.id} className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3 relative group/pay">
+                                            {payments.length > 1 && (
+                                                <button 
+                                                    onClick={() => setPayments(payments.filter(item => item.id !== p.id))}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/pay:opacity-100 transition-opacity shadow-lg"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[8px] text-slate-500 uppercase font-black ml-1 tracking-widest">Método</label>
+                                                    <select
+                                                        value={p.metodo}
+                                                        onChange={(e) => {
+                                                            const newPays = [...payments];
+                                                            newPays[idx].metodo = e.target.value;
+                                                            setPayments(newPays);
+                                                        }}
+                                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-premium-gold appearance-none cursor-pointer font-bold"
+                                                    >
+                                                        <option value="efectivo">EFECTIVO</option>
+                                                        <option value="transferencia">TRANSFERENCIA</option>
+                                                        <option value="debito">T. DÉBITO</option>
+                                                        <option value="credito">T. CRÉDITO</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[8px] text-slate-500 uppercase font-black ml-1 tracking-widest">Monto</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-premium-gold font-black text-xs">$</span>
+                                                        <input
+                                                            type="number"
+                                                            value={p.monto}
+                                                            onChange={(e) => {
+                                                                const newPays = [...payments];
+                                                                newPays[idx].monto = parseFloat(e.target.value) || 0;
+                                                                setPayments(newPays);
+                                                            }}
+                                                            className="w-full bg-premium-gold/5 border border-premium-gold/20 rounded-xl p-2 pl-5 text-xs text-premium-gold font-black focus:outline-none focus:border-premium-gold"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {p.metodo !== 'efectivo' && (
+                                                <input
+                                                    placeholder="Referencia / Últimos 4 dígitos..."
+                                                    value={p.referencia}
+                                                    onChange={(e) => {
+                                                        const newPays = [...payments];
+                                                        newPays[idx].referencia = e.target.value;
+                                                        setPayments(newPays);
+                                                    }}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-[10px] text-white focus:outline-none"
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    <div className="pt-2 border-t border-white/5 space-y-2">
+                                        {status === 'VENTA_STOCK' ? (
+                                            <>
+                                                <div className="flex justify-between items-center text-[10px] font-bold">
+                                                    <span className="text-slate-500 uppercase">Muebles:</span>
+                                                    <div className="text-right">
+                                                        <span className={totalPaid >= furnitureCost ? 'text-green-400' : 'text-red-400'}>
+                                                            ${totalPaid.toLocaleString()} / ${furnitureCost.toLocaleString()}
+                                                        </span>
+                                                        {saldoMuebles > 0 && <p className="text-[9px] text-red-500/70 font-mono">Faltan: ${saldoMuebles.toLocaleString()}</p>}
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[10px] font-bold pb-2 border-b border-white/5">
+                                                    <span className="text-slate-500 uppercase">Total c/Envío:</span>
+                                                    <div className="text-right">
+                                                        <span className={totalPaid >= total ? 'text-green-400' : 'text-slate-400'}>
+                                                            ${totalPaid.toLocaleString()} / ${total.toLocaleString()}
+                                                        </span>
+                                                        {saldoTotal > 0 && <p className="text-[9px] text-slate-500/70 font-mono">Faltan: ${saldoTotal.toLocaleString()}</p>}
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-1">
+                                                    {totalPaid >= total ? (
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 uppercase bg-green-400/10 px-3 py-1.5 rounded-lg border border-green-400/20">
+                                                            <CheckCircle2 size={12} /> LIQUIDADO TOTAL
+                                                        </span>
+                                                    ) : totalPaid >= furnitureCost ? (
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-black text-yellow-400 uppercase bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
+                                                            <MapPin size={12} /> MUEBLES LIQUIDADOS - ENVÍO PENDIENTE
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-black text-red-400 uppercase bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20">
+                                                            <AlertTriangle size={12} /> PENDIENTE DE LIQUIDAR MUEBLES
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                                                <span>TOTAL REGISTRADO:</span>
+                                                <span className={totalPaid >= requiredAmount ? 'text-green-400' : 'text-red-400'}>
+                                                    ${totalPaid.toLocaleString()} / ${total.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
-                                    {status === 'VENTA_STOCK' && payment.monto < total && payment.monto >= (baseTotal + ivaAmount) && shippingAmount > 0 && (
+                                    
+                                    {hasCash && cambio > 0 && (
+                                        <div className="mt-2 p-3 bg-green-500/20 border border-green-500/40 rounded-xl animate-in zoom-in duration-300">
+                                            <div className="flex justify-between items-center text-green-400">
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Cambio:</span>
+                                                <span className="text-lg font-mono font-black animate-pulse">${cambio.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {status === 'VENTA_STOCK' && totalPaid < total && totalPaid >= furnitureCost && shippingAmount > 0 && (
                                         <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl animate-in fade-in duration-300">
                                             <div className="flex items-center space-x-2 text-yellow-400 mb-1">
                                                 <MapPin size={14} />
-                                                <span className="text-xs font-black uppercase tracking-widest">Contra-entrega</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Contra-entrega</span>
                                             </div>
-                                            <p className="text-[10px] text-slate-400">
-                                                Al dejar un saldo pendiente de <strong className="text-white">${(total - payment.monto).toLocaleString()}</strong>, este monto corresponde al envío y el cliente <strong>deberá liquidar en efectivo</strong> al recibir los muebles.
+                                            <p className="text-[10px] text-slate-400 leading-tight">
+                                                Al dejar un saldo pendiente de <strong className="text-white">${(total - totalPaid).toLocaleString()}</strong> (costo de envío), el cliente deberá liquidar <strong>en efectivo</strong> al recibir.
                                             </p>
                                         </div>
                                     )}
@@ -778,10 +898,18 @@ function Sales({ vendedor }) {
                                 )}
 
                                 {shippingAmount > 0 && (
-                                    <div className="flex justify-between text-sm mb-2 text-blue-400">
-                                        <span>Envío a Domicilio</span>
-                                        <span className="font-mono">+ ${shippingAmount.toLocaleString()}</span>
-                                    </div>
+                                    <>
+                                        {status === 'VENTA_STOCK' && (
+                                            <div className="flex justify-between text-[11px] mb-2 text-slate-400 uppercase font-black border-t border-white/5 pt-2">
+                                                <span>Total Muebles</span>
+                                                <span className="font-mono">${furnitureCost.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between text-sm mb-2 text-blue-400">
+                                            <span>Envío a Domicilio</span>
+                                            <span className="font-mono">+ ${shippingAmount.toLocaleString()}</span>
+                                        </div>
+                                    </>
                                 )}
 
                                 {/* Organic IVA Switch */}

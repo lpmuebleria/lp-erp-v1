@@ -23,10 +23,58 @@ import {
     ChevronDown,
     ChevronUp,
     AlertTriangle,
-    XCircle
+    XCircle,
+    Calculator
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
+
+const TabButton = ({ active, onClick, label, disabled }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-full py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${active
+            ? 'bg-premium-gold text-black shadow-lg shadow-premium-gold/20 scale-[1.02]'
+            : 'bg-white/5 text-slate-500 hover:bg-white/10 hover:text-white border border-white/5'
+            } ${disabled ? 'opacity-30 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
+    >
+        {label}
+    </button>
+);
+
+const CollapsibleCard = ({ id, title, icon: Icon, children, preview, expandedSection, setExpandedSection }) => {
+    const isExpanded = expandedSection === id;
+    return (
+        <div className={`bg-premium-slate/30 border ${isExpanded ? 'border-premium-gold/30' : 'border-white/5'} rounded-[32px] overflow-hidden transition-all duration-500`}>
+            <button
+                onClick={() => setExpandedSection(isExpanded ? null : id)}
+                className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors"
+            >
+                <div className="flex items-center space-x-4">
+                    <div className={`p-3 rounded-2xl ${isExpanded ? 'bg-premium-gold/20 text-premium-gold' : 'bg-white/5 text-slate-400'}`}>
+                        <Icon size={24} />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter leading-none mb-1">{title}</h3>
+                        <div className="flex items-center space-x-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${isExpanded ? 'bg-premium-gold' : 'bg-slate-700'}`}></span>
+                            <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">{preview}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className={`text-slate-600 transition-transform duration-500 ${isExpanded ? 'rotate-180 text-premium-gold' : ''}`}>
+                    <ChevronDown size={24} />
+                </div>
+            </button>
+            {isExpanded && (
+                <div className="p-6 pt-0 border-t border-white/5 bg-black/20 animate-in slide-in-from-top-4 duration-500">
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+};
 
 function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
     const [order, setOrder] = useState(null);
@@ -57,6 +105,8 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
     const [payForm, setPayForm] = useState({ metodo: 'efectivo', monto: 0, referencia: '', efectivo_recibido: 0 });
     const [paying, setPaying] = useState(false);
 
+    const [error, setError] = useState(null);
+
     const isAdmin = isSuperadmin || role === 'admin';
 
     useEffect(() => {
@@ -65,21 +115,30 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
 
     const fetchDetails = async () => {
         try {
+            setLoading(true);
+            setError(null);
             const res = await axios.get(`${API_URL}/orders/${orderId}`);
             const nres = await axios.get(`${API_URL}/orders/${orderId}/notes`);
             const o = res.data.order;
+            
+            if (!o) {
+                setError("No se pudo cargar la información del pedido.");
+                return;
+            }
+
             setOrder(o);
-            setPayments(res.data.payments);
-            setLines(res.data.lines);
-            setNotes(nres.data);
+            setPayments(res.data.payments || []);
+            setLines(res.data.lines || []);
+            setNotes(nres.data || []);
             setEditForm({
-                estatus: o.estatus,
-                entrega_estimada: o.entrega_estimada,
-                entrega_promesa: o.entrega_promesa
+                estatus: o.estatus || '',
+                entrega_estimada: o.entrega_estimada || '',
+                entrega_promesa: o.entrega_promesa || ''
             });
-            setPayForm(prev => ({ ...prev, monto: o.saldo }));
+            setPayForm(prev => ({ ...prev, monto: o.saldo || 0 }));
         } catch (err) {
-            console.error(err);
+            console.error("Error fetching order details:", err);
+            setError(err.response?.data?.detail || "Ocurrió un error al cargar el pedido.");
         } finally {
             setLoading(false);
         }
@@ -174,42 +233,26 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
         }
     };
 
-    if (loading || !order) return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-premium-gold" size={40} /></div>;
+    if (loading) return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-premium-gold" size={40} /></div>;
 
-    const lockedMetodo = payments.length > 0 ? payments[payments.length - 1]?.metodo : null; // Get the most recent payment method or the first one, let's use the first one since requirements say "si el primer pago..." actually let's just use payments[0] wait, payments are sorted DESC in fetched query, so payments[payments.length - 1] is the first payment. Let's just use the locked method from ANY previous payment to be safe.
-    // Simpler: if there is any payment, lock to its method.
-    const lockedMethod = payments.length > 0 ? payments[0].metodo : null;
-
-    const CollapsibleCard = ({ id, title, icon: Icon, children, preview }) => {
-        const isExpanded = expandedSection === id;
-        return (
-            <div className={`bg-premium-slate rounded-[2.5rem] border transition-all duration-500 overflow-hidden shadow-2xl ${isExpanded ? 'border-premium-gold/30 bg-premium-gold/[0.02]' : 'border-white/10 hover:border-white/20'
-                }`}>
-                <button
-                    onClick={() => setExpandedSection(isExpanded ? null : id)}
-                    className="w-full text-left p-8 flex items-center justify-between group"
-                >
-                    <div className="flex items-center space-x-4">
-                        <div className={`p-3 rounded-2xl transition-all duration-500 ${isExpanded ? 'bg-premium-gold text-black rotate-3' : 'bg-white/5 text-premium-gold group-hover:scale-110'}`}>
-                            <Icon size={20} />
-                        </div>
-                        <div>
-                            <h3 className={`text-xl font-black uppercase tracking-tighter transition-colors ${isExpanded ? 'text-premium-gold' : 'text-white'}`}>{title}</h3>
-                            {!isExpanded && preview && <div className="animate-in fade-in slide-in-from-left-2 duration-500">{preview}</div>}
-                        </div>
-                    </div>
-                    <div className={`text-slate-600 transition-transform duration-500 ${isExpanded ? 'rotate-180 text-premium-gold' : ''}`}>
-                        <ChevronDown size={24} />
-                    </div>
-                </button>
-                <div className={`transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-                    <div className="p-8 pt-0 border-t border-white/5 bg-black/10">
-                        {children}
-                    </div>
-                </div>
+    if (error || !order) return (
+        <div className="h-64 flex flex-col items-center justify-center space-y-6">
+            <div className="p-6 bg-red-500/10 rounded-full">
+                <AlertTriangle className="text-red-500" size={48} />
             </div>
-        );
-    };
+            <div className="text-center">
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Error al Cargar</h3>
+                <p className="text-slate-500 mt-2 font-medium italic">{error || "No se encontró el pedido o la sesión expiró."}</p>
+            </div>
+            <button 
+                onClick={onBack}
+                className="bg-white/5 hover:bg-white/10 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-white/5"
+            >
+                VOLVER A LA LISTA
+            </button>
+        </div>
+    );
+
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-right-10 duration-700 pb-20">
@@ -463,14 +506,12 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                     {/* 0. CONTROL DE APARTADO (Sólo si es APARTADO) */}
                     {order.tipo === 'APARTADO' && (
                         <CollapsibleCard
-                            id="apartado"
-                            title="Control de Apartado"
-                            icon={Calendar}
-                            preview={
-                                <p className="text-[10px] text-yellow-500 font-black uppercase tracking-widest">
-                                    Multas y Sugerencias
-                                </p>
-                            }
+                            id="tracking"
+                            title="Seguimiento de Fabricación"
+                            icon={Package}
+                            expandedSection={expandedSection}
+                            setExpandedSection={setExpandedSection}
+                            preview={`Estatus actual: ${order.estatus_logistica}`}
                         >
                             <div className="space-y-4 py-4">
                                 <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex justify-between items-center">
@@ -514,7 +555,9 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                     <CollapsibleCard
                         id="abonos"
                         title="Registro de Abonos"
-                        icon={Plus}
+                        icon={Calculator}
+                        expandedSection={expandedSection}
+                        setExpandedSection={setExpandedSection}
                         preview={
                             <p className={`text-[10px] font-black uppercase tracking-widest ${order.saldo > 0 ? 'text-red-400' : 'text-slate-500'}`}>
                                 Pendiente: ${order.saldo.toLocaleString()}
@@ -522,23 +565,21 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                         }
                     >
                         <div className="space-y-6 py-4">
-                            <div className="grid grid-cols-2 gap-2">
-                                <TabButton
-                                    active={payForm.metodo === 'efectivo'}
-                                    onClick={() => { if (!lockedMethod || lockedMethod === 'efectivo') setPayForm({ ...payForm, metodo: 'efectivo' }) }}
-                                    label="Efectivo"
-                                    disabled={lockedMethod && lockedMethod !== 'efectivo'}
-                                />
-                                <TabButton
-                                    active={payForm.metodo === 'transferencia'}
-                                    onClick={() => { if (!lockedMethod || lockedMethod === 'transferencia') setPayForm({ ...payForm, metodo: 'transferencia' }) }}
-                                    label="Trf / Card"
-                                    disabled={lockedMethod && lockedMethod !== 'transferencia'}
-                                />
+                            <div>
+                                <label className="text-[9px] text-slate-500 uppercase font-black mb-1 block ml-2 tracking-widest">Monto por Liquidar</label>
+                                <div className="relative opacity-70">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">$</span>
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={order.saldo.toLocaleString()}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 pl-8 text-xl font-black text-slate-400 focus:outline-none cursor-not-allowed"
+                                    />
+                                </div>
                             </div>
 
                             <div>
-                                <label className="text-[9px] text-slate-500 uppercase font-black mb-1 block ml-2 tracking-widest">Monto a Pagar</label>
+                                <label className="text-[9px] text-premium-gold uppercase font-black mb-1 block ml-2 tracking-widest">Monto a Pagar</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-premium-gold font-black">$</span>
                                     <input
@@ -550,9 +591,23 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                 </div>
                             </div>
 
-                            {payForm.metodo === 'efectivo' && (
+                            <div>
+                                <label className="text-[9px] text-slate-500 uppercase font-black mb-1 block ml-2 tracking-widest">Método de Pago</label>
+                                <select
+                                    value={payForm.metodo}
+                                    onChange={(e) => setPayForm({ ...payForm, metodo: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white font-bold focus:outline-none focus:border-premium-gold transition-all appearance-none cursor-pointer"
+                                >
+                                    <option value="efectivo">EFECTIVO</option>
+                                    <option value="tarjeta de debito">TARJETA DE DÉBITO</option>
+                                    <option value="tarjeta de crédito">TARJETA DE CRÉDITO</option>
+                                    <option value="transferencia">TRANSFERENCIA</option>
+                                </select>
+                            </div>
+
+                            {payForm.metodo === 'efectivo' ? (
                                 <div className="animate-in fade-in duration-300">
-                                    <label className="text-[9px] text-slate-400 uppercase font-black mb-1 block ml-2 tracking-widest">Efectivo Recibido</label>
+                                    <label className="text-[9px] text-slate-400 uppercase font-black mb-1 block ml-2 tracking-widest">Efectivo Recibido (Cálculo de Cambio)</label>
                                     <input
                                         type="number"
                                         value={payForm.efectivo_recibido}
@@ -565,6 +620,17 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                             <span className="text-sm font-black text-green-400 font-mono">${(payForm.efectivo_recibido - payForm.monto).toLocaleString()}</span>
                                         </div>
                                     )}
+                                </div>
+                            ) : (
+                                <div className="animate-in fade-in duration-300">
+                                    <label className="text-[9px] text-slate-400 uppercase font-black mb-1 block ml-2 tracking-widest">Referencia / Comprobante</label>
+                                    <input
+                                        type="text"
+                                        value={payForm.referencia}
+                                        onChange={(e) => setPayForm({ ...payForm, referencia: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none font-bold"
+                                        placeholder="Número de operación..."
+                                    />
                                 </div>
                             )}
 
@@ -584,6 +650,8 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                         id="estado"
                         title="Estado y Fechas"
                         icon={FileText}
+                        expandedSection={expandedSection}
+                        setExpandedSection={setExpandedSection}
                         preview={
                             <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
                                 {order.estatus} • Promesa: {order.entrega_promesa || 'Pendiente'}
@@ -638,6 +706,8 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                         id="bitacora"
                         title="Bitácora"
                         icon={MessageSquare}
+                        expandedSection={expandedSection}
+                        setExpandedSection={setExpandedSection}
                         preview={
                             <p className="text-[10px] text-slate-500 font-bold italic truncate max-w-[200px]">
                                 {notes.length > 0 ? notes[0].content : 'Sin notas registradas'}
@@ -748,20 +818,6 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
     );
 }
 
-function TabButton({ active, onClick, label, disabled }) {
-    return (
-        <button
-            onClick={onClick}
-            disabled={disabled}
-            className={`py-4 rounded-2xl border text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${active
-                ? 'bg-white/10 border-white/20 text-white shadow-xl scale-[1.02]'
-                : 'bg-transparent border-white/5 text-slate-500 hover:text-slate-300'
-                } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
-        >
-            {label}
-        </button>
-    );
-}
 
 export default OrderDetails;
 

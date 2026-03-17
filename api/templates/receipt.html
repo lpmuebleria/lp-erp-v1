@@ -7,22 +7,27 @@
     <style>
         @page {
             size: letter;
-            margin: 15mm 10mm 15mm 10mm;
+            margin: 15mm 10mm 20mm 10mm;
 
             @top-center {
                 content: element(compact_header);
             }
 
             @bottom-center {
-                content: element(footer);
+                content: element(page_footer);
             }
         }
 
         @page :first {
-            margin-top: 20mm;
+            margin-top: 30mm;
+            margin-bottom: 20mm;
 
             @top-center {
                 content: element(full_header);
+            }
+
+            @bottom-center {
+                content: element(page_footer);
             }
         }
 
@@ -36,6 +41,7 @@
             position: running(full_header);
             width: 100%;
             border-bottom: 2px solid #D4AF37;
+            padding-top: 15px;
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
@@ -84,14 +90,26 @@
             margin: 2px 0;
         }
 
-        .footer {
-            position: running(footer);
+        .footer-running {
+            position: running(page_footer);
             width: 100%;
             border-top: 1px solid #eee;
             padding-top: 5px;
             text-align: center;
             color: #777;
             font-size: 10px;
+        }
+
+        .legal-footer {
+            width: 90%;
+            margin-left: 5%;
+            margin-top: 40px;
+            border-top: 1px solid #D4AF37;
+            padding-top: 10px;
+            text-align: center;
+            color: #777;
+            font-size: 10px;
+            page-break-inside: avoid;
         }
 
         .gold {
@@ -131,10 +149,33 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .page-number::after {
+            content: "Página " counter(page) " de " counter(pages);
+            font-size: 10px;
+            color: #777;
+        }
     </style>
 </head>
 
 <body>
+    <!-- Running Footer (Appears on every page) -->
+    <div class="footer-running">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 30%; text-align: left;">
+                    <span style="font-weight: bold;">LP Mueblería</span>
+                </td>
+                <td style="width: 40%; text-align: center;">
+                    <span class="page-number"></span>
+                </td>
+                <td style="width: 30%; text-align: right; color: #999;">
+                    ERP V1
+                </td>
+            </tr>
+        </table>
+    </div>
+
     <div class="full-header">
         <table style="width: 100%; border: none;">
             <tr>
@@ -167,9 +208,8 @@
         </table>
     </div>
     <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #777;">
-        <p>Blvd. Independencia 1234, Centro, Torreón, Coah.</p>
-        <p>Tel: (871) 123-4567 | WhatsApp: (871) 987-6543</p>
-    </div>
+        <p>Plaza Victoria Int. 7, Av. Paseo de la Victoria 503, Residencial Victoria. CP. 27054</p>
+        <p>Tel: (871) 123-4567 | WhatsApp: 8718784462</p>
     </div>
 
     <table class="info-table" style="width: 100%;">
@@ -196,7 +236,7 @@
                 <th style="width: 40%;">DESCRIPCIÓN</th>
                 <th style="width: 10%; text-align: center;">CANT.</th>
                 <th style="width: 15%; text-align: right;">PRECIO U.</th>
-                {% if status == 'COTIZACION' %}
+                {% if sum_desc_manual > 0 %}
                 <th style="width: 10%; text-align: right;">DESC.</th>
                 {% endif %}
                 <th style="width: 15%; text-align: right;">SUBTOTAL</th>
@@ -209,8 +249,13 @@
                 <td>{{ item.modelo }}</td>
                 <td style="text-align: center;">{{ item.cantidad }}</td>
                 <td style="text-align: right;">${{ "{:,.2f}".format(item.precio_unit) }}</td>
-                {% if status == 'COTIZACION' %}
-                <td style="text-align: right; color: red;">-${{ "{:,.2f}".format(item.descuento_val) }}</td>
+                {% if sum_desc_manual > 0 %}
+                <td style="text-align: right; color: red;">
+                    {% if item.descuento_val > 0 %}
+                    -${{ "{:,.2f}".format(item.descuento_val) }} 
+                    <div style="font-size: 8px; color: #999;">({{ "{:.0f}".format((item.descuento_val / item.precio_unit) * 100) }}%)</div>
+                    {% endif %}
+                </td>
                 {% endif %}
                 <td style="text-align: right; font-weight: bold;">${{ "{:,.2f}".format(item.total_linea) }}</td>
             </tr>
@@ -229,35 +274,73 @@
         <p style="font-size: 20px; border-top: 1px solid #ccc; padding-top: 5px; margin-top: 10px;">
             TOTAL: <span class="gold">${{ "{:,.2f}".format(total) }}</span>
         </p>
-        {% if costo_envio and costo_envio > 0 %}
-        <p style="font-size: 14px; color: #555; margin-top: 5px;">
-            Envío a Domicilio (Pago sólo en efectivo): <span style="font-weight:bold;">${{ "{:,.2f}".format(costo_envio)
-                }}</span>
+
+        {% if anticipo_pagado and anticipo_pagado > total %}
+        <p style="font-size: 16px; color: #2e7d32; font-weight: bold; margin-top: 10px; background: #e8f5e9; padding: 5px; border-radius: 5px; display: inline-block;">
+            CAMBIO: ${{ "{:,.2f}".format(anticipo_pagado - total) }}
+        </p>
+        {% endif %}
+
+        {% if saldo and saldo > 0 %}
+        <p style="font-size: 16px; color: #d32f2f; font-weight: bold; margin-top: 5px; background: #ffebee; padding: 5px; border-radius: 5px; display: inline-block;">
+            SALDO PENDIENTE: ${{ "{:,.2f}".format(saldo) }}
+            {% if status == 'VENTA_STOCK' and costo_envio and saldo <= costo_envio %}
+            <span style="font-size: 10px; display: block; color: #555;">(Liquidación de envío contra-entrega en efectivo)</span>
+            {% endif %}
         </p>
         {% endif %}
 
         {% if status != 'COTIZACION' %}
-        <table style="width: 100%; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">
-            <tr>
-                <td style="text-align: left; font-size: 12px;">
-                    {% if entrega_estimada %}
-                    <strong>Entrega Estimada:</strong> {{ entrega_estimada }}
-                    {% endif %}
-                </td>
-                <td style="text-align: right; font-size: 12px;">
-                    <p style="margin: 2px 0;"><strong>Anticipo / Pagado:</strong> ${{ "{:,.2f}".format(anticipo_pagado)
-                        }}</p>
-                    <p style="margin: 2px 0; color: #d00;">
-                        <strong>
-                            Saldo Restante
-                            {% if status == 'VENTA_STOCK' and saldo == costo_envio and costo_envio > 0 %}
-                            (Envío Contra-entrega)
-                            {% endif %}:
-                        </strong> ${{ "{:,.2f}".format(saldo) }}
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #444; letter-spacing: 0.5px;">Desglose de Pagos / Abonos:</p>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse; background-color: #fcfcfc;">
+                <tr style="background-color: #f4f4f4; color: #666; font-weight: bold; text-transform: uppercase; font-size: 9px;">
+                    <td style="padding: 4px 8px; border: 1px solid #eee;">Fecha</td>
+                    <td style="padding: 4px 8px; border: 1px solid #eee;">Método</td>
+                    <td style="padding: 4px 8px; border: 1px solid #eee;">Referencia</td>
+                    <td style="padding: 4px 8px; border: 1px solid #eee; text-align: right;">Monto</td>
+                </tr>
+                {% if payments %}
+                    {% for p in payments %}
+                    <tr>
+                        <td style="padding: 4px 8px; border: 1px solid #eee;">{{ p.fecha }}</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; text-transform: uppercase;">{{ p.metodo }}</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; color: #888;">{{ p.referencia if p.referencia else '-' }}</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; text-align: right; font-weight: bold;">${{ "{:,.2f}".format(p.monto) }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td style="padding: 4px 8px; border: 1px solid #eee;">{{ fecha }}</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; text-transform: uppercase;">{{ factura_metodo_pago or 'CONTADO' }}</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; color: #888;">-</td>
+                        <td style="padding: 4px 8px; border: 1px solid #eee; text-align: right; font-weight: bold;">${{ "{:,.2f}".format(anticipo_pagado) }}</td>
+                    </tr>
+                {% endif %}
+            </table>
+            
+            <table style="width: 100%; margin-top: 8px;">
+                <tr>
+                    <td style="text-align: left; font-size: 11px; color: #666;">
+                        {% if entrega_estimada %}
+                        <strong>Fecha Estimada:</strong> {{ entrega_estimada }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; font-size: 11px;">
+                        <p style="margin: 2px 0;"><strong>Total Abonado:</strong> <span style="color: #2e7d32;">${{ "{:,.2f}".format(anticipo_pagado) }}</span></p>
+                        <p style="margin: 2px 0;">
+                            <strong style="color: #d32f2f;">
+                                Saldo Pendiente
+                                {% if status == 'VENTA_STOCK' and saldo > 0 and saldo <= costo_envio %}
+                                (Envío COD)
+                                {% endif %}:
+                            </strong> 
+                            <span style="color: #d32f2f; font-weight: bold;">${{ "{:,.2f}".format(saldo) }}</span>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </div>
         {% endif %}
 
         {% if calle_envio %}
@@ -277,33 +360,53 @@
         </div>
         {% endif %}
 
+        {# Signature moved below photos #}
+    </div>
+
+    {% if prod_photos %}
+    <div style="margin-top: 15px; page-break-inside: avoid;">
+        <table style="width: 100%; border: none; table-layout: fixed;">
+            <tr>
+                {% for photo in prod_photos %}
+                <td style="padding: 5px; text-align: center; vertical-align: top;">
+                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 4px; background-color: #fafafa;">
+                        <img src="{{ photo }}" style="width: 100%; max-height: 120px; object-fit: contain; border-radius: 4px; display: block; margin: 0 auto;" />
+                        <p style="margin: 4px 0 0 0; font-size: 8px; color: #999; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">Foto Ilustrativa</p>
+                    </div>
+                </td>
+                {% endfor %}
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    {# Billing and Signature moved here to second page #}
+    <div style="page-break-inside: avoid;">
         {% if factura_rfc %}
-        <div
-            style="margin-top: 15px; padding: 10px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 5px;">
-            <p style="margin: 0 0 5px 0;"><strong style="color: #004085; text-transform: uppercase;">📄 Datos de
-                    Facturación Requerida</strong></p>
+        <div style="margin-top: 40px; padding: 20px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 8px; margin-bottom: 60px;">
+            <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #004085; text-transform: uppercase; border-bottom: 1px solid #dee2e6; padding-bottom: 5px;">📄 Datos de Facturación Requerida</p>
             <table style="width: 100%; border: none; font-size: 11px; color: #555;">
                 <tr>
-                    <td style="width: 50%; padding: 2px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
-                    <td style="width: 50%; padding: 2px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
+                    <td style="width: 50%; padding: 4px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
+                    <td style="width: 50%; padding: 4px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 2px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
+                    <td style="padding: 4px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 2px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
-                    <td style="padding: 2px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
+                    <td style="padding: 4px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
+                    <td style="padding: 4px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 2px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
-                    <td style="padding: 2px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
+                    <td style="padding: 4px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
+                    <td style="padding: 4px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
                 </tr>
             </table>
         </div>
         {% endif %}
 
         {% if status != 'COTIZACION' %}
-        <div style="margin-top: 15px; text-align: center;">
+        <div style="margin-top: 30px; text-align: center; margin-bottom: 120px;">
             <div style="display: inline-block; width: 250px; border-top: 1px solid #000; padding-top: 5px;">
                 <p style="margin: 0; font-size: 12px; font-weight: bold;">Recibí de Conformidad</p>
                 <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">{{ cliente_nombre }}</p>
@@ -312,53 +415,41 @@
         {% endif %}
     </div>
 
-    <div class="footer">
-        <p style="font-weight: bold; color: #d00;">ESTE DOCUMENTO ES DE CARÁCTER INTERNO Y NO REPRESENTA UN COMPROBANTE
-            FISCAL.</p>
-        <p>Los precios en esta {{ 'cotización' if status == 'COTIZACION' else 'nota' }} pueden estar sujetos a cambios
-            sin previo aviso.</p>
-        {% if status == 'APARTADO' %}
-        <div
-            style="font-size: 9px; text-align: justify; margin-top: 5px; padding: 3px 5px; border: 1px solid #eee; background-color: #fdfbf7;">
-            <p style="margin: 0 0 2px 0;"><strong>Condiciones de Apartado (3 Meses / 6 Quincenas):</strong></p>
-            <ul style="margin: 0; padding-left: 15px; color: #444;">
-                <li>Su saldo restante podrá ser cubierto mediante pagos sugeridos de <strong>${{
-                        "{:,.2f}".format(pago_quincenal) }}</strong>.</li>
-                <li>Las fechas límite para abonar son los días <strong>2 y 17</strong> de cada mes. <strong>(Primer
-                        corte: {{ primer_pago_fecha }})</strong></li>
-                <li><strong style="color: #d00;">Importante:</strong> Los pagos extemporáneos generarán un cargo por
-                    penalización automática de <strong>$200.00 MXN</strong>.</li>
-                <li><strong>Entrega:</strong> El artículo de exhibición está sujeto a venta al público y disponibilidad.
-                    En caso de venderse, su mueble se enviará a Fabricación y se entregará totalmente nuevo a más tardar
-                    2 semanas posteriores a su liquidación. De mantenerse disponible al momento de liquidar, se
-                    entregará la pieza física apartada.</li>
-            </ul>
+
+    <!-- Static Footer (Appears only at the end, at the bottom) -->
+    <div class="legal-footer">
+        <p style="font-weight: bold; color: #d00; font-size: 10px; margin-bottom: 5px;">ESTE DOCUMENTO ES DE CARÁCTER INTERNO Y NO REPRESENTA UN COMPROBANTE FISCAL.</p>
+        <div style="padding: 6px; border: 1px solid #eee; border-radius: 5px; background-color: #fcfcfc; margin-bottom: 8px;">
+            <p style="margin: 0 0 3px 0; font-size: 9px; font-weight: bold; text-transform: uppercase; color: #444; border-bottom: 1px solid #eee; padding-bottom: 2px;">📜 Términos y Condiciones</p>
+            <table style="width: 100%; font-size: 8px; color: #555; line-height: 1.2; border: none;">
+                <tr>
+                    <td style="vertical-align: top; padding-right: 10px;"><strong>1. ENTREGAS:</strong> Fecha estimada. Penalización doble si no hay nadie.</td>
+                    <td style="vertical-align: top; padding-right: 10px;"><strong>2. GARANTÍA:</strong> 3 meses defectos de fábrica.</td>
+                    <td style="vertical-align: top;"><strong>4. MANIOBRAS:</strong> No volados ni movimientos ajenos.</td>
+                </tr>
+                <tr>
+                    {% if status == 'PEDIDO_FABRICACION' %}
+                    <td style="vertical-align: top; padding-right: 10px;"><strong>3. CANCELACIONES:</strong> No reembolsables una vez iniciado.</td>
+                    {% endif %}
+                    <td style="vertical-align: top;" colspan="2"><strong>5. REVISIÓN:</strong> Firma de conformidad deslinda responsabilidad por daños físicos.</td>
+                </tr>
+            </table>
         </div>
-        {% endif %}
-        {% if status == 'PEDIDO_FABRICACION' %}
-        <p><strong>Nota Fabricación:</strong> El tiempo estimado de fabricación es de 25 días hábiles a partir de la
-            confirmación de su anticipo.</p>
-        {% endif %}
 
-        <p style="margin: 10px 0 5px 0;">LP Mueblería - Sistema ERP V1</p>
-
-        <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 5px;">
+        <table style="width: 100%; border: none; font-size: 9px;">
             <tr>
-                <td style="width: 75%; text-align: left; vertical-align: middle; padding: 0;">
+                <td style="text-align: center; padding: 0;">
                     {% if fb_b64 %}
-                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ fb_b64 }}" /> LP
-                    Mueblería de Jalisco &nbsp;&nbsp;
+                    <img style="height: 12px; vertical-align: middle;" src="{{ fb_b64 }}" /> LP Mueblería &nbsp;&nbsp;
                     {% endif %}
                     {% if ig_b64 %}
-                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ ig_b64 }}" />
-                    /lpmuebleria &nbsp;&nbsp;
+                    <img style="height: 12px; vertical-align: middle;" src="{{ ig_b64 }}" /> /lpmuebleria &nbsp;&nbsp;
                     {% endif %}
                     {% if wa_b64 %}
-                    <img style="height: 16px; vertical-align: middle; margin-right: 3px;" src="{{ wa_b64 }}" />
-                    8718784462
+                    <img style="height: 12px; vertical-align: middle;" src="{{ wa_b64 }}" /> 8718784462
                     {% endif %}
+                    <span style="font-weight: bold; margin-left: 20px;">LP Mueblería - Sistema ERP V1</span>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding: 0;" class="page-number"></td>
             </tr>
         </table>
     </div>
