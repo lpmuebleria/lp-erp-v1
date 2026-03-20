@@ -276,7 +276,11 @@ function App() {
           )}
           {activeTab === 'agenda' && canAccess('agenda') && <Agenda />}
           {activeTab === 'quotes' && canAccess('quotes') && <Quotes />}
-          {activeTab === 'apartados' && canAccess('apartados') && <Layaways />}
+          {activeTab === 'apartados' && canAccess('apartados') && (
+            selectedOrderId
+              ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} onBack={() => setSelectedOrderId(null)} />
+              : <Layaways onSelectOrder={(id) => setSelectedOrderId(id)} />
+          )}
           {activeTab === 'payments' && canAccess('payments') && <Payments />}
           {activeTab === 'settings' && canAccess('settings') && <Settings />}
         </div>

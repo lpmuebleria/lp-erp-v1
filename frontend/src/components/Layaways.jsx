@@ -4,7 +4,7 @@ import { Search, Archive, CreditCard, User, Calendar, Wallet, ChevronRight, Load
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
-function Layaways() {
+function Layaways({ onSelectOrder }) {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +83,7 @@ function Layaways() {
                     </div>
                 ) : (
                     orders.map((order) => (
-                        <LayawayCard key={order.id} order={order} />
+                        <LayawayCard key={order.id} order={order} onClick={() => onSelectOrder(order.id)} />
                     ))
                 )}
             </div>
@@ -91,11 +91,14 @@ function Layaways() {
     );
 }
 
-function LayawayCard({ order }) {
+function LayawayCard({ order, onClick }) {
     const isOverdue = false; // Add logic if needed
 
     return (
-        <div className="group relative bg-premium-slate/50 border border-white/5 rounded-[32px] overflow-hidden hover:border-premium-gold/30 transition-all duration-300 hover:shadow-2xl hover:shadow-premium-gold/5 active:scale-[0.98]">
+        <div 
+            onClick={onClick}
+            className="group relative bg-premium-slate/50 border border-white/5 rounded-[32px] overflow-hidden hover:border-premium-gold/30 transition-all duration-300 hover:shadow-2xl hover:shadow-premium-gold/5 active:scale-[0.98] cursor-pointer"
+        >
             {/* Header / Status */}
             <div className="p-6 pb-4 flex justify-between items-start">
                 <div className="space-y-1">

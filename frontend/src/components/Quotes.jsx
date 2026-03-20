@@ -202,11 +202,34 @@ function ConvertModal({ quote, onClose, onConverted }) {
         e.preventDefault();
         setSaving(true);
         try {
-            if (!form.cliente_nombre?.trim()) {
-                toast.error("El nombre del cliente es obligatorio");
+            const montoNum = parseFloat(form.monto) || 0;
+            const shippingCost = parseFloat(quote.costo_envio) || 0;
+            const furnitureCost = quote.total - shippingCost;
+            
+            // For VENTA_STOCK, at least the furniture must be paid.
+            // For others, 30% of the total.
+            const requiredMin = quote.tipo === 'VENTA_STOCK' ? furnitureCost : (quote.total * 0.30);
+            const nameType = quote.tipo === 'VENTA_STOCK' ? 'el total del mueble' : 'el anticipo mínimo (30%)';
+
+            if (form.metodo !== 'efectivo' && montoNum > quote.total) {
+                toast.error(`El monto para ${form.metodo.toUpperCase()} no puede exceder el total.`);
                 setSaving(false);
                 return;
             }
+
+            if (montoNum < requiredMin) {
+                toast.error(`Monto insuficiente. Se requiere al menos ${nameType}: $${requiredMin.toLocaleString()}`);
+                setSaving(false);
+                return;
+            }
+
+            // Cards/Transfer must be exact if paying more than furniture but less than total
+            if (form.metodo !== 'efectivo' && montoNum > furnitureCost && montoNum < quote.total) {
+                toast.error(`Para pagos parciales del flete con ${form.metodo.toUpperCase()}, el monto debe liquidar el total: $${quote.total.toLocaleString()}`);
+                setSaving(false);
+                return;
+            }
+
             await axios.post(`${API_URL}/quotes/${quote.id}/convert`, form);
             toast.success("Cotización convertida a pedido");
             onConverted();
@@ -289,6 +312,12 @@ function ConvertModal({ quote, onClose, onConverted }) {
                         )}
 
                         <div className="pt-4 border-t border-white/5">
+                            {form.metodo === 'efectivo' && (parseFloat(form.monto) > quote.total) && (
+                                <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex justify-between items-center animate-in zoom-in duration-300">
+                                    <span className="text-green-400 font-bold text-xs uppercase tracking-widest">Cambio a Entregar:</span>
+                                    <span className="text-xl font-black text-green-400 font-mono">${(parseFloat(form.monto) - quote.total).toLocaleString()}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center mb-6">
                                 <span className="text-slate-500 font-bold text-sm uppercase">Total Pedido</span>
                                 <span className="text-2xl font-black text-white">${quote.total.toLocaleString()}</span>
