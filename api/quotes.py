@@ -136,11 +136,13 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
 
             if tipo_pedido == "VENTA_STOCK":
                 # Strict: The furniture must be paid 100% upfront
-                furniture_cost = final_total - costo_envio
-                if monto_pago < furniture_cost:
+                furniture_cost = round(final_total - costo_envio, 2)
+                monto_val = round(monto_pago, 2)
+                
+                if monto_val < furniture_cost:
                     raise HTTPException(status_code=400, detail=f"Venta de Stock requiere el pago total del mueble (${furniture_cost:,.2f}). Solo el envío puede quedar pendiente.")
-                if monto_pago > furniture_cost and monto_pago < final_total:
-                    raise HTTPException(status_code=400, detail=f"El envío a contra-entrega debe pagarse completo o dejarse pendiente completo. Montos válidos: ${furniture_cost:,.2f} o ${final_total:,.2f}")
+                if monto_val > furniture_cost and monto_val < round(final_total, 2):
+                    raise HTTPException(status_code=400, detail=f"El envío a contra-entrega debe pagarse completo o dejarse pendiente completo (Muebles: ${furniture_cost:,.2f} / Total: ${final_total:,.2f})")
                 
                 anticipo_req = furniture_cost
             else:
@@ -192,12 +194,23 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             
             order_id = cur.lastrowid
             
-            # 5) Register initial payment if provided
-            if monto_pago > 0:
-                cur.execute("""
-                    INSERT INTO payments(order_id, created_at, metodo, monto, referencia)
-                    VALUES (%s,%s,%s,%s,%s)
-                """, (order_id, today_iso(), data.get("metodo_pago", "efectivo"), monto_pago, data.get("referencia", "")))
+            # 5) Register initial payments if provided
+            pays = data.get("payments") or []
+            if not pays and monto_pago > 0:
+                # Fallback for single payment if for some reason the array is missing
+                pays = [{"metodo": data.get("metodo_pago", "efectivo"), "monto": monto_pago, "referencia": data.get("referencia", "")}]
+            
+            # Use sum of actual payments minus change for anticipo_pagado if cash was used
+            # But the frontend already sends monto_pago as the sum. 
+            # If there's cambio, it belongs to the cash payment.
+            
+            for p in pays:
+                m_val = float(p.get("monto") or 0)
+                if m_val > 0:
+                    cur.execute("""
+                        INSERT INTO payments(order_id, created_at, metodo, monto, referencia)
+                        VALUES (%s,%s,%s,%s,%s)
+                    """, (order_id, today_iso(), p.get("metodo", "efectivo"), m_val, p.get("referencia", "")))
 
             # 6) If it's VENTA_STOCK, register delivery and deduct stock
             if tipo_pedido == "VENTA_STOCK":
@@ -340,12 +353,23 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
             
             # Fetch lines purely from quote
             cur.execute("""
-                SELECT ql.*, p.codigo, p.modelo 
+                SELECT ql.*, p.codigo, p.modelo, p.imagen_url 
                 FROM quote_lines ql 
                 JOIN products p ON p.id=ql.product_id 
                 WHERE ql.quote_id=%s
             """, (quote_id,))
             lines = cur.fetchall()
+
+            # Prepare product images (Unique & max 4)
+            from utils import get_image_b64
+            unique_images = []
+            for l in lines:
+                img_name = l.get("imagen_url")
+                if img_name and img_name not in unique_images:
+                    unique_images.append(img_name)
+            
+            prod_photos = [get_image_b64(img) for img in unique_images[:4]]
+            prod_photos = [p for p in prod_photos if p] # Remove empty results
             
             context = {
                 "cliente_nombre": q["cliente_nombre"] or "Público General",
@@ -357,8 +381,9 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "tipo_clase": "cotizacion",
                 "tipo_display": "Cotización",
                 "lineas": lines,
+                "prod_photos": prod_photos,
                 "status": "COTIZACION",
-                "sum_desc_manual": sum((l.get("descuento_val") or 0) for l in lines),
+                "sum_desc_manual": sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines),
                 "descuento_global_val": q.get("descuento_global_val") or 0,
                 "total": q["total"],
                 "costo_envio": q.get("costo_envio") or 0,
@@ -366,7 +391,8 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "numero_envio": q.get("numero_envio") or "",
                 "colonia_envio": q.get("colonia_envio") or "",
                 "referencia_envio": q.get("referencia_envio") or "",
-                "nota_envio": q.get("nota_envio") or ""
+                "nota_envio": q.get("nota_envio") or "",
+                "anticipo_pagado": 0
             }
             
         else:
@@ -376,12 +402,45 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
             q_id_to_use = order_info["quote_id"] if order_info["quote_id"] else quote_id
             
             cur.execute("""
-                SELECT ql.*, p.codigo, p.modelo 
+                SELECT ql.*, p.codigo, p.modelo, p.imagen_url 
                 FROM quote_lines ql 
                 JOIN products p ON p.id=ql.product_id 
                 WHERE ql.quote_id=%s
             """, (q_id_to_use,))
             lines = cur.fetchall()
+
+            # Prepare product images (Unique & max 4)
+            from utils import get_image_b64
+            unique_images = []
+            for l in lines:
+                img_name = l.get("imagen_url")
+                if img_name and img_name not in unique_images:
+                    unique_images.append(img_name)
+            
+            prod_photos = [get_image_b64(img) for img in unique_images[:4]]
+            prod_photos = [p for p in prod_photos if p]
+
+            # Additional detail: Fetch payments for this order
+            cur.execute("SELECT * FROM payments WHERE order_id=%s ORDER BY created_at", (order_info["id"],))
+            db_pays = cur.fetchall()
+            
+            # Pre-format payments for the template safety
+            pays = []
+            for p in db_pays:
+                p_date = p.get("created_at")
+                if isinstance(p_date, datetime.datetime):
+                    date_str = p_date.strftime('%Y-%m-%d')
+                elif isinstance(p_date, str):
+                    date_str = p_date.split('T')[0]
+                else:
+                    date_str = str(p_date or today_iso())
+                
+                pays.append({
+                    "monto": float(p.get("monto") or 0),
+                    "metodo": str(p.get("metodo") or "efectivo").upper(),
+                    "referencia": str(p.get("referencia") or ""),
+                    "fecha": date_str
+                })
 
             tipo = order_info["tipo"]
             tipo_map = {
@@ -405,8 +464,9 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "tipo_clase": tipo_map.get(tipo, {}).get("class", "cotizacion"),
                 "tipo_display": tipo_map.get(tipo, {}).get("display", "Orden"),
                 "lineas": lines,
+                "prod_photos": prod_photos,
                 "status": tipo,
-                "sum_desc_manual": sum((l.get("descuento_val") or 0) for l in lines),
+                "sum_desc_manual": sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines),
                 "descuento_global_val": parent_quote.get("descuento_global_val") or 0,
                 "total": order_info["total"],
                 "costo_envio": order_info.get("costo_envio") or 0,
@@ -415,8 +475,9 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "colonia_envio": order_info.get("colonia_envio") or "",
                 "referencia_envio": order_info.get("referencia_envio") or "",
                 "nota_envio": order_info.get("nota_envio") or "",
-                "anticipo_pagado": order_info["anticipo_pagado"],
-                "saldo": order_info["saldo"],
+                 "anticipo_pagado": float(order_info.get("anticipo_pagado") or 0),
+                "saldo": float(order_info.get("saldo") or 0),
+                "payments": pays,
                 "entrega_estimada": order_info.get("entrega_estimada") or "",
                 "factura_rfc": order_info.get("factura_rfc") or "",
                 "factura_razon": order_info.get("factura_razon") or "",
@@ -428,15 +489,25 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
             }
 
             if tipo == "APARTADO":
-                import datetime
-                doc_date = order_info["created_at"].date() if isinstance(order_info["created_at"], datetime.datetime) else datetime.datetime.strptime(str(order_info["created_at"])[:10], '%Y-%m-%d').date()
-                if doc_date.day <= 15:
-                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
-                    primer_pago = next_month.replace(day=2)
-                else:
-                    next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
-                    primer_pago = next_month.replace(day=17)
-                context["primer_pago_fecha"] = primer_pago.strftime('%d/%m/%Y')
+                try:
+                    # Handle string dates (e.g. from DB) or datetime objects
+                    if isinstance(order_info["created_at"], datetime.datetime):
+                        doc_date = order_info["created_at"].date()
+                    else:
+                        # Extract first 10 chars for YYYY-MM-DD
+                        doc_date = datetime.datetime.strptime(str(order_info["created_at"])[:10], '%Y-%m-%d').date()
+                    
+                    if doc_date.day <= 15:
+                        next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                        primer_pago = next_month.replace(day=2)
+                    else:
+                        next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                        primer_pago = next_month.replace(day=17)
+                    context["primer_pago_fecha"] = primer_pago.strftime('%d/%m/%Y')
+                except Exception as ex:
+                    print(f"Error parsing date for Apartado PDF: {ex}")
+                    context["primer_pago_fecha"] = "Pendiente"
+                
                 context["pago_quincenal"] = round(order_info["saldo"] / 6, 2)
 
         # Use the isolated PDF service

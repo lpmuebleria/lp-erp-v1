@@ -7,17 +7,56 @@ from database import db
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_image_b64(filename):
-    """Reads an image from api/static/img and returns its base64 representation."""
-    filepath = os.path.join(BASE_DIR, "api", "static", "img", filename)
-    if os.path.exists(filepath):
+    """Reads an image from local paths or URLs and returns its base64 representation."""
+    if not filename:
+        return ""
+    
+    # Clean filename if it's a full localhost URL or has paths
+    clean_filename = filename
+    if "localhost:8000" in filename:
+        clean_filename = filename.split("/")[-1]
+    elif filename.startswith("http") and ("cloudinary" not in filename):
+        # Also handle other potential local-bound URLs that just need the filename
+        clean_filename = filename.split("/")[-1]
+    
+    # 1. Handle Remote URLs (True remote like Cloudinary)
+    if filename.startswith(("http://", "https://")) and "localhost" not in filename:
         try:
-            with open(filepath, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode()
-            ext = os.path.splitext(filename)[1][1:].lower()
-            if ext == 'jpg': ext = 'jpeg'
-            return f"data:image/{ext};base64,{encoded_string}"
+            import requests
+            resp = requests.get(filename, timeout=5)
+            if resp.status_code == 200:
+                content_type = resp.headers.get('content-type', 'image/jpeg')
+                encoded_string = base64.b64encode(resp.content).decode()
+                return f"data:{content_type};base64,{encoded_string}"
         except Exception as e:
-            print(f"Error reading image {filename}: {e}")
+            print(f"Error fetching remote image {filename}: {e}")
+        # Even if remote fetch fails, try local if it looks like a filename
+        if "/" not in clean_filename:
+             pass 
+        else:
+            return ""
+
+    # 2. Handle Local Files
+    # Search paths: api/static/img, static/uploads, static
+    search_paths = [
+        os.path.join(BASE_DIR, "api", "static", "img", clean_filename),
+        os.path.join(BASE_DIR, "static", "uploads", clean_filename),
+        os.path.join(BASE_DIR, "static", clean_filename),
+        os.path.join(BASE_DIR, clean_filename)
+    ]
+    
+    for filepath in search_paths:
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode()
+                ext = os.path.splitext(clean_filename)[1][1:].lower()
+                if not ext: ext = 'jpeg'
+                if ext == 'jpg': ext = 'jpeg'
+                return f"data:image/{ext};base64,{encoded_string}"
+            except Exception as e:
+                print(f"Error reading local image {filepath}: {e}")
+    
     return ""
 
 # Constants
