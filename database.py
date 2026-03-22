@@ -8,15 +8,17 @@ from fastapi import HTTPException
 load_dotenv(override=True)
 
 # --- MySQL Connection Config Selection ---
-DB_MODE = os.getenv('DB_MODE', 'LOCAL').upper()
+# DB_MODE=REMOTE by default for server safety if not set
+DB_MODE = os.getenv('DB_MODE', 'REMOTE').upper()
 
 if DB_MODE == 'REMOTE':
+    # Use REMOTE_DB_* if set, otherwise fallback to DB_* (original production variables)
     MYSQL_CONFIG = {
-        'host': os.getenv('REMOTE_DB_HOST'),
-        'user': os.getenv('REMOTE_DB_USER'),
-        'password': os.getenv('REMOTE_DB_PASSWORD'),
-        'database': os.getenv('REMOTE_DB_NAME'),
-        'port': int(os.getenv('REMOTE_DB_PORT', 3306)),
+        'host': os.getenv('REMOTE_DB_HOST') or os.getenv('DB_HOST'),
+        'user': os.getenv('REMOTE_DB_USER') or os.getenv('DB_USER', 'root'),
+        'password': os.getenv('REMOTE_DB_PASSWORD') or os.getenv('DB_PASSWORD', 'root'),
+        'database': os.getenv('REMOTE_DB_NAME') or os.getenv('DB_NAME', 'lp_erp'),
+        'port': int(os.getenv('REMOTE_DB_PORT') or os.getenv('DB_PORT', 3306)),
         'raise_on_warnings': False
     }
 else:
