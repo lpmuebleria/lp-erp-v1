@@ -24,8 +24,23 @@ const FAMILIAS_OPCIONES = [
     'muebles',
     'fletes',
     'envios',
+    'iva',
+    'comisiones_bancarias',
     'utilidad_bruta'
 ];
+
+const FAMILIAS_LABELS = {
+    'maniobras': 'Maniobras',
+    'empaque': 'Empaque',
+    'comision': 'Comisión',
+    'garantias': 'Garantías',
+    'muebles': 'Muebles (Venta)',
+    'fletes': 'Fletes (Traslado)',
+    'envios': 'Envíos Domicilio',
+    'iva': 'IVA (Impuesto)',
+    'comisiones_bancarias': 'Comisiones Bancarias',
+    'utilidad_bruta': 'Utilidad Bruta'
+};
 
 function Dashboard({ onConceptClick }) {
     const [metrics, setMetrics] = useState(null);
@@ -278,6 +293,8 @@ function Dashboard({ onConceptClick }) {
                                 <BagItem label="Muebles" value={metrics.bolsas_mes.muebles} onClick={() => onConceptClick && onConceptClick('muebles')} />
                                 <BagItem label="Fletes" value={metrics.bolsas_mes.fletes} onClick={() => onConceptClick && onConceptClick('fletes')} />
                                 <BagItem label="Envíos a Domicilio" value={metrics.bolsas_mes.envios} onClick={() => onConceptClick && onConceptClick('envios')} />
+                                <BagItem label="IVA" value={metrics.bolsas_mes.iva} onClick={() => onConceptClick && onConceptClick('iva')} />
+                                <BagItem label="Comis. Bancarias" value={metrics.bolsas_mes.comisiones_bancarias} onClick={() => onConceptClick && onConceptClick('comisiones_bancarias')} />
                                 <div className="pt-4 mt-4 border-t border-white/10">
                                     <button
                                         onClick={() => onConceptClick && onConceptClick('utilidad_bruta')}
@@ -372,11 +389,18 @@ function Dashboard({ onConceptClick }) {
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                                     {FAMILIAS_OPCIONES.map(fam => (
-                                        <label key={fam} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedFamilies.includes(fam) ? 'bg-premium-gold/10 border-premium-gold/30' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
+                                        <label 
+                                            key={fam} 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                toggleFamily(fam);
+                                            }}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedFamilies.includes(fam) ? 'bg-premium-gold/10 border-premium-gold/30' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
+                                        >
                                             <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${selectedFamilies.includes(fam) ? 'bg-premium-gold border-premium-gold' : 'border-slate-500'}`}>
                                                 {selectedFamilies.includes(fam) && <div className="w-2 h-2 bg-white rounded-sm" />}
                                             </div>
-                                            <span className="text-xs font-bold text-white uppercase tracking-wider">{fam.replace('_', ' ')}</span>
+                                            <span className="text-[10px] font-bold text-white uppercase tracking-wider">{FAMILIAS_LABELS[fam] || fam}</span>
                                         </label>
                                     ))}
                                 </div>

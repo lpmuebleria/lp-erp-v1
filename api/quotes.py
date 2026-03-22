@@ -70,8 +70,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
 
         # 1) Insert Quote
         cur.execute("""
-            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, is_apartado_quote)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.get("folio", f"COT-{int(datetime.datetime.now().timestamp())}"),
             today_iso(),
@@ -88,7 +88,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             data.get("numero_envio"),
             data.get("colonia_envio"),
             data.get("referencia_envio"),
-            data.get("nota_envio")
+            data.get("nota_envio"),
+            data.get("is_apartado_quote", False)
         ))
         quote_id = cur.lastrowid
 
@@ -96,15 +97,16 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
         lines = data.get("lines", [])
         for ln in lines:
             cur.execute("""
-                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea)
-                VALUES (%s,%s,%s,%s,%s,%s)
+                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
             """, (
                 quote_id,
                 ln.get("product_id"),
                 ln.get("cantidad"),
                 ln.get("precio_unit"),
                 ln.get("descuento_manual", 0),
-                ln.get("total_linea", 0)
+                ln.get("total_linea", 0),
+                ln.get("tipo_precio", "contado")
             ))
 
         # 3) If it's a direct Order creation (not just quote saving)
@@ -383,17 +385,45 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "lineas": lines,
                 "prod_photos": prod_photos,
                 "status": "COTIZACION",
-                "sum_desc_manual": sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines),
-                "descuento_global_val": q.get("descuento_global_val") or 0,
-                "total": q["total"],
-                "costo_envio": q.get("costo_envio") or 0,
+                "sum_desc_manual": float(sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines)),
+                "descuento_global_val": float(q.get("descuento_global_val") or 0),
+                "total": float(q["total"] or 0),
+                "costo_envio": float(q.get("costo_envio") or 0),
                 "calle_envio": q.get("calle_envio") or "",
                 "numero_envio": q.get("numero_envio") or "",
                 "colonia_envio": q.get("colonia_envio") or "",
                 "referencia_envio": q.get("referencia_envio") or "",
                 "nota_envio": q.get("nota_envio") or "",
-                "anticipo_pagado": 0
+                "anticipo_pagado": 0,
+                "saldo": float(q["total"] or 0),
+                "is_apartado_quote": bool(q.get("is_apartado_quote"))
             }
+
+            if q.get("is_apartado_quote"):
+                try:
+                    # Same logic as for orders
+                    if isinstance(q["created_at"], datetime.datetime):
+                        doc_date = q["created_at"].date()
+                    else:
+                        doc_date = datetime.datetime.strptime(str(q["created_at"])[:10], '%Y-%m-%d').date()
+                    
+                    if doc_date.day <= 15:
+                        next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                        primer_pago = next_month.replace(day=2)
+                    else:
+                        next_month = doc_date.replace(day=1) + datetime.timedelta(days=32)
+                        primer_pago = next_month.replace(day=17)
+                    context["primer_pago_fecha"] = primer_pago.strftime('%d/%m/%Y')
+                except:
+                    context["primer_pago_fecha"] = "Pendiente"
+                
+                # Bi-weekly installments calculation (assume 6)
+                # Down payment is usually 30%
+                total_val = float(q["total"] or 0)
+                down_payment = total_val * 0.30
+                remaining = total_val - down_payment
+                context["pago_inicial"] = round(down_payment, 2)
+                context["pago_quincenal"] = round(remaining / 6, 2)
             
         else:
             # It's an order
@@ -466,10 +496,10 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "lineas": lines,
                 "prod_photos": prod_photos,
                 "status": tipo,
-                "sum_desc_manual": sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines),
-                "descuento_global_val": parent_quote.get("descuento_global_val") or 0,
-                "total": order_info["total"],
-                "costo_envio": order_info.get("costo_envio") or 0,
+                "sum_desc_manual": float(sum(((l.get("descuento_val") or 0) * (l.get("cantidad") or 1)) for l in lines)),
+                "descuento_global_val": float(parent_quote.get("descuento_global_val") or 0),
+                "total": float(order_info["total"] or 0),
+                "costo_envio": float(order_info.get("costo_envio") or 0),
                 "calle_envio": order_info.get("calle_envio") or "",
                 "numero_envio": order_info.get("numero_envio") or "",
                 "colonia_envio": order_info.get("colonia_envio") or "",
@@ -508,7 +538,7 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                     print(f"Error parsing date for Apartado PDF: {ex}")
                     context["primer_pago_fecha"] = "Pendiente"
                 
-                context["pago_quincenal"] = round(order_info["saldo"] / 6, 2)
+                context["pago_quincenal"] = round(float(order_info["saldo"] or 0) / 6, 2)
 
         # Use the isolated PDF service
         pdf = generate_receipt_pdf(context)

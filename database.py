@@ -258,6 +258,11 @@ def init_db():
         cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Chico', 200, 50, 200, 150)")
         cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Mediano', 225, 50, 200, 150)")
         cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Grande', 250, 50, 300, 200)")
+        
+        # Seed bank interests
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_debito_pct', '2.0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('interes_msi_pct', '15.0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_msi_banco_pct', '12.0')")
 
         # Seed roles if empty
         cur.execute("SELECT COUNT(*) as c FROM roles")
@@ -403,11 +408,20 @@ def _migrate(cur):
     if not col_exists(cur, "orders", "iva"):
         cur.execute("ALTER TABLE orders ADD COLUMN iva DECIMAL(15,2) NOT NULL DEFAULT 0")
 
+    if not col_exists(cur, "quotes", "is_apartado_quote"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN is_apartado_quote BOOLEAN DEFAULT FALSE")
+    
     # payments
     if not col_exists(cur, "payments", "anulado"):
         cur.execute("ALTER TABLE payments ADD COLUMN anulado INTEGER NOT NULL DEFAULT 0")
     if not col_exists(cur, "payments", "motivo_anulacion"):
         cur.execute("ALTER TABLE payments ADD COLUMN motivo_anulacion VARCHAR(1000) NOT NULL DEFAULT ''")
+    if not col_exists(cur, "payments", "comision_bancaria"):
+        cur.execute("ALTER TABLE payments ADD COLUMN comision_bancaria DECIMAL(15,2) NOT NULL DEFAULT 0")
+
+    # quote_lines
+    if not col_exists(cur, "quote_lines", "tipo_precio"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN tipo_precio VARCHAR(20) DEFAULT 'contado'")
 
     # users
     if not col_exists(cur, "users", "password"):

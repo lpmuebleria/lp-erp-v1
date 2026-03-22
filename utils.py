@@ -130,17 +130,37 @@ def compute_bolsas(cur, quote_id: int):
     flete_unitario = float(row_flete["v"]) if row_flete else 0.0
 
     cur.execute("""
-        SELECT ql.*, p.tamano, p.costo_total
+        SELECT ql.*, p.tamano, p.costo_fabrica
         FROM quote_lines ql
         JOIN products p ON p.id = ql.product_id
         WHERE ql.quote_id=%s
     """, (quote_id,))
     lines = cur.fetchall()
-    cur.execute("SELECT costo_envio FROM quotes WHERE id=%s", (quote_id,))
-    q_info = cur.fetchone()
-    costo_env = float(q_info["costo_envio"]) if q_info and q_info.get("costo_envio") else 0.0
+    
+    # Try to find associated order for IVA, Envios and Bank Fees
+    cur.execute("SELECT id, iva, costo_envio FROM orders WHERE quote_id=%s LIMIT 1", (quote_id,))
+    order_info = cur.fetchone()
+    
+    iva_val = 0.0
+    comisiones_bancarias = 0.0
+    if not order_info:
+        # Fallback to quote info if no order yet
+        cur.execute("SELECT costo_envio FROM quotes WHERE id=%s", (quote_id,))
+        q_info = cur.fetchone()
+        costo_env = float(q_info["costo_envio"]) if q_info and q_info.get("costo_envio") else 0.0
+    else:
+        costo_env = float(order_info["costo_envio"] or 0)
+        iva_val = float(order_info["iva"] or 0)
+        # Sum bank commissions from payments
+        cur.execute("SELECT SUM(comision_bancaria) as s FROM payments WHERE order_id=%s AND anulado=0", (order_info["id"],))
+        comm_row = cur.fetchone()
+        comisiones_bancarias = float(comm_row["s"] or 0.0)
 
-    bols = {"maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": costo_env}
+    bols = {
+        "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
+        "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, 
+        "envios": costo_env, "iva": iva_val, "comisiones_bancarias": comisiones_bancarias
+    }
     for ln in lines:
         cfg = get_cfg_for_tamano(cur, ln["tamano"])
         qty = float(ln["cantidad"] or 0)
@@ -148,12 +168,15 @@ def compute_bolsas(cur, quote_id: int):
         bols["empaque"] += cfg["empaque"] * qty
         bols["comision"] += cfg["comision"] * qty
         bols["garantias"] += cfg["garantias"] * qty
-        bols["muebles"] += float(ln["costo_total"] or 0) * qty
+        bols["muebles"] += float(ln["costo_fabrica"] or 0) * qty
         bols["fletes"] += flete_unitario * qty
-        bols["costo"] += float(ln["costo_total"] or 0) * qty
+        bols["costo"] += float(ln["costo_fabrica"] or 0) * qty
         bols["venta"] += float(ln["total_linea"] or 0)
-    bols["utilidad_bruta"] = float(bols["venta"]) - float(bols["costo"]) - \
-                            (bols["maniobras"] + bols["empaque"] + bols["comision"] + bols["garantias"] + bols["fletes"])
+    
+    # Final Utility calculation: 
+    # Venta - IVA - Comisiones Bancarias - Costo Fabrica - (Maniobras+Empaque+Comision+Garantias+Fletes+Envios)
+    bols["utilidad_bruta"] = float(bols["venta"]) - float(bols["iva"]) - float(bols["comisiones_bancarias"]) - float(bols["costo"]) - \
+                            (bols["maniobras"] + bols["empaque"] + bols["comision"] + bols["garantias"] + bols["fletes"] + bols["envios"])
     return bols
 
 def get_image_path(filename):

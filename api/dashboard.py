@@ -44,7 +44,11 @@ def get_dashboard_metrics():
     cot_hoy = cot_hoy_row["c"] if cot_hoy_row else 0
 
     # Financial bags for the month
-    bolsas_mes_total = {"maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0, "utilidad_bruta": 0.0}
+    bolsas_mes_total = {
+        "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
+        "muebles": 0.0, "fletes": 0.0, "envios": 0.0, "iva": 0.0, 
+        "comisiones_bancarias": 0.0, "utilidad_bruta": 0.0
+    }
     cur.execute("""
         SELECT quote_id FROM orders
         WHERE date(created_at) BETWEEN date(%s) AND date(%s)
