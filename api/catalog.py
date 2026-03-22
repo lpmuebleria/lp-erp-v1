@@ -54,10 +54,17 @@ def generate_catalog_pdf(include_stock: str = "false"):
         conn = db()
         cur = conn.cursor(dictionary=True)
         
-        # Fetch PDF Catalog Comments first
         cur.execute("SELECT v FROM settings WHERE k='comentarios_catalogo'")
         row_comment = cur.fetchone()
         comentarios_catalogo = row_comment["v"] if row_comment and row_comment["v"] else ""
+
+        # Fetch Interes MSI for calculation
+        try:
+            cur.execute("SELECT v FROM settings WHERE k='interes_msi_pct'")
+            row_int = cur.fetchone()
+            interes_msi_pct = float(row_int["v"]) if row_int and row_int["v"] else 15.0
+        except:
+            interes_msi_pct = 15.0
 
         # Fetch products marked for catalog and active
         cur.execute("""
@@ -67,30 +74,18 @@ def generate_catalog_pdf(include_stock: str = "false"):
             ORDER BY modelo ASC
         """)
         products = cur.fetchall()
+        for p in products:
+            p['precio_lista'] = float(p['precio_lista'] or 0)
         
         conn.close()
 
-        # Fix deadlock: Resolve URLs/Paths to actual local file paths for WeasyPrint
-        UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads").replace('\\', '/')
         for p in products:
             img_url = p.get('imagen_url')
             if not img_url:
-                p['local_image_path'] = None
-                continue
-            
-            # Case 1: Full localhost URL
-            if img_url.startswith(('http://localhost:8000/static/uploads/', 'http://127.0.0.1:8000/static/uploads/')):
-                filename = img_url.split('/')[-1]
-                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{filename}"
-            # Case 2: Relative path starting with /static/uploads/
-            elif img_url.startswith('/static/uploads/'):
-                filename = img_url.split('/')[-1]
-                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{filename}"
-            # Case 3: Just the filename
-            elif not img_url.startswith('http'):
-                p['local_image_path'] = f"file:///{UPLOAD_DIR}/{img_url}"
+                p['b64'] = None
             else:
-                p['local_image_path'] = img_url # External URL, WeasyPrint will try to fetch it
+                # Use get_image_b64 which is already robust
+                p['b64'] = get_image_b64(img_url)
 
         if not products:
             raise HTTPException(status_code=400, detail="No hay productos marcados para el catálogo.")
@@ -116,6 +111,7 @@ def generate_catalog_pdf(include_stock: str = "false"):
             ig_b64=ig_b64,
             wa_b64=wa_b64,
             comentarios_catalogo=comentarios_catalogo,
+            interes_msi_pct=interes_msi_pct,
             base_url="http://localhost:8000" # fallback if required for static resolution
         )
 
@@ -131,5 +127,9 @@ def generate_catalog_pdf(include_stock: str = "false"):
             }
         )
     except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        err_msg = traceback.format_exc()
+        with open('c:/tmp/catalog_error.txt', 'w', encoding='utf-8') as f:
+            f.write(err_msg)
+        print(f"FAILED CATALOG GENERATION: {e}")
+        raise HTTPException(status_code=500, detail=str(err_msg))

@@ -14,6 +14,7 @@ function Inventory({ role, isSuperadmin }) {
     const [generatingCatalog, setGeneratingCatalog] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [interestPct, setInterestPct] = useState(15.0);
 
     const checkEditAccess = () => {
         if (isSuperadmin) return true;
@@ -36,12 +37,14 @@ function Inventory({ role, isSuperadmin }) {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/products`, {
-                params: { q: searchTerm }
-            });
-            setProducts(response.data);
+            const [pRes, iRes] = await Promise.all([
+                axios.get(`${API_URL}/products`, { params: { q: searchTerm } }),
+                axios.get(`${API_URL}/config/interests`)
+            ]);
+            setProducts(pRes.data);
+            setInterestPct(iRes.data.interes_msi_pct);
         } catch (error) {
-            console.error("Error fetching products:", error);
+            console.error("Error fetching products/interests:", error);
         } finally {
             setLoading(false);
         }
@@ -152,6 +155,7 @@ function Inventory({ role, isSuperadmin }) {
                         <ProductCard
                             key={product.id}
                             product={product}
+                            interestPct={interestPct}
                             hasEditAccess={hasEditAccess}
                             onToggleCatalog={async () => {
                                 try {
@@ -181,9 +185,9 @@ function Inventory({ role, isSuperadmin }) {
     );
 }
 
-function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
+function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, interestPct }) {
     const isLowStock = product.stock <= 2;
-    const [showPreview, setShowPreview] = useState(false);
+    const [showQuickView, setShowQuickView] = useState(false);
 
     return (
         <div className="bg-premium-slate/50 rounded-2xl border border-white/5 p-5 hover:border-premium-gold/30 transition-all group hover:shadow-2xl hover:shadow-premium-gold/5 relative overflow-hidden">
@@ -211,10 +215,9 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
                             )}
                             {product.imagen_url && (
                                 <button
-                                    onMouseEnter={() => setShowPreview(true)}
-                                    onMouseLeave={() => setShowPreview(false)}
-                                    onClick={() => setShowPreview(!showPreview)}
+                                    onMouseEnter={() => setShowQuickView(true)}
                                     className="p-2 bg-white/5 rounded-lg text-slate-400 hover:text-premium-gold transition-colors"
+                                    title="Vista Rápida"
                                 >
                                     <ImageIcon size={18} />
                                 </button>
@@ -231,16 +234,15 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
                         </div>
                     </div>
 
-                    {showPreview && product.imagen_url && (
-                        <div className="absolute top-12 right-0 z-50 w-48 h-48 bg-premium-slate border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
-                            <img
-                                src={product.imagen_url}
-                                alt={product.modelo}
-                                className="w-full h-full object-cover"
-                            />
-                        </div>
-                    )}
                 </div>
+
+                {showQuickView && (
+                    <ProductQuickView 
+                        product={product} 
+                        interestPct={interestPct}
+                        onClose={() => setShowQuickView(false)} 
+                    />
+                )}
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center space-x-2 text-slate-400">
@@ -253,10 +255,14 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
                     </div>
                 </div>
 
-                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Precio Lista</span>
-                        <span className="text-xl font-bold text-white">${product.precio_lista.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Contado</span>
+                        <span className="text-lg font-bold text-white">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-premium-gold/70 uppercase tracking-widest text-right">Crédito MSI</span>
+                        <span className="text-lg font-bold text-premium-gold text-right">${((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                     </div>
                 </div>
             </div>
@@ -264,6 +270,144 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog }) {
     );
 }
 
+function ProductQuickView({ product, onClose, interestPct }) {
+    const isLowStock = product.stock <= 2;
+    const scrollRef = React.useRef(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [startX, setStartX] = useState(0);
+    const [startY, setStartY] = useState(0);
+    const [scrollLeftPos, setScrollLeftPos] = useState(0);
+    const [scrollTopPos, setScrollTopPos] = useState(0);
+
+    const onMouseDown = (e) => {
+        setIsDragging(true);
+        setStartX(e.pageX - scrollRef.current.offsetLeft);
+        setStartY(e.pageY - scrollRef.current.offsetTop);
+        setScrollLeftPos(scrollRef.current.scrollLeft);
+        setScrollTopPos(scrollRef.current.scrollTop);
+    };
+
+    const stopDragging = () => setIsDragging(false);
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - scrollRef.current.offsetLeft;
+        const y = e.pageY - scrollRef.current.offsetTop;
+        const walkX = (x - startX) * 1.2;
+        const walkY = (y - startY) * 1.2;
+        scrollRef.current.scrollLeft = scrollLeftPos - walkX;
+        scrollRef.current.scrollTop = scrollTopPos - walkY;
+    };
+
+    return (
+        <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={onClose}
+        >
+            <div 
+                className="bg-premium-slate/90 border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 backdrop-blur-2xl relative group/qv"
+                onMouseLeave={onClose}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Decorative Elements */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-premium-gold to-transparent opacity-50"></div>
+                
+                <div className="flex flex-col md:flex-row h-full">
+                    {/* Image Section - Draggable */}
+                    <div 
+                        ref={scrollRef}
+                        onMouseDown={onMouseDown}
+                        onMouseUp={stopDragging}
+                        onMouseLeave={stopDragging}
+                        onMouseMove={onMouseMove}
+                        className={`w-full md:w-3/5 h-[300px] md:h-[500px] relative overflow-hidden bg-black/20 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    >
+                        <img 
+                            src={product.imagen_url} 
+                            alt={product.modelo} 
+                            draggable="false"
+                            className="w-[150%] h-[150%] max-w-none object-cover transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-premium-slate via-transparent to-transparent opacity-60"></div>
+                        
+                        {/* Floating Badges on Image */}
+                        <div className="absolute top-6 left-6 flex flex-col gap-2">
+                             <div className="px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[10px] font-black text-premium-gold tracking-widest uppercase shadow-xl">
+                                {product.codigo}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Info Section */}
+                    <div className="flex-1 p-8 md:p-10 flex flex-col justify-between bg-gradient-to-br from-white/5 to-transparent">
+                        <div className="space-y-6">
+                            <div>
+                                <h2 className="text-3xl md:text-4xl font-black text-white leading-tight mb-2 tracking-tight">
+                                    {product.modelo}
+                                </h2>
+                                <p className="text-slate-400 text-sm font-medium">Línea de Muebles Premium • {product.tamano}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                                    <div className="flex items-center space-x-3">
+                                        <div className={`w-3 h-3 rounded-full animate-pulse ${isLowStock ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`}></div>
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-300">Inventario Disponible</span>
+                                    </div>
+                                    <span className={`text-xl font-black ${isLowStock ? 'text-red-400' : 'text-green-400'}`}>
+                                        {product.stock} <span className="text-[10px] text-slate-500 ml-1">UNIDADES</span>
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Categoría</span>
+                                        <span className="text-sm font-bold text-white">Muebles de Interior</span>
+                                    </div>
+                                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Estado</span>
+                                        <span className="text-sm font-bold text-premium-gold">{product.activo === 1 ? 'ACTIVO' : 'INACTIVO'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 pt-8 border-t border-white/10 space-y-6">
+                            <div className="flex flex-col">
+                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 text-center md:text-left">Precio Contado</span>
+                                <div className="flex items-baseline justify-center md:justify-start space-x-1">
+                                    <span className="text-4xl md:text-5xl font-black text-white tracking-tighter">
+                                        ${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-500">MXN</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[11px] font-black text-premium-gold/70 uppercase tracking-[0.2em] mb-1 text-center md:text-left">Precio Crédito MSI</span>
+                                <div className="flex items-baseline justify-center md:justify-start space-x-1">
+                                    <span className="text-4xl md:text-5xl font-black text-premium-gold tracking-tighter">
+                                        ${((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-xs font-bold text-premium-gold/50">MXN</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Hint to interaction */}
+                        <div className="mt-4 text-center space-y-2">
+                             <div className="flex items-center justify-center space-x-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                <span className="p-1 bg-white/5 rounded border border-white/10 uppercase">Arraastrar para ver</span>
+                                <span className="opacity-30">•</span>
+                                <span className="p-1 bg-white/5 rounded border border-white/10 uppercase">Retirar para cerrar</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 function ProductModal({ onClose, onSave, product }) {
     const [form, setForm] = useState(product ? { ...product } : {

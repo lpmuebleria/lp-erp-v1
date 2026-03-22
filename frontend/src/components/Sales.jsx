@@ -18,6 +18,7 @@ import {
     FileSpreadsheet,
     MapPin,
     AlertTriangle,
+    History,
     X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -72,14 +73,20 @@ function Sales({ vendedor }) {
     const [promotions, setPromotions] = useState([]);
     const [selectedPromoId, setSelectedPromoId] = useState('');
 
+    const [isApartadoQuote, setIsApartadoQuote] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(null);
     const [ivaAutomatico, setIvaAutomatico] = useState(false);
+    const [interestMSI, setInterestMSI] = useState(15.0); // Default to 15%
 
     // Fetch promos once
     useEffect(() => {
         axios.get(`${API_URL}/config/iva`)
             .then(res => setIvaAutomatico(res.data.iva_automatico))
+            .catch(console.error);
+
+        axios.get(`${API_URL}/config/interests`)
+            .then(res => setInterestMSI(res.data.interes_msi_pct || 15.0))
             .catch(console.error);
 
         axios.get(`${API_URL}/promotions`)
@@ -103,6 +110,29 @@ function Sales({ vendedor }) {
     }, [shipping]);
 
     useEffect(() => {
+        if (isApartadoQuote) {
+            const needsUpdate = cart.some(item => item.tipo_precio === 'msi');
+            if (needsUpdate) {
+                const newCart = cart.map(item => {
+                    if (item.tipo_precio === 'msi') {
+                        const originalPrice = item.precio_original || (item.precio_unit / (1 + (interestMSI / 100)));
+                        return {
+                            ...item,
+                            tipo_precio: 'contado',
+                            precio_unit: originalPrice,
+                            cartId: `${item.product_id}-contado`,
+                            total_linea: item.cantidad * (originalPrice - (item.descuento_manual || 0))
+                        };
+                    }
+                    return item;
+                });
+                setCart(newCart);
+                toast.success('Precios actualizados a CONTADO para sistema de apartado', { icon: '🛡️' });
+            }
+        }
+    }, [isApartadoQuote, cart, interestMSI]);
+
+    useEffect(() => {
         if (searchTerm.length > 2) {
             axios.get(`${API_URL}/products`, { params: { q: searchTerm } })
                 .then(res => setProducts(res.data))
@@ -112,57 +142,69 @@ function Sales({ vendedor }) {
         }
     }, [searchTerm]);
 
-    const addToCart = (product) => {
-        const existing = cart.find(item => item.product_id === product.id);
+    const addToCart = (product, tipo_precio = 'contado') => {
+        const docTipo = isApartadoQuote ? 'contado' : tipo_precio;
+        const precioUnit = docTipo === 'msi' 
+            ? product.precio_lista * (1 + (interestMSI / 100)) 
+            : product.precio_lista;
+        
+        const cartId = `${product.id}-${docTipo}`; // Unique per price type
+        const existing = cart.find(item => item.cartId === cartId);
+        
         if (existing) {
             setCart(cart.map(item =>
-                item.product_id === product.id
+                item.cartId === cartId
                     ? { ...item, cantidad: item.cantidad + 1, total_linea: (item.cantidad + 1) * item.precio_unit }
                     : item
             ));
         } else {
             setCart([...cart, {
+                cartId,
                 product_id: product.id,
                 modelo: product.modelo,
                 codigo: product.codigo,
                 cantidad: 1,
-                precio_unit: product.precio_lista,
-                total_linea: product.precio_lista,
-                descuento_manual: 0, // Absolute value
-                descuento_pct: 0 // Percentage value
+                precio_unit: precioUnit,
+                precio_original: product.precio_lista,
+                total_linea: precioUnit,
+                descuento_manual: 0,
+                descuento_pct: 0,
+                tipo_precio: docTipo
             }]);
         }
         setSearchTerm('');
         setProducts([]);
     };
 
-    const removeFromCart = (id) => {
-        setCart(cart.filter(item => item.product_id !== id));
+    const removeFromCart = (cartId) => {
+        setCart(cart.filter(item => item.cartId !== cartId));
     };
 
-    const updateQty = (id, val) => {
+    const updateQty = (cartId, val) => {
         const qty = parseInt(val) || 0;
         setCart(cart.map(item =>
-            item.product_id === id
-                ? { ...item, cantidad: qty, total_linea: qty * item.precio_unit }
+            item.cartId === cartId
+                ? { ...item, cantidad: qty, total_linea: qty * (item.precio_unit - item.descuento_manual) }
                 : item
         ));
     };
 
-    const updateDiscount = (id, val, unitPrice) => {
+    const updateDiscount = (cartId, val, unitPrice) => {
         let pct = parseFloat(val) || 0;
         
         // Enforce 10% cap
         if (pct > 10) {
             pct = 10;
-            toast.error("El descuento máximo permitido es del 10%");
         }
 
-        const absDesc = (unitPrice * pct) / 100;
-
         setCart(cart.map(item =>
-            item.product_id === id
-                ? { ...item, descuento_pct: pct, descuento_manual: absDesc }
+            item.cartId === cartId
+                ? { 
+                    ...item, 
+                    descuento_pct: pct, 
+                    descuento_manual: (unitPrice * (pct / 100)),
+                    total_linea: item.cantidad * (unitPrice - (unitPrice * (pct / 100)))
+                  }
                 : item
         ));
     };
@@ -268,6 +310,7 @@ function Sales({ vendedor }) {
             iva_amount: ivaAmount,
             status: status === 'COTIZACION' ? 'COTIZACION' : 'REGISTRADO',
             tipo: status,
+            cliente_nombre: customer.nombre,
             cliente_tel: customer.tel,
             cliente_email: customer.email,
             monto_pago: status !== 'COTIZACION' ? totalPaid : 0,
@@ -294,7 +337,8 @@ function Sales({ vendedor }) {
             factura_regimen: billing.regimen,
             factura_uso_cfdi: billing.uso_cfdi,
             factura_metodo_pago: billing.metodo_pago,
-            factura_forma_pago: billing.forma_pago
+            factura_forma_pago: billing.forma_pago,
+            is_apartado_quote: isApartadoQuote
         };
 
         try {
@@ -551,17 +595,34 @@ function Sales({ vendedor }) {
                             {products.length > 0 && (
                                 <div className="absolute top-full left-0 right-0 mt-2 bg-premium-slate border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
                                     {products.map(p => (
-                                        <button
+                                        <div
                                             key={p.id}
-                                            onClick={() => addToCart(p)}
-                                            className="w-full p-4 flex justify-between items-center hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                                            className="w-full flex flex-col hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
                                         >
-                                            <div className="text-left">
-                                                <p className="text-sm font-bold text-white uppercase">{p.modelo}</p>
-                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">{p.codigo} - {p.tamano}</p>
+                                            <div className="p-4 flex justify-between items-center pb-2">
+                                                <div className="text-left">
+                                                    <p className="text-sm font-bold text-white uppercase">{p.modelo}</p>
+                                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">{p.codigo} - {p.tamano}</p>
+                                                </div>
                                             </div>
-                                            <span className="text-premium-gold font-black">${p.precio_lista.toLocaleString()}</span>
-                                        </button>
+                                            <div className="flex px-4 pb-4 gap-2">
+                                                <button
+                                                    onClick={() => addToCart(p, 'contado')}
+                                                    className="flex-1 bg-green-500/10 hover:bg-green-500/20 text-green-400 p-2 rounded-xl border border-green-500/20 text-[10px] font-black uppercase transition-all flex flex-col items-center"
+                                                >
+                                                    <span>Contado</span>
+                                                    <span className="text-xs font-mono font-bold">${p.precio_lista.toLocaleString()}</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => addToCart(p, 'msi')}
+                                                    disabled={isApartadoQuote}
+                                                    className={`flex-1 p-2 rounded-xl border text-[10px] font-black uppercase transition-all flex flex-col items-center ${isApartadoQuote ? 'bg-slate-800 text-slate-600 border-white/5 cursor-not-allowed opacity-50' : 'bg-premium-gold/10 hover:bg-premium-gold/20 text-premium-gold border-premium-gold/20'}`}
+                                                >
+                                                    <span>Crédito MSI (+{interestMSI}%)</span>
+                                                    <span className="text-xs font-mono font-bold">${(p.precio_lista * (1 + interestMSI / 100)).toLocaleString()}</span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -581,9 +642,16 @@ function Sales({ vendedor }) {
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {cart.map(item => (
-                                        <tr key={item.product_id} className="group hover:bg-white/[0.02] transition-colors">
+                                        <tr key={item.cartId} className="group hover:bg-white/[0.02] transition-colors">
                                             <td className="py-4 px-2">
-                                                <p className="font-bold text-white uppercase">{item.modelo}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-white uppercase">{item.modelo}</p>
+                                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md border ${item.tipo_precio === 'msi' 
+                                                        ? 'bg-premium-gold/10 text-premium-gold border-premium-gold/20' 
+                                                        : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
+                                                        {item.tipo_precio === 'msi' ? 'MSI' : 'CONTADO'}
+                                                    </span>
+                                                </div>
                                                 <p className="text-[10px] text-slate-500 uppercase font-mono">{item.codigo}</p>
                                             </td>
                                             <td className="py-4 px-2">
@@ -591,7 +659,7 @@ function Sales({ vendedor }) {
                                                     type="number"
                                                     min="1"
                                                     value={item.cantidad}
-                                                    onChange={(e) => updateQty(item.product_id, e.target.value)}
+                                                    onChange={(e) => updateQty(item.cartId, e.target.value)}
                                                     className="bg-white/5 border border-white/10 rounded-lg w-16 p-2 text-center text-white focus:outline-none focus:border-premium-gold transition-all"
                                                 />
                                             </td>
@@ -607,7 +675,7 @@ function Sales({ vendedor }) {
                                                             step="1"
                                                             title="Máximo 10% de descuento"
                                                             value={item.descuento_pct || 0}
-                                                            onChange={(e) => updateDiscount(item.product_id, e.target.value, item.precio_unit)}
+                                                            onChange={(e) => updateDiscount(item.cartId, e.target.value, item.precio_unit)}
                                                             className="bg-red-500/10 border border-red-500/30 rounded-lg w-16 p-2 pr-6 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
                                                         />
                                                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-red-400 opacity-70">%</span>
@@ -618,8 +686,8 @@ function Sales({ vendedor }) {
                                             </td>
                                             <td className="py-4 px-2 text-right">
                                                 <button
-                                                    onClick={() => removeFromCart(item.product_id)}
-                                                    className="text-slate-600 hover:text-red-400 p-2 transition-colors rounded-lg hover:bg-red-400/10"
+                                                    onClick={() => removeFromCart(item.cartId)}
+                                                    className="text-slate-600 hover:text-red-400 p-2 transition-colors opacity-0 group-hover:opacity-100"
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -737,8 +805,15 @@ function Sales({ vendedor }) {
                                                     >
                                                         <option value="efectivo">EFECTIVO</option>
                                                         <option value="transferencia">TRANSFERENCIA</option>
-                                                        <option value="debito">T. DÉBITO</option>
-                                                        <option value="credito">T. CRÉDITO</option>
+                                                        <option value="tarjeta de debito">T. DÉBITO</option>
+                                                        <option value="tarjeta de crédito">T. CRÉDITO (BÁSICA)</option>
+                                                        {status !== 'APARTADO' && (
+                                                            <>
+                                                                <option value="6 meses sin intereses">6 MSI</option>
+                                                                <option value="9 meses sin intereses">9 MSI</option>
+                                                                <option value="12 meses sin intereses">12 MSI</option>
+                                                            </>
+                                                        )}
                                                     </select>
                                                 </div>
                                                 <div>
@@ -968,7 +1043,42 @@ function Sales({ vendedor }) {
                             </div>
                         )}
 
-                        <div className="flex gap-4">
+                        {status === 'COTIZACION' && (
+                            <div className="mt-4 p-4 bg-yellow-400/5 border border-yellow-400/20 rounded-xl space-y-3">
+                                <label className="flex items-center justify-between cursor-pointer group">
+                                    <div className="flex items-center space-x-2">
+                                        <div className={`p-1.5 rounded-lg transition-colors ${isApartadoQuote ? 'bg-yellow-400 text-black' : 'bg-white/5 text-slate-500 group-hover:text-yellow-400'}`}>
+                                            <History size={14} />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-white transition-colors">Proyección Apartado</span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={isApartadoQuote}
+                                        onChange={(e) => setIsApartadoQuote(e.target.checked)}
+                                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-yellow-400 focus:ring-yellow-400/50 focus:ring-offset-0"
+                                    />
+                                </label>
+
+                                {isApartadoQuote && (
+                                    <div className="pt-3 border-t border-yellow-400/10 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                        <div className="flex justify-between text-[10px] items-center">
+                                            <span className="text-slate-500 uppercase font-bold">Pago Inicial (30%)</span>
+                                            <span className="text-yellow-400 font-mono font-bold">${(total * 0.3).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] items-center">
+                                            <span className="text-slate-500 uppercase font-bold">6 Quincenas de</span>
+                                            <span className="text-white font-mono font-bold">${((total * 0.7) / 6).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <p className="text-[9px] text-yellow-400/50 italic leading-tight pt-1 text-right">
+                                            * Se incluirán los términos en el PDF.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="flex gap-4 mt-6">
                             <button
                                 onClick={handleClearAll}
                                 className="w-1/3 bg-white/5 border border-white/10 text-slate-300 font-black py-4 rounded-[20px] flex items-center justify-center space-x-2 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all"

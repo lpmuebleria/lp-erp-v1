@@ -5,6 +5,7 @@ from schemas import UserCreate, UserUpdate
 from security import hash_password
 from pydantic import BaseModel
 from api.notifications import trigger_notification
+from typing import Dict
 
 router = APIRouter()
 
@@ -319,6 +320,42 @@ def delete_user(request: Request, username: str):
         cur.execute("DELETE FROM users WHERE username=%s", (username,))
         conn.commit()
         return {"status": "success", "message": f"Usuario {username} dado de baja."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+class InterestConfig(BaseModel):
+    comision_debito_pct: float
+    interes_msi_pct: float
+    comision_msi_banco_pct: float
+
+@router.get("/config/interests")
+def get_interest_config():
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('comision_debito_pct', 'interes_msi_pct', 'comision_msi_banco_pct')")
+    rows = cur.fetchall()
+    conn.close()
+    
+    settings = {r['k']: float(r['v']) for r in rows}
+    return {
+        "comision_debito_pct": settings.get("comision_debito_pct", 2.0),
+        "interes_msi_pct": settings.get("interes_msi_pct", 15.0),
+        "comision_msi_banco_pct": settings.get("comision_msi_banco_pct", 12.0)
+    }
+
+@router.put("/config/interests")
+def update_interest_config(data: InterestConfig):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO settings (k, v) VALUES ('comision_debito_pct', %s) ON DUPLICATE KEY UPDATE v=%s", (str(data.comision_debito_pct), str(data.comision_debito_pct)))
+        cur.execute("INSERT INTO settings (k, v) VALUES ('interes_msi_pct', %s) ON DUPLICATE KEY UPDATE v=%s", (str(data.interes_msi_pct), str(data.interes_msi_pct)))
+        cur.execute("INSERT INTO settings (k, v) VALUES ('comision_msi_banco_pct', %s) ON DUPLICATE KEY UPDATE v=%s", (str(data.comision_msi_banco_pct), str(data.comision_msi_banco_pct)))
+        conn.commit()
+        return {"status": "success"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

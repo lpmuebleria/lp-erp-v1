@@ -51,6 +51,7 @@ class QuoteLineBase(BaseModel):
     descuento_tipo: Optional[str] = None
     descuento_val: Optional[float] = None
     total_linea: float
+    tipo_precio: Optional[str] = "contado"
 
 class QuoteBase(BaseModel):
     folio: str

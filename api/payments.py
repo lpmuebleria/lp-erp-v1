@@ -27,14 +27,33 @@ def create_payment(data: PaymentCreate):
         if monto > saldo_actual:
             monto = saldo_actual
 
-        # 2) Insert Payment
+        # 2) Calculate Bank Commission
+        comision_bancaria = 0.0
+        if data.metodo == "tarjeta de debito":
+            cur.execute("SELECT v FROM settings WHERE k='comision_debito_pct'")
+            row_c = cur.fetchone()
+            pct = float(row_c["v"]) if row_c and row_c["v"] else 2.0
+            comision_bancaria = round(monto * (pct / 100.0), 2)
+        elif data.metodo in ["6 meses sin intereses", "9 meses sin intereses", "12 meses sin intereses"]:
+            cur.execute("SELECT v FROM settings WHERE k='comision_msi_banco_pct'")
+            row_c = cur.fetchone()
+            pct = float(row_c["v"]) if row_c and row_c["v"] else 12.0
+            comision_bancaria = round(monto * (pct / 100.0), 2)
+        elif data.metodo == "tarjeta de crédito":
+            # Si es crédito normal (una sola exhibición), usamos la comisión de débito por ahora o una base de 3%
+            cur.execute("SELECT v FROM settings WHERE k='comision_debito_pct'")
+            row_c = cur.fetchone()
+            pct = (float(row_c["v"]) if row_c and row_c["v"] else 2.0) + 1.0 # +1% por ser crédito normal
+            comision_bancaria = round(monto * (pct / 100.0), 2)
+
+        # 3) Insert Payment
         cambio = None
         if data.metodo == "efectivo" and data.efectivo_recibido:
             cambio = round(max(0.0, data.efectivo_recibido - monto), 2)
 
         cur.execute("""
-            INSERT INTO payments(order_id, created_at, metodo, monto, referencia, efectivo_recibido, cambio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO payments(order_id, created_at, metodo, monto, referencia, efectivo_recibido, cambio, comision_bancaria)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.order_id,
             today_iso(),
@@ -42,7 +61,8 @@ def create_payment(data: PaymentCreate):
             monto,
             data.referencia,
             data.efectivo_recibido,
-            cambio
+            cambio,
+            comision_bancaria
         ))
 
         # 3) Update Order

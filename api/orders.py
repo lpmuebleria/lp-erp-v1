@@ -19,7 +19,7 @@ def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde
             o.id, o.folio, o.created_at, o.vendedor,
             o.total, o.anticipo_pagado, o.saldo,
             o.entrega_estimada, o.estatus, o.tipo, o.nota, o.estatus_solicitado,
-            o.cp_envio, o.costo_envio,
+            o.cp_envio, o.costo_envio, o.quote_id,
             q.cliente_nombre,
             (SELECT content FROM order_notes WHERE order_id = o.id ORDER BY id DESC LIMIT 1) as ultima_nota
         FROM orders o
@@ -29,9 +29,10 @@ def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde
     params = []
 
     if q_clean:
-        sql += " AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s)"
+        sql += """ AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s 
+                   OR o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s))"""
         like = f"%{q_clean}%"
-        params.extend([like, like])
+        params.extend([like, like, like, like])
     
     if estatus_clean:
         sql += " AND o.estatus = %s"
@@ -50,8 +51,9 @@ def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde
         params.append(hasta)
         
     if mueble:
-        sql += " AND o.id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s)"
-        params.append(f"%{mueble}%")
+        sql += " AND o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s)"
+        like_m = f"%{mueble}%"
+        params.extend([like_m, like_m])
 
     sql += " ORDER BY o.created_at DESC LIMIT 200"
     
@@ -133,64 +135,189 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
             media_type="application/pdf",
             headers={"Content-Disposition": 'inline; filename="reporte_pedidos.pdf"'}
         )
-    
     else:
         import pandas as pd
         from io import BytesIO
-        
-        # Process for Excel
-        df = pd.DataFrame(data)
-        
-        # Select and rename columns for clarity
-        cols_map = {
-            "folio": "Folio",
-            "created_at": "Fecha",
-            "vendedor": "Vendedor",
-            "cliente_nombre": "Cliente",
-            "total": "Total",
-            "anticipo_pagado": "Anticipo",
-            "saldo": "Saldo",
-            "entrega_estimada": "Entrega",
-            "estatus": "Estado",
-            "tipo": "Tipo"
-        }
-        
-        # Make timestamp timezone naive manually before excel export to avoid timezone issues
-        def make_naive(val):
-            if isinstance(val, (datetime.datetime, pd.Timestamp)):
-                if val.tzinfo is not None:
-                    return val.replace(tzinfo=None)
-            return val
+        import openpyxl
+        import os
+        from openpyxl.utils import get_column_letter
+        from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
+        from openpyxl.drawing.image import Image as OpenPyxlImage
+        from utils import get_image_path
+        from dateutil.relativedelta import relativedelta
 
-        if 'created_at' in df.columns:
-            df['created_at'] = df['created_at'].apply(make_naive)
-        
-        # Filter to only existing columns in map
-        df = df[list(cols_map.keys())].rename(columns=cols_map)
-        
+        # 1. Fetch furniture items for all orders
+        conn = db()
+        cur = conn.cursor(dictionary=True)
+        quote_ids = [r["quote_id"] for r in data if r.get("quote_id")]
+        furniture_map = {}
+        if quote_ids:
+            format_strings = ','.join(['%s'] * len(quote_ids))
+            cur.execute(f"""
+                SELECT ql.quote_id, p.modelo 
+                FROM quote_lines ql
+                JOIN products p ON p.id = ql.product_id
+                WHERE ql.quote_id IN ({format_strings})
+            """, tuple(quote_ids))
+            lines = cur.fetchall()
+            for ln in lines:
+                qid = ln["quote_id"]
+                if qid not in furniture_map: furniture_map[qid] = []
+                furniture_map[qid].append(ln["modelo"])
+        conn.close()
+
+        # 2. Process Data for Excel
+        processed_data = []
+        max_furnitures = 0
+        for row in data:
+            # Handle Dates
+            created_at = row["created_at"]
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                except:
+                    # Fallback for other string formats
+                    try:
+                        created_at = datetime.datetime.strptime(created_at.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    except:
+                        created_at = datetime.datetime.now() # Fallback
+
+            # Logic for Delivery Date
+            tipo = row["tipo"]
+            estatus = row["estatus"]
+            
+            # Fecha Promesa Calculation
+            fecha_promesa_dt = None
+            if tipo == "PEDIDO_FABRICACION":
+                fecha_promesa_dt = created_at + datetime.timedelta(days=25)
+            elif tipo == "APARTADO":
+                fecha_promesa_dt = created_at + relativedelta(months=3)
+            else: # VENTA_STOCK or others
+                fecha_promesa_dt = created_at
+
+            # If it's already "ENTREGADO", we show the "entrega_estimada" or the date it was delivered
+            # For now, we'll prefix based on status
+            if estatus == "ENTREGADO":
+                entrega_info = row.get("entrega_estimada") or "Entregado"
+            else:
+                entrega_info = fecha_promesa_dt.strftime("%d/%m/%Y") if fecha_promesa_dt else (row.get("entrega_estimada") or "N/A")
+
+            # Furniture items
+            qid = row.get("quote_id")
+            items = furniture_map.get(qid, [])
+            max_furnitures = max(max_furnitures, len(items))
+
+            new_row = {
+                "Folio": row["folio"],
+                "Fecha": created_at.replace(tzinfo=None) if isinstance(created_at, datetime.datetime) else created_at,
+                "Vendedor": row["vendedor"],
+                "Cliente": row["cliente_nombre"],
+                "Tipo": row["tipo"],
+                "Estado": row["estatus"],
+                "Total": float(row["total"] or 0),
+                "Anticipo": float(row["anticipo_pagado"] or 0),
+                "Saldo": float(row["saldo"] or 0),
+                "Fecha Entrega": entrega_info
+            }
+
+            # Add furniture columns
+            for i, itm in enumerate(items):
+                new_row[f"Mueble {i+1}"] = itm
+            
+            processed_data.append(new_row)
+
+        df = pd.DataFrame(processed_data)
+
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Pedidos')
+            # We'll start the dataframe at row 10 to leave space for header/logo
+            df.to_excel(writer, index=False, sheet_name='Pedidos', startrow=9)
             
-            # Access the openpyxl worksheet to adjust column widths
+            workbook = writer.book
             worksheet = writer.sheets['Pedidos']
+            
+            # 3. Add Logo
+            # Try several paths based on find_by_name results
+            base_p = os.path.dirname(os.path.abspath(__file__))
+            logo_candidates = [
+                os.path.join(base_p, 'static', 'img', 'logo.png'),
+                os.path.join(base_p, 'static', 'img', 'logo.jpg'),
+                os.path.join(os.path.dirname(base_p), 'static', 'logo.jpg'),
+                get_image_path('logo.png'),
+                get_image_path('logo.jpg')
+            ]
+            
+            logo_path = None
+            for p in logo_candidates:
+                if os.path.exists(p):
+                    logo_path = p
+                    break
+            
+            if logo_path:
+                try:
+                    img = OpenPyxlImage(logo_path)
+                    img.width = 150
+                    img.height = 70
+                    worksheet.add_image(img, 'A1')
+                except:
+                    pass
+
+            # 4. Add Report Title and Filters
+            worksheet['D2'] = "REPORTE DE PEDIDOS - LP MUEBLERÍA"
+            worksheet['D2'].font = Font(size=16, bold=True, color="D4AF37")
+            
+            worksheet['D4'] = f"Generado: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            
+            # Filters Info
+            filter_text = []
+            if q: filter_text.append(f"Búsqueda: {q}")
+            if estatus: filter_text.append(f"Estado: {estatus}")
+            if tipo: filter_text.append(f"Tipo: {tipo}")
+            if desde: filter_text.append(f"Desde: {desde}")
+            if hasta: filter_text.append(f"Hasta: {hasta}")
+            if mueble: filter_text.append(f"Mueble: {mueble}")
+            
+            worksheet['D5'] = "Filtros aplicados: " + (", ".join(filter_text) if filter_text else "Ninguno")
+            worksheet['D5'].font = Font(italic=True)
+
+            # 5. Styling the Table
+            header_fill = PatternFill(start_color="D4AF37", end_color="D4AF37", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+            # Stylize headers (row 10)
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = worksheet.cell(row=10, column=col_idx)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center")
+                cell.border = border
+
+            # Stylize data rows and format currency
+            for row_idx in range(11, 11 + len(df)):
+                for col_idx in range(1, len(df.columns) + 1):
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    cell.border = border
+                    
+                    # Currency Formatting for Total, Anticipo, Saldo (Cols 7, 8, 9)
+                    if col_idx in [7, 8, 9]:
+                        cell.number_format = '"$" #,##0.00'
+                        cell.alignment = Alignment(horizontal="right")
+
+            # 6. Auto-adjust columns width
             for i, col in enumerate(df.columns):
-                # Find the maximum length of the content in this column
                 max_len = max(
-                    df[col].astype(str).map(len).max(),  # Max length of data
-                    len(str(col))  # Length of the header
-                ) + 2  # Add some padding
-                
-                # set_column in xlsxwriter vs column_dimensions in openpyxl
-                column_letter = chr(65 + i) # A, B, C...
-                worksheet.column_dimensions[column_letter].width = max_len
+                    df[col].astype(str).map(len).max() if not df.empty else 0,
+                    len(str(col))
+                ) + 3
+                column_letter = get_column_letter(i + 1)
+                worksheet.column_dimensions[column_letter].width = min(max_len, 50) # Cap at 50
 
         output.seek(0)
-        
-        headers = {
-            'Content-Disposition': 'attachment; filename="reporte_pedidos.xlsx"'
-        }
+        filename = f"reporte_pedidos_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 
 @router.get("/orders/{order_id}")
 def get_order_detail(order_id: int):

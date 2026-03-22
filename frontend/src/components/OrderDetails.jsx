@@ -600,8 +600,15 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                 >
                                     <option value="efectivo">EFECTIVO</option>
                                     <option value="tarjeta de debito">TARJETA DE DÉBITO</option>
-                                    <option value="tarjeta de crédito">TARJETA DE CRÉDITO</option>
+                                    <option value="tarjeta de crédito">TARJETA DE CRÉDITO (BÁSICA)</option>
                                     <option value="transferencia">TRANSFERENCIA</option>
+                                    {order.tipo !== 'APARTADO' && (
+                                        <>
+                                            <option value="6 meses sin intereses">6 MESES SIN INTERESES</option>
+                                            <option value="9 meses sin intereses">9 MESES SIN INTERESES</option>
+                                            <option value="12 meses sin intereses">12 MESES SIN INTERESES</option>
+                                        </>
+                                    )}
                                 </select>
                             </div>
 

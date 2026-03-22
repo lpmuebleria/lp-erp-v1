@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users } from 'lucide-react';
+import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign } from 'lucide-react';
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
@@ -14,6 +14,11 @@ function Settings() {
     const [promotions, setPromotions] = useState([]);
     const [globalFlete, setGlobalFlete] = useState(0);
     const [ivaAutomatico, setIvaAutomatico] = useState(false);
+    const [interests, setInterests] = useState({
+        comision_debito_pct: 2.0,
+        interes_msi_pct: 15.0,
+        comision_msi_banco_pct: 12.0
+    });
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -25,18 +30,20 @@ function Settings() {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, pRes, fRes, ivaRes] = await Promise.all([
+            const [uRes, cRes, pRes, fRes, ivaRes, intRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/costs`, { withCredentials: true }),
                 axios.get(`${API_URL}/promotions`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/flete`, { withCredentials: true }),
-                axios.get(`${API_URL}/config/iva`, { withCredentials: true })
+                axios.get(`${API_URL}/config/iva`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/interests`, { withCredentials: true })
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
             setPromotions(pRes.data);
             setGlobalFlete(fRes.data.costo);
             setIvaAutomatico(ivaRes.data.iva_automatico);
+            setInterests(intRes.data);
         } catch (err) {
             console.error("Error fetching configs:", err);
         } finally {
@@ -52,7 +59,8 @@ function Settings() {
                 await Promise.all([
                     axios.put(`${API_URL}/config/utility`, utilities, { withCredentials: true }),
                     axios.put(`${API_URL}/config/flete`, { costo: globalFlete }, { withCredentials: true }),
-                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico }, { withCredentials: true })
+                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico }, { withCredentials: true }),
+                    axios.put(`${API_URL}/config/interests`, interests, { withCredentials: true })
                 ]);
             } else if (activeTab === 'costos') {
                 await axios.put(`${API_URL}/config/costs`, costs, { withCredentials: true });
@@ -251,23 +259,55 @@ function Settings() {
 
                         <div className="mt-8 pt-8 border-t border-white/5">
                             <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                <Percent className="text-premium-gold" size={20} />
-                                Impuestos y Fiscalidad
+                                <DollarSign className="text-premium-gold" size={20} />
+                                Intereses y Terminales Bancarias
                             </h2>
-                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 max-w-lg">
-                                <div>
-                                    <div className="font-bold text-slate-300">IVA Automático (16%)</div>
-                                    <div className="text-xs text-slate-500 mt-1">Al activar, todos los productos tendrán el IVA sumado a su precio base.</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between">
+                                    <div>
+                                        <div className="font-bold text-slate-300">Comisión Débito</div>
+                                        <div className="text-[10px] text-slate-500">Lo que el banco te quita (se absorbe)</div>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={interests.comision_debito_pct}
+                                            onChange={(e) => setInterests({ ...interests, comision_debito_pct: parseFloat(e.target.value) || 0 })}
+                                            className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 w-20 text-right text-premium-gold font-mono focus:border-premium-gold outline-none transition-colors"
+                                        />
+                                        <span className="ml-2 text-slate-500 text-sm">%</span>
+                                    </div>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only peer"
-                                        checked={ivaAutomatico}
-                                        onChange={(e) => setIvaAutomatico(e.target.checked)}
-                                    />
-                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-premium-gold"></div>
-                                </label>
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between">
+                                    <div>
+                                        <div className="font-bold text-slate-300">Incremento MSI (Cliente)</div>
+                                        <div className="text-[10px] text-slate-500">Lo que se le suma al precio base</div>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={interests.interes_msi_pct}
+                                            onChange={(e) => setInterests({ ...interests, interes_msi_pct: parseFloat(e.target.value) || 0 })}
+                                            className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 w-20 text-right text-premium-gold font-mono focus:border-premium-gold outline-none transition-colors"
+                                        />
+                                        <span className="ml-2 text-slate-500 text-sm">%</span>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between md:col-span-2">
+                                    <div>
+                                        <div className="font-bold text-slate-300">Costo MSI Banco (Comisión Real)</div>
+                                        <div className="text-[10px] text-slate-500">Comisión que el banco retiene por ventas a meses</div>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={interests.comision_msi_banco_pct}
+                                            onChange={(e) => setInterests({ ...interests, comision_msi_banco_pct: parseFloat(e.target.value) || 0 })}
+                                            className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 w-20 text-right text-premium-gold font-mono focus:border-premium-gold outline-none transition-colors"
+                                        />
+                                        <span className="ml-2 text-slate-500 text-sm">%</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>

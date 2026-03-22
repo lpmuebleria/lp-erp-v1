@@ -3,9 +3,78 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import io
+import os
+import datetime
 import pandas as pd
 from database import db
-from utils import compute_bolsas
+from utils import compute_bolsas, get_image_path
+from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
+from openpyxl.drawing.image import Image as OpenPyxlImage
+from openpyxl.utils import get_column_letter
+
+def apply_premium_style(ws, title, filters_str, df_cols):
+    """Utility to apply LP Mueblería brand styling to an openpyxl worksheet."""
+    # 1. Add Logo
+    base_p = os.path.dirname(os.path.abspath(__file__))
+    logo_candidates = [
+        os.path.join(base_p, 'static', 'img', 'logo.png'),
+        os.path.join(base_p, 'static', 'img', 'logo.jpg'),
+        os.path.join(os.path.dirname(base_p), 'static', 'logo.jpg'),
+        get_image_path('logo.png'),
+        get_image_path('logo.jpg')
+    ]
+    logo_path = next((p for p in logo_candidates if os.path.exists(p)), None)
+    if logo_path:
+        try:
+            img = OpenPyxlImage(logo_path)
+            img.width, img.height = 150, 70
+            ws.add_image(img, 'A1')
+        except: pass
+
+    # 2. Title and Filters
+    ws['D2'] = title
+    ws['D2'].font = Font(size=16, bold=True, color="D4AF37")
+    ws['D4'] = f"Generado: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    ws['D5'] = f"Filtros: {filters_str}"
+    ws['D5'].font = Font(italic=True)
+
+    # 3. Table Styling
+    header_fill = PatternFill(start_color="D4AF37", end_color="D4AF37", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Headers (row 10)
+    for col_idx in range(1, len(df_cols) + 1):
+        cell = ws.cell(row=10, column=col_idx)
+        cell.fill, cell.font, cell.border = header_fill, header_font, border
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data rows and Currency formating
+    # We scan more rows than the initial DF because of potential footers added manually
+    for row_idx in range(11, 2000): 
+        # Check if row has data (by the first column which usually has Folio/Concepto)
+        content = ws.cell(row=row_idx, column=1).value
+        # If no content and we are far enough, stop
+        if not content and row_idx > 11 + 20: break 
+        if not content: continue
+
+        for col_idx in range(1, len(df_cols) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            # Format if numeric and relevant column
+            header_val = ws.cell(row=10, column=col_idx).value
+            if isinstance(cell.value, (int, float)) and header_val not in ["Folio", "Fecha", "Cliente", "Estatus", "Descripción", "Concepto", "ID"]:
+                cell.number_format = '"$"#,##0.00'
+
+    # 4. Auto-adjust column widths
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if cell.value: max_length = max(max_length, len(str(cell.value)))
+            except: pass
+        ws.column_dimensions[column].width = min(max_length + 5, 50) # Cap at 50
 
 router = APIRouter()
 
@@ -23,7 +92,7 @@ def generate_team_activity_report(request: ReportRequest):
     try:
         # 1. Fetch Orders in date range
         cur.execute("""
-            SELECT o.id, o.folio, o.created_at, o.estatus, o.anticipo_pagado, q.cliente_nombre, q.id as quote_id, q.costo_envio
+            SELECT o.id, o.folio, o.created_at, o.estatus, o.anticipo_pagado, o.iva, q.cliente_nombre, q.id as quote_id, q.costo_envio
             FROM orders o
             JOIN quotes q ON o.quote_id = q.id
             WHERE DATE(o.created_at) BETWEEN %s AND %s
@@ -42,7 +111,7 @@ def generate_team_activity_report(request: ReportRequest):
             format_quote_ids = ','.join(['%s'] * len(quote_ids))
             
             cur.execute(f"""
-                SELECT ql.quote_id, ql.cantidad, ql.total_linea, p.tamano, p.costo_total
+                SELECT ql.quote_id, ql.cantidad, ql.total_linea, p.tamano, p.costo_fabrica
                 FROM quote_lines ql
                 JOIN products p ON p.id = ql.product_id
                 WHERE ql.quote_id IN ({format_quote_ids})
@@ -65,7 +134,7 @@ def generate_team_activity_report(request: ReportRequest):
             for q_id in quote_ids:
                  bolsas_by_quote[q_id] = {
                      "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
-                     "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0
+                     "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0, "iva": 0.0, "comisiones_bancarias": 0.0
                  }
 
             for row in all_lines:
@@ -78,13 +147,15 @@ def generate_team_activity_report(request: ReportRequest):
                 b["empaque"] += float(cfg["empaque"] or 0) * qty
                 b["comision"] += float(cfg["comision"] or 0) * qty
                 b["garantias"] += float(cfg["garantias"] or 0) * qty
-                b["muebles"] += float(row["costo_total"] or 0) * qty
+                b["muebles"] += float(row["costo_fabrica"] or 0) * qty
                 b["fletes"] += flete_unitario * qty
-                b["costo"] += float(row["costo_total"] or 0) * qty
+                b["costo"] += float(row["costo_fabrica"] or 0) * qty
                 b["venta"] += float(row["total_linea"] or 0)
 
             # Priority order for money allocation (Waterfall)
             PRIORITY_ORDER = [
+                "comisiones_bancarias",
+                "iva",
                 "comision",
                 "muebles",
                 "empaque",
@@ -103,12 +174,18 @@ def generate_team_activity_report(request: ReportRequest):
                 qid = o["quote_id"]
                 bolsas_teoricas = bolsas_by_quote[qid]
                 
-                # Add envios (costo_envio) from quote level
+                # Add envios (costo_envio), IVA and Bank Fees from order level
                 bolsas_teoricas["envios"] = float(o["costo_envio"] or 0.0)
+                bolsas_teoricas["iva"] = float(o["iva"] or 0.0)
                 
+                # Fetch bank commissions for this order
+                cur.execute("SELECT SUM(comision_bancaria) as s FROM payments WHERE order_id=%s AND anulado=0", (o["id"],))
+                comm_row = cur.fetchone()
+                bolsas_teoricas["comisiones_bancarias"] = float(comm_row["s"] or 0.0)
+
                 bolsas_teoricas["utilidad_bruta"] = (
-                    bolsas_teoricas["venta"] - bolsas_teoricas["costo"] - 
-                    (bolsas_teoricas["maniobras"] + bolsas_teoricas["empaque"] + bolsas_teoricas["comision"] + bolsas_teoricas["garantias"] + bolsas_teoricas["fletes"])
+                    bolsas_teoricas["venta"] - bolsas_teoricas["iva"] - bolsas_teoricas["comisiones_bancarias"] - bolsas_teoricas["costo"] - 
+                    (bolsas_teoricas["maniobras"] + bolsas_teoricas["empaque"] + bolsas_teoricas["comision"] + bolsas_teoricas["garantias"] + bolsas_teoricas["fletes"] + bolsas_teoricas["envios"])
                 )
 
                 # Waterfall (Cascada) Distribution
@@ -194,22 +271,33 @@ def generate_team_activity_report(request: ReportRequest):
                      total_expenses = df_expenses["Monto"].sum()
                      df_expenses.loc[len(df_expenses)] = ["TOTAL", total_expenses, "", ""]
 
-        # 3. Generate Excel file
+        # 3. Generate Excel file with Professional Formatting
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            if not df_activity.empty:
-                df_activity.to_excel(writer, sheet_name='Actividad de Equipo', index=False)
-            else:
-                # Empty sheet with columns
-                pd.DataFrame(columns=["Folio", "Fecha", "Cliente", "Estatus"] + [f.capitalize() for f in request.selected_families]).to_excel(writer, sheet_name='Actividad de Equipo', index=False)
-                
-            if request.include_expenses and df_expenses is not None and not df_expenses.empty:
-                df_expenses.to_excel(writer, sheet_name='Gastos', index=False)
-            elif request.include_expenses:
-                 pd.DataFrame(columns=["Concepto", "Monto", "Descripción", "Fecha"]).to_excel(writer, sheet_name='Gastos', index=False)
-                 
-        output.seek(0)
+            # We'll start the dataframes at row 10 to leave space for header/logo
+            df_activity.to_excel(writer, sheet_name='Actividad de Equipo', index=False, startrow=9)
+            
+            # Formatting the main sheet
+            ws_act = writer.sheets['Actividad de Equipo']
+            fam_str = ", ".join([f.capitalize() for f in request.selected_families])
+            apply_premium_style(
+                ws_act, 
+                "REPORTE DE ACTIVIDAD OPERATIVA", 
+                f"Desde {request.start_date} hasta {request.end_date} | Familias: {fam_str}",
+                df_activity.columns
+            )
 
+            if request.include_expenses and df_expenses is not None and not df_expenses.empty:
+                df_expenses.to_excel(writer, sheet_name='Gastos', index=False, startrow=9)
+                ws_exp = writer.sheets['Gastos']
+                apply_premium_style(
+                    ws_exp, 
+                    "REPORTE DE EGRESOS (GASTOS)", 
+                    f"Desde {request.start_date} hasta {request.end_date} | Familias: {fam_str}",
+                    df_expenses.columns
+                )
+
+        output.seek(0)
         filename = f"reporte_actividad_{request.start_date}_al_{request.end_date}.xlsx"
         return StreamingResponse(
             output,
@@ -303,12 +391,17 @@ def generate_cash_flow_report(request: ReportRequest): # Reusing the ReportReque
         ]
         df_cuadre = pd.DataFrame(cuadre_data)
 
-        # 4. Excel Generation
+        # 4. Excel Generation with Styling
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_cuadre.to_excel(writer, sheet_name='RESUMEN DE CUADRE', index=False)
-            df_ingresos.to_excel(writer, sheet_name='Desglose Ingresos', index=False)
-            df_egresos.to_excel(writer, sheet_name='Desglose Egresos', index=False)
+            df_cuadre.to_excel(writer, sheet_name='RESUMEN DE CUADRE', index=False, startrow=9)
+            df_ingresos.to_excel(writer, sheet_name='Desglose Ingresos', index=False, startrow=9)
+            df_egresos.to_excel(writer, sheet_name='Desglose Egresos', index=False, startrow=9)
+
+            # Apply Styles
+            apply_premium_style(writer.sheets['RESUMEN DE CUADRE'], "FLUJO DE CAJA - RESUMEN DE CUADRE", f"Desde {request.start_date} hasta {request.end_date}", df_cuadre.columns)
+            apply_premium_style(writer.sheets['Desglose Ingresos'], "FLUJO DE CAJA - INGRESOS DETALLADOS", f"Desde {request.start_date} hasta {request.end_date}", df_ingresos.columns)
+            apply_premium_style(writer.sheets['Desglose Egresos'], "FLUJO DE CAJA - EGRESOS DETALLADOS", f"Desde {request.start_date} hasta {request.end_date}", df_egresos.columns)
 
         output.seek(0)
         filename = f"flujo_caja_{request.start_date}_al_{request.end_date}.xlsx"
