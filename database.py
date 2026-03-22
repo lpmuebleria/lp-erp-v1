@@ -7,15 +7,27 @@ from fastapi import HTTPException
 
 load_dotenv(override=True)
 
-# --- MySQL Connection Config ---
-MYSQL_CONFIG = {
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'root'),
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'lp_erp'),
-    'port': int(os.getenv('DB_PORT', 3306)),
-    'raise_on_warnings': False
-}
+# --- MySQL Connection Config Selection ---
+DB_MODE = os.getenv('DB_MODE', 'LOCAL').upper()
+
+if DB_MODE == 'REMOTE':
+    MYSQL_CONFIG = {
+        'host': os.getenv('REMOTE_DB_HOST'),
+        'user': os.getenv('REMOTE_DB_USER'),
+        'password': os.getenv('REMOTE_DB_PASSWORD'),
+        'database': os.getenv('REMOTE_DB_NAME'),
+        'port': int(os.getenv('REMOTE_DB_PORT', 3306)),
+        'raise_on_warnings': False
+    }
+else:
+    MYSQL_CONFIG = {
+        'host': os.getenv('LOCAL_DB_HOST', 'localhost'),
+        'user': os.getenv('LOCAL_DB_USER', 'root'),
+        'password': os.getenv('LOCAL_DB_PASSWORD', ''),
+        'database': os.getenv('LOCAL_DB_NAME', 'lp_erp'),
+        'port': int(os.getenv('LOCAL_DB_PORT', 3306)),
+        'raise_on_warnings': False
+    }
 
 # Auto-enable SSL for remote connections (Required for Aiven/Render DBs)
 if MYSQL_CONFIG['host'] not in ['localhost', '127.0.0.1']:
