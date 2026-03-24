@@ -101,17 +101,19 @@ def get_all_payments():
     # Retorna el historial global de pagos para la vista de Administrador
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT p.*, o.folio, o.vendedor, q.cliente_nombre 
-        FROM payments p
-        JOIN orders o ON p.order_id = o.id
-        LEFT JOIN quotes q ON o.quote_id = q.id
-        ORDER BY p.created_at DESC, p.id DESC
-        LIMIT 500
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    try:
+        cur.execute("""
+            SELECT p.*, o.folio, o.vendedor, q.cliente_nombre 
+            FROM payments p
+            JOIN orders o ON p.order_id = o.id
+            LEFT JOIN quotes q ON o.quote_id = q.id
+            ORDER BY p.created_at DESC, p.id DESC
+            LIMIT 500
+        """)
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
 
 @router.post("/payments/{payment_id}/cancel")
 def cancel_payment(payment_id: int, data: PaymentCancel):

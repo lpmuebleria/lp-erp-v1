@@ -71,37 +71,98 @@ def download_template():
 def get_products(q: Optional[str] = None):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    
-    q_clean = (q or "").strip()
-    if q_clean:
-        like = f"%{q_clean}%"
-        cur.execute("""
-            SELECT * FROM products
-            WHERE (codigo LIKE %s OR modelo LIKE %s)
-            ORDER BY activo DESC, codigo
-            LIMIT 200
-        """, (like, like))
-    else:
-        cur.execute("""
-            SELECT * FROM products
-            ORDER BY activo DESC, codigo
-            LIMIT 200
-        """)
-    
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    try:
+        q_clean = (q or "").strip()
+        if q_clean:
+            like = f"%{q_clean}%"
+            cur.execute("""
+                SELECT * FROM products
+                WHERE (codigo LIKE %s OR modelo LIKE %s)
+                ORDER BY activo DESC, codigo
+                LIMIT 200
+            """, (like, like))
+        else:
+            cur.execute("""
+                SELECT * FROM products
+                ORDER BY activo DESC, codigo
+                LIMIT 200
+            """)
+        
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
+
+@router.get("/products/next-code")
+def get_next_code(is_madre: int = 0):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        prefix = "LPM" if is_madre == 1 else "LP"
+        # We need to find the max numeric part for codes starting with exactly the prefix (and not the other one)
+        # For LP, we must exclude LPM
+        if is_madre == 0:
+            cur.execute("SELECT codigo FROM products WHERE codigo LIKE 'LP%' AND codigo NOT LIKE 'LPM%'")
+        else:
+            cur.execute("SELECT codigo FROM products WHERE codigo LIKE 'LPM%'")
+        
+        rows = cur.fetchall()
+        max_num = 0
+        for (code,) in rows:
+            try:
+                # Extract digits from the end
+                import re
+                match = re.search(r'\d+$', code)
+                if match:
+                    num = int(match.group())
+                    if num > max_num:
+                        max_num = num
+            except:
+                continue
+        
+        next_num = max_num + 1
+        return {"next_code": f"{prefix}{next_num:04d}"}
+    finally:
+        conn.close()
 
 @router.get("/products/{product_id}", response_model=Product)
 def get_product(product_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM products WHERE id=%s", (product_id,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return row
+    try:
+        cur.execute("SELECT * FROM products WHERE id=%s", (product_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        
+        # If is_madre, fetch allowed fabrics and colors (Both IDs and Names)
+        if row.get("is_madre"):
+            cur.execute("""
+                SELECT f.id, f.name FROM fabrics f 
+                JOIN product_fabrics pf ON f.id = pf.fabric_id 
+                WHERE pf.product_id = %s
+            """, (product_id,))
+            fabrics = cur.fetchall()
+            row["allowed_fabric_names"] = [f["name"] for f in fabrics]
+            row["allowed_fabric_ids"] = [f["id"] for f in fabrics]
+            
+            cur.execute("""
+                SELECT c.id, c.name FROM colors c 
+                JOIN product_colors pc ON c.id = pc.color_id 
+                WHERE pc.product_id = %s
+            """, (product_id,))
+            colors = cur.fetchall()
+            row["allowed_color_names"] = [c["name"] for c in colors]
+            row["allowed_color_ids"] = [c["id"] for c in colors]
+        else:
+            row["allowed_fabric_names"] = []
+            row["allowed_fabric_ids"] = []
+            row["allowed_color_names"] = []
+            row["allowed_color_ids"] = []
+
+        return row
+    finally:
+        conn.close()
 
 @router.post("/products")
 def create_product(data: ProductCreate):
@@ -117,8 +178,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo.strip(),
             data.modelo.strip(),
@@ -135,10 +196,19 @@ def create_product(data: ProductCreate):
             data.activo,
             data.stock,
             data.imagen_url,
-            data.in_catalog
+            data.in_catalog,
+            data.is_madre
         ))
-        conn.commit()
         product_id = cur.lastrowid
+
+        # Insert fabrics/colors if is_madre
+        if data.is_madre:
+            for f_id in data.allowed_fabric_ids:
+                cur.execute("INSERT INTO product_fabrics (product_id, fabric_id) VALUES (%s, %s)", (product_id, f_id))
+            for c_id in data.allowed_color_ids:
+                cur.execute("INSERT INTO product_colors (product_id, color_id) VALUES (%s, %s)", (product_id, c_id))
+        
+        conn.commit()
 
         # Notify Admin
         trigger_notification(
@@ -161,7 +231,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -180,8 +250,19 @@ def update_product(product_id: int, data: ProductCreate):
             data.stock,
             data.imagen_url,
             data.in_catalog,
+            data.is_madre,
             product_id
         ))
+
+        # Sync fabrics/colors if is_madre (or even if not, to clean up)
+        cur.execute("DELETE FROM product_fabrics WHERE product_id=%s", (product_id,))
+        cur.execute("DELETE FROM product_colors WHERE product_id=%s", (product_id,))
+        
+        if data.is_madre:
+            for f_id in data.allowed_fabric_ids:
+                cur.execute("INSERT INTO product_fabrics (product_id, fabric_id) VALUES (%s, %s)", (product_id, f_id))
+            for c_id in data.allowed_color_ids:
+                cur.execute("INSERT INTO product_colors (product_id, color_id) VALUES (%s, %s)", (product_id, c_id))
         
         # Trigger auto-update for orders if stock becomes available
         if data.stock > 0:
@@ -219,21 +300,53 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 
 @router.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(request: Request, file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
 
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+    
+    # CASE 1: Cloudinary is configured
+    if cloud_name and cloud_name.strip() and cloud_name != "None":
+        try:
+            # Upload directly to Cloudinary
+            result = cloudinary.uploader.upload(
+                file.file,
+                folder="lp_erp_inventory",
+                resource_type="image"
+            )
+            return {"url": result.get("secure_url")}
+        except Exception as e:
+            logger.error(f"Error uploading to Cloudinary: {e}")
+            # Fallthrough to local if Cloudinary fails? 
+            # For now, let's keep it separate or just proceed to local if it fails.
+            pass
+
+    # CASE 2: Local Storage Fallback
     try:
-        # Upload directly to Cloudinary
-        result = cloudinary.uploader.upload(
-            file.file,
-            folder="lp_erp_inventory",
-            resource_type="image"
-        )
-        return {"url": result.get("secure_url")}
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        file_ext = os.path.splitext(file.filename)[1]
+        if not file_ext:
+            file_ext = ".jpg" # Fallback extension
+            
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Build local URL. 
+        # We use the request host to make it absolute so frontend can see it.
+        base_url = str(request.base_url).rstrip("/")
+        # If running behind a proxy (like Render), base_url might be http but we need https
+        if request.headers.get("x-forwarded-proto") == "https":
+            base_url = base_url.replace("http://", "https://")
+            
+        local_url = f"{base_url}/static/uploads/{unique_filename}"
+        return {"url": local_url}
     except Exception as e:
-        print(f"Error uploading to Cloudinary: {e}")
-        raise HTTPException(status_code=500, detail=f"No se pudo subir la imagen a la nube: {str(e)}")
+        logger.error(f"Error saving image locally: {e}")
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar la imagen: {str(e)}")
 
 @router.post("/products/import")
 async def import_products(file: UploadFile = File(...)):

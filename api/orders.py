@@ -1,7 +1,11 @@
+import os
+import pandas as pd
+from io import BytesIO
 from fastapi import APIRouter, Request, HTTPException
 from database import db
 from typing import List, Optional
 from schemas import OrderUpdate, OrderNoteCreate
+from utils import get_image_path
 
 router = APIRouter()
 
@@ -9,58 +13,59 @@ router = APIRouter()
 def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde: str = "", hasta: str = "", mueble: str = ""):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    
-    q_clean = (q or "").strip()
-    estatus_clean = (estatus or "").strip()
-    tipo_clean = (tipo or "").strip()
+    try:
+        q_clean = (q or "").strip()
+        estatus_clean = (estatus or "").strip()
+        tipo_clean = (tipo or "").strip()
 
-    sql = """
-        SELECT
-            o.id, o.folio, o.created_at, o.vendedor,
-            o.total, o.anticipo_pagado, o.saldo,
-            o.entrega_estimada, o.estatus, o.tipo, o.nota, o.estatus_solicitado,
-            o.cp_envio, o.costo_envio, o.quote_id,
-            q.cliente_nombre,
-            (SELECT content FROM order_notes WHERE order_id = o.id ORDER BY id DESC LIMIT 1) as ultima_nota
-        FROM orders o
-        LEFT JOIN quotes q ON q.id = o.quote_id
-        WHERE 1=1
-    """
-    params = []
+        sql = """
+            SELECT
+                o.id, o.folio, o.created_at, o.vendedor,
+                o.total, o.anticipo_pagado, o.saldo,
+                o.entrega_estimada, o.estatus, o.tipo, o.nota, o.estatus_solicitado,
+                o.cp_envio, o.costo_envio, o.quote_id,
+                q.cliente_nombre,
+                (SELECT content FROM order_notes WHERE order_id = o.id ORDER BY id DESC LIMIT 1) as ultima_nota
+            FROM orders o
+            LEFT JOIN quotes q ON q.id = o.quote_id
+            WHERE 1=1
+        """
+        params = []
 
-    if q_clean:
-        sql += """ AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s 
-                   OR o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s))"""
-        like = f"%{q_clean}%"
-        params.extend([like, like, like, like])
-    
-    if estatus_clean:
-        sql += " AND o.estatus = %s"
-        params.append(estatus_clean)
+        if q_clean:
+            sql += """ AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s 
+                       OR o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s))"""
+            like = f"%{q_clean}%"
+            params.extend([like, like, like, like])
         
-    if tipo_clean:
-        sql += " AND o.tipo = %s"
-        params.append(tipo_clean)
+        if estatus_clean:
+            sql += " AND o.estatus = %s"
+            params.append(estatus_clean)
+            
+        if tipo_clean:
+            sql += " AND o.tipo = %s"
+            params.append(tipo_clean)
 
-    if desde:
-        sql += " AND date(o.created_at) >= %s"
-        params.append(desde)
-    
-    if hasta:
-        sql += " AND date(o.created_at) <= %s"
-        params.append(hasta)
+        if desde:
+            sql += " AND date(o.created_at) >= %s"
+            params.append(desde)
         
-    if mueble:
-        sql += " AND o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s)"
-        like_m = f"%{mueble}%"
-        params.extend([like_m, like_m])
+        if hasta:
+            sql += " AND date(o.created_at) <= %s"
+            params.append(hasta)
+            
+        if mueble:
+            sql += " AND o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s)"
+            like_m = f"%{mueble}%"
+            params.extend([like_m, like_m])
 
-    sql += " ORDER BY o.created_at DESC LIMIT 200"
-    
-    cur.execute(sql, tuple(params))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+        sql += " ORDER BY o.created_at DESC LIMIT 200"
+        
+        cur.execute(sql, tuple(params))
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
 
 @router.get("/orders/export")
 def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str = "", tipo: str = "", desde: str = "", hasta: str = "", mueble: str = ""):
@@ -149,22 +154,24 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
         # 1. Fetch furniture items for all orders
         conn = db()
         cur = conn.cursor(dictionary=True)
-        quote_ids = [r["quote_id"] for r in data if r.get("quote_id")]
-        furniture_map = {}
-        if quote_ids:
-            format_strings = ','.join(['%s'] * len(quote_ids))
-            cur.execute(f"""
-                SELECT ql.quote_id, p.modelo 
-                FROM quote_lines ql
-                JOIN products p ON p.id = ql.product_id
-                WHERE ql.quote_id IN ({format_strings})
-            """, tuple(quote_ids))
-            lines = cur.fetchall()
-            for ln in lines:
-                qid = ln["quote_id"]
-                if qid not in furniture_map: furniture_map[qid] = []
-                furniture_map[qid].append(ln["modelo"])
-        conn.close()
+        try:
+            quote_ids = [r["quote_id"] for r in data if r.get("quote_id")]
+            furniture_map = {}
+            if quote_ids:
+                format_strings = ','.join(['%s'] * len(quote_ids))
+                cur.execute(f"""
+                    SELECT ql.quote_id, p.modelo 
+                    FROM quote_lines ql
+                    JOIN products p ON p.id = ql.product_id
+                    WHERE ql.quote_id IN ({format_strings})
+                """, tuple(quote_ids))
+                lines = cur.fetchall()
+                for ln in lines:
+                    qid = ln["quote_id"]
+                    if qid not in furniture_map: furniture_map[qid] = []
+                    furniture_map[qid].append(ln["modelo"])
+        finally:
+            conn.close()
 
         # 2. Process Data for Excel
         processed_data = []
@@ -323,30 +330,31 @@ def export_orders(format: str = "excel", q: Optional[str] = None, estatus: str =
 def get_order_detail(order_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT o.*, q.cliente_nombre, q.cliente_tel
-        FROM orders o
-        LEFT JOIN quotes q ON q.id = o.quote_id
-        WHERE o.id=%s
-    """, (order_id,))
-    o = cur.fetchone()
-    if not o:
+    try:
+        cur.execute("""
+            SELECT o.*, q.cliente_nombre, q.cliente_tel
+            FROM orders o
+            LEFT JOIN quotes q ON q.id = o.quote_id
+            WHERE o.id=%s
+        """, (order_id,))
+        o = cur.fetchone()
+        if not o:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+            
+        cur.execute("SELECT * FROM payments WHERE order_id=%s ORDER BY id DESC", (order_id,))
+        payments = cur.fetchall()
+
+        # Fetch lines from quote
+        cur.execute("""
+            SELECT ql.*, p.codigo, p.modelo, p.tamano
+            FROM quote_lines ql JOIN products p ON p.id=ql.product_id
+            WHERE ql.quote_id=%s
+        """, (o["quote_id"],))
+        lines = cur.fetchall()
+
+        return {"order": o, "payments": payments, "lines": lines}
+    finally:
         conn.close()
-        raise HTTPException(status_code=404, detail="Pedido no encontrado")
-        
-    cur.execute("SELECT * FROM payments WHERE order_id=%s ORDER BY id DESC", (order_id,))
-    payments = cur.fetchall()
-
-    # Fetch lines from quote
-    cur.execute("""
-        SELECT ql.*, p.codigo, p.modelo, p.tamano
-        FROM quote_lines ql JOIN products p ON p.id=ql.product_id
-        WHERE ql.quote_id=%s
-    """, (o["quote_id"],))
-    lines = cur.fetchall()
-
-    conn.close()
-    return {"order": o, "payments": payments, "lines": lines}
 
 @router.patch("/orders/{order_id}")
 async def update_order(order_id: int, data: OrderUpdate, request: Request):
@@ -428,48 +436,52 @@ async def update_order(order_id: int, data: OrderUpdate, request: Request):
 def authorize_order_status(order_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    
-    cur.execute("SELECT folio, estatus_solicitado FROM orders WHERE id=%s", (order_id,))
-    o = cur.fetchone()
-    if not o or not o["estatus_solicitado"]:
-        conn.close()
-        raise HTTPException(status_code=400, detail="No hay cambio de estatus pendiente")
+    try:
+        cur.execute("SELECT folio, estatus_solicitado FROM orders WHERE id=%s", (order_id,))
+        o = cur.fetchone()
+        if not o or not o["estatus_solicitado"]:
+            raise HTTPException(status_code=400, detail="No hay cambio de estatus pendiente")
+            
+        new_status = o["estatus_solicitado"]
+        cur.execute("UPDATE orders SET estatus=%s, estatus_solicitado='' WHERE id=%s", (new_status, order_id))
         
-    new_status = o["estatus_solicitado"]
-    cur.execute("UPDATE orders SET estatus=%s, estatus_solicitado='' WHERE id=%s", (new_status, order_id))
-    
-    from api.notifications import trigger_notification
-    trigger_notification(
-        "vendedor", "success", "Cambio Autorizado", 
-        f"Se autorizó el cambio a {new_status} para el pedido {o['folio']}", 
-        order_id
-    )
-    
-    conn.commit()
-    conn.close()
-    return {"status": "success", "new_status": new_status}
+        from api.notifications import trigger_notification
+        trigger_notification(
+            "vendedor", "success", "Cambio Autorizado", 
+            f"Se autorizó el cambio a {new_status} para el pedido {o['folio']}", 
+            order_id
+        )
+        
+        conn.commit()
+        return {"status": "success", "new_status": new_status}
+    finally:
+        conn.close()
 
 @router.get("/orders/{order_id}/notes")
 def get_order_notes(order_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM order_notes WHERE order_id=%s ORDER BY id DESC", (order_id,))
-    notes = cur.fetchall()
-    conn.close()
-    return notes
+    try:
+        cur.execute("SELECT * FROM order_notes WHERE order_id=%s ORDER BY id DESC", (order_id,))
+        notes = cur.fetchall()
+        return notes
+    finally:
+        conn.close()
 
 @router.post("/orders/{order_id}/notes")
 def add_order_note(order_id: int, data: OrderNoteCreate):
     from utils import today_iso
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        INSERT INTO order_notes(order_id, author, content, created_at)
-        VALUES (%s, %s, %s, %s)
-    """, (order_id, data.author, data.content, today_iso()))
-    conn.commit()
-    conn.close()
-    return {"status": "success"}
+    try:
+        cur.execute("""
+            INSERT INTO order_notes(order_id, author, content, created_at)
+            VALUES (%s, %s, %s, %s)
+        """, (order_id, data.author, data.content, today_iso()))
+        conn.commit()
+        return {"status": "success"}
+    finally:
+        conn.close()
 
 @router.post("/orders/{order_id}/penalty")
 async def apply_penalty(order_id: int, request: Request):

@@ -89,7 +89,26 @@ def init_db():
                 costo_total DECIMAL(15,2) NOT NULL,
                 flete DECIMAL(15,2) NOT NULL DEFAULT 0,
                 activo INT NOT NULL DEFAULT 1,
-                in_catalog INT NOT NULL DEFAULT 1
+                in_catalog INT NOT NULL DEFAULT 1,
+                is_madre INT NOT NULL DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS fabrics(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS colors(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name TEXT NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS product_fabrics(
+                product_id INT NOT NULL,
+                fabric_id INT NOT NULL,
+                PRIMARY KEY (product_id, fabric_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS product_colors(
+                product_id INT NOT NULL,
+                color_id INT NOT NULL,
+                PRIMARY KEY (product_id, color_id)
             )""",
             """CREATE TABLE IF NOT EXISTS utilidad_config(
                 nivel VARCHAR(255) PRIMARY KEY,      -- baja/media/alta
@@ -434,6 +453,14 @@ def _migrate(cur):
     # quote_lines
     if not col_exists(cur, "quote_lines", "tipo_precio"):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN tipo_precio VARCHAR(20) DEFAULT 'contado'")
+    if not col_exists(cur, "quote_lines", "tela"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN tela TEXT")
+    if not col_exists(cur, "quote_lines", "color"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN color TEXT")
+
+    # products
+    if not col_exists(cur, "products", "is_madre"):
+        cur.execute("ALTER TABLE products ADD COLUMN is_madre INT NOT NULL DEFAULT 0")
 
     # users
     if not col_exists(cur, "users", "password"):

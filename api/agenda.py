@@ -9,29 +9,30 @@ router = APIRouter()
 def get_agenda(fecha: Optional[str] = None):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    
-    if not (fecha or "").strip():
-        fecha = datetime.date.today().isoformat()
+    try:
+        if not (fecha or "").strip():
+            fecha = datetime.date.today().isoformat()
+            
+        cur.execute("""
+            SELECT 
+                d.id, d.fecha, d.turno, d.created_at,
+                o.id as order_id, o.folio, o.estatus, o.total, o.saldo,
+                q.cliente_nombre, q.cliente_tel
+            FROM deliveries d
+            JOIN orders o ON o.id = d.order_id
+            LEFT JOIN quotes q ON q.id = o.quote_id
+            WHERE d.fecha = %s
+            ORDER BY d.turno ASC, d.created_at ASC
+        """, (fecha,))
+        rows = cur.fetchall()
         
-    cur.execute("""
-        SELECT 
-            d.id, d.fecha, d.turno, d.created_at,
-            o.id as order_id, o.folio, o.estatus, o.total, o.saldo,
-            q.cliente_nombre, q.cliente_tel
-        FROM deliveries d
-        JOIN orders o ON o.id = d.order_id
-        LEFT JOIN quotes q ON q.id = o.quote_id
-        WHERE d.fecha = %s
-        ORDER BY d.turno ASC, d.created_at ASC
-    """, (fecha,))
-    rows = cur.fetchall()
-    
-    # Counts
-    cur.execute("SELECT turno, COUNT(*) as c FROM deliveries WHERE fecha = %s GROUP BY turno", (fecha,))
-    counts = {r['turno']: r['c'] for r in cur.fetchall()}
-    
-    conn.close()
-    return {"events": rows, "counts": counts, "fecha": fecha}
+        # Counts
+        cur.execute("SELECT turno, COUNT(*) as c FROM deliveries WHERE fecha = %s GROUP BY turno", (fecha,))
+        counts = {r['turno']: r['c'] for r in cur.fetchall()}
+        
+        return {"events": rows, "counts": counts, "fecha": fecha}
+    finally:
+        conn.close()
 
 @router.post("/agenda")
 def create_event(order_id: int, fecha: str, turno: str):

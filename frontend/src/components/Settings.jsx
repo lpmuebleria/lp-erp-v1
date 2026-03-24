@@ -19,6 +19,8 @@ function Settings() {
         interes_msi_pct: 15.0,
         comision_msi_banco_pct: 12.0
     });
+    const [fabrics, setFabrics] = useState([]);
+    const [colors, setColors] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -30,13 +32,15 @@ function Settings() {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, pRes, fRes, ivaRes, intRes] = await Promise.all([
+            const [uRes, cRes, pRes, fRes, ivaRes, intRes, fabRes, colRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/costs`, { withCredentials: true }),
                 axios.get(`${API_URL}/promotions`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/flete`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/iva`, { withCredentials: true }),
-                axios.get(`${API_URL}/config/interests`, { withCredentials: true })
+                axios.get(`${API_URL}/config/interests`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/fabrics`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/colors`, { withCredentials: true })
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
@@ -44,6 +48,8 @@ function Settings() {
             setGlobalFlete(fRes.data.costo);
             setIvaAutomatico(ivaRes.data.iva_automatico);
             setInterests(intRes.data);
+            setFabrics(fabRes.data);
+            setColors(colRes.data);
         } catch (err) {
             console.error("Error fetching configs:", err);
         } finally {
@@ -111,6 +117,43 @@ function Settings() {
         } catch (err) {
             console.error(err);
         }
+    };
+
+    const handleAddFabric = async (e) => {
+        e.preventDefault();
+        const name = e.target.fabricName.value;
+        if (!name?.trim()) return;
+        try {
+            const res = await axios.post(`${API_URL}/config/fabrics`, { name }, { withCredentials: true });
+            setFabrics([...fabrics, res.data]);
+            e.target.reset();
+        } catch (err) { console.error(err); }
+    };
+
+    const handleDeleteFabric = async (id) => {
+        if (!confirm("¿Eliminar tela?")) return;
+        try {
+            await axios.delete(`${API_URL}/config/fabrics/${id}`, { withCredentials: true });
+            setFabrics(fabrics.filter(f => f.id !== id));
+        } catch (err) { console.error(err); }
+    };
+
+    const handleAddColorToFabric = async (name, fabricId) => {
+        if (!name?.trim()) return;
+        try {
+            const res = await axios.post(`${API_URL}/config/colors`, { name, fabric_id: fabricId }, { withCredentials: true });
+            // Refresh to get full list or optimistic update
+            setColors([...colors, { ...res.data, name, fabric_id: fabricId }]);
+            fetchConfigs(); // To be safe with lists
+        } catch (err) { console.error(err); }
+    };
+
+    const handleDeleteColor = async (id) => {
+        if (!confirm("¿Eliminar color?")) return;
+        try {
+            await axios.delete(`${API_URL}/config/colors/${id}`, { withCredentials: true });
+            setColors(colors.filter(c => c.id !== id));
+        } catch (err) { console.error(err); }
     };
 
     const updateUtility = (nivel, value) => {
@@ -193,6 +236,13 @@ function Settings() {
                 >
                     Envíos y CP
                 </button>
+                <button
+                    onClick={() => setActiveTab('catalogos')}
+                    className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'catalogos' ? 'bg-white/10 text-white shadow-xl' : 'text-slate-500 hover:text-white'
+                        }`}
+                >
+                    Catálogos
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -204,6 +254,73 @@ function Settings() {
                 {activeTab === 'envios' && (
                     <div className="lg:col-span-2">
                         <ShippingCostsAdmin />
+                    </div>
+                )}
+                {/* Catalogs Section */}
+                {activeTab === 'catalogos' && (
+                    <div className="lg:col-span-2 space-y-8">
+                        <section className="bg-premium-slate/50 border border-white/5 rounded-3xl p-6 backdrop-blur-sm">
+                            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                <Package className="text-premium-gold" size={24} />
+                                Gestión de Telas y Colores
+                            </h2>
+
+                            <form onSubmit={handleAddFabric} className="flex gap-2 mb-8 max-w-md">
+                                <input
+                                    name="fabricName"
+                                    placeholder="Nueva tela (ej. Lino)"
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-premium-gold outline-none"
+                                    required
+                                />
+                                <button type="submit" className="bg-premium-gold text-black px-6 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-all">
+                                    <Plus size={20} /> Tela
+                                </button>
+                            </form>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {fabrics.map(f => (
+                                    <div key={f.id} className="bg-black/20 border border-white/5 rounded-2xl p-4 group flex flex-col h-full hover:border-premium-gold/30 transition-all shadow-lg">
+                                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+                                            <span className="text-sm text-white uppercase font-black tracking-widest">{f.name}</span>
+                                            <button onClick={() => handleDeleteFabric(f.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex-1 space-y-2 mb-4 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                            {colors.filter(c => c.fabric_id === f.id).map(c => (
+                                                <div key={c.id} className="flex items-center justify-between py-1.5 px-2 hover:bg-white/5 rounded-lg group/color">
+                                                    <span className="text-[11px] text-slate-400 font-bold uppercase">{c.name}</span>
+                                                    <button onClick={() => handleDeleteColor(c.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover/color:opacity-100 transition-all">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {colors.filter(c => c.fabric_id === f.id).length === 0 && (
+                                                <div className="text-[10px] text-slate-600 italic py-2">Sin colores asignados</div>
+                                            )}
+                                        </div>
+
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const name = e.target.colorName.value;
+                                            handleAddColorToFabric(name, f.id);
+                                            e.target.reset();
+                                        }} className="flex gap-2 pt-4 border-t border-white/5">
+                                            <input
+                                                name="colorName"
+                                                placeholder="Nuevo color..."
+                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-premium-gold outline-none"
+                                                required
+                                            />
+                                            <button type="submit" className="bg-premium-gold/20 text-premium-gold p-1.5 rounded-lg hover:bg-premium-gold hover:text-black transition-all">
+                                                <Plus size={16} />
+                                            </button>
+                                        </form>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
                     </div>
                 )}
                 {/* Profit Margins Section */}

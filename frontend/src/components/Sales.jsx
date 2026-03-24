@@ -76,8 +76,15 @@ function Sales({ vendedor }) {
     const [isApartadoQuote, setIsApartadoQuote] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(null);
+    const [activeDashboardTab, setActiveDashboardTab] = useState('resumen');
+    
+    // Madre Products Personalization State
+    const [personalizingProduct, setPersonalizingProduct] = useState(null);
+    const [personalizationForm, setPersonalizationForm] = useState({ tela: '', color: '', tipo_precio: 'contado' });
     const [ivaAutomatico, setIvaAutomatico] = useState(false);
     const [interestMSI, setInterestMSI] = useState(15.0); // Default to 15%
+    const [allFabrics, setAllFabrics] = useState([]);
+    const [allColors, setAllColors] = useState([]);
 
     // Fetch promos once
     useEffect(() => {
@@ -91,6 +98,14 @@ function Sales({ vendedor }) {
 
         axios.get(`${API_URL}/promotions`)
             .then(res => setPromotions(res.data.filter(p => p.is_active)))
+            .catch(console.error);
+
+        axios.get(`${API_URL}/config/fabrics`)
+            .then(res => setAllFabrics(res.data))
+            .catch(console.error);
+
+        axios.get(`${API_URL}/config/colors`)
+            .then(res => setAllColors(res.data))
             .catch(console.error);
     }, []);
 
@@ -140,20 +155,27 @@ function Sales({ vendedor }) {
         } else {
             setProducts([]);
         }
-    }, [searchTerm]);
-
+    }, [searchTerm])    
+    
     const addToCart = (product, tipo_precio = 'contado') => {
         const docTipo = isApartadoQuote ? 'contado' : tipo_precio;
+
+        if (product.is_madre === 1) {
+            setPersonalizingProduct(product);
+            setPersonalizationForm({ tela: '', color: '', tipo_precio: docTipo });
+            return;
+        }
+
         const precioUnit = docTipo === 'msi' 
             ? product.precio_lista * (1 + (interestMSI / 100)) 
             : product.precio_lista;
         
-        const cartId = `${product.id}-${docTipo}`; // Unique per price type
-        const existing = cart.find(item => item.cartId === cartId);
+        const cartId = Date.now(); // Unique per price type
+        const existing = cart.find(item => item.product_id === product.id && item.tipo_precio === docTipo && !item.tela); // Check for non-personalized existing item
         
         if (existing) {
             setCart(cart.map(item =>
-                item.cartId === cartId
+                item.cartId === existing.cartId
                     ? { ...item, cantidad: item.cantidad + 1, total_linea: (item.cantidad + 1) * item.precio_unit }
                     : item
             ));
@@ -174,6 +196,34 @@ function Sales({ vendedor }) {
         }
         setSearchTerm('');
         setProducts([]);
+        toast.success(`${product.modelo} añadido al carrito`);
+    };
+
+    const confirmPersonalization = () => {
+        if (!personalizationForm.tela || !personalizationForm.color) {
+            toast.error("Seleccione tela y color");
+            return;
+        }
+        const cartId = Date.now();
+        const product = personalizingProduct;
+        const tipo_precio = personalizationForm.tipo_precio;
+        const finalPrice = tipo_precio === 'msi' ? product.precio_lista * (1 + interestMSI / 100) : product.precio_lista;
+        
+        setCart([...cart, { 
+            ...product, 
+            cantidad: 1, 
+            descuento_manual: 0, 
+            total_linea: finalPrice, 
+            cartId, 
+            tipo_precio,
+            tela: personalizationForm.tela,
+            color: personalizationForm.color
+        }]);
+        
+        setSearchTerm('');
+        setProducts([]);
+        setPersonalizingProduct(null);
+        toast.success(`${product.modelo} personalizado añadido`);
     };
 
     const removeFromCart = (cartId) => {
@@ -409,7 +459,8 @@ function Sales({ vendedor }) {
     }
 
     return (
-        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <>
+            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* 1. Cliente (Ancho completo) */}
             <section className="bg-premium-slate/50 p-6 rounded-[30px] border border-white/5 shadow-xl">
                 <div className="flex items-center space-x-3 mb-4">
@@ -602,7 +653,10 @@ function Sales({ vendedor }) {
                                             <div className="p-4 flex justify-between items-center pb-2">
                                                 <div className="text-left">
                                                     <p className="text-sm font-bold text-white uppercase">{p.modelo}</p>
-                                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">{p.codigo} - {p.tamano}</p>
+                                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+                                                        {p.codigo} - {p.tamano}
+                                                        {p.is_madre === 1 && <span className="ml-2 text-premium-gold font-black">[PRODUCTO MADRE]</span>}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="flex px-4 pb-4 gap-2">
@@ -644,13 +698,21 @@ function Sales({ vendedor }) {
                                     {cart.map(item => (
                                         <tr key={item.cartId} className="group hover:bg-white/[0.02] transition-colors">
                                             <td className="py-4 px-2">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-white uppercase">{item.modelo}</p>
-                                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md border ${item.tipo_precio === 'msi' 
-                                                        ? 'bg-premium-gold/10 text-premium-gold border-premium-gold/20' 
-                                                        : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
-                                                        {item.tipo_precio === 'msi' ? 'MSI' : 'CONTADO'}
-                                                    </span>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-white uppercase">{item.modelo}</p>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md border ${item.tipo_precio === 'msi' 
+                                                            ? 'bg-premium-gold/10 text-premium-gold border-premium-gold/20' 
+                                                            : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
+                                                            {item.tipo_precio}
+                                                        </span>
+                                                    </div>
+                                                    {item.tela && (
+                                                        <div className="text-[9px] text-slate-400 uppercase mt-0.5 flex gap-2">
+                                                            <span><strong className="text-slate-500">TELA:</strong> {item.tela}</span>
+                                                            <span><strong className="text-slate-500">COLOR:</strong> {item.color}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <p className="text-[10px] text-slate-500 uppercase font-mono">{item.codigo}</p>
                                             </td>
@@ -1101,6 +1163,91 @@ function Sales({ vendedor }) {
                 </div>
             </div>
         </div>
+
+        {/* Personalization Modal for Madre Products */}
+        {personalizingProduct && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                <div className="bg-premium-slate border border-white/10 rounded-[30px] w-full max-w-lg p-8 shadow-2xl animate-in zoom-in duration-300">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-premium-gold/10 rounded-2xl flex items-center justify-center text-premium-gold">
+                                <Plus size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tighter">Personalizar Mueble</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{personalizingProduct.modelo}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setPersonalizingProduct(null)} className="text-slate-500 hover:text-white transition-colors">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-[10px] text-premium-gold uppercase font-black mb-3 block tracking-widest">1. Selecciona la Tela</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {allFabrics.filter(f => personalizingProduct.allowed_fabric_ids?.includes(f.id)).map(f => (
+                                    <button
+                                        key={f.id}
+                                        onClick={() => setPersonalizationForm({ ...personalizationForm, tela: f.name, color: '' })}
+                                        className={`p-4 rounded-2xl border text-sm font-black uppercase transition-all ${personalizationForm.tela === f.name ? 'bg-premium-gold border-premium-gold text-black shadow-lg' : 'bg-white/5 border-white/10 text-slate-400 hover:border-premium-gold/50 hover:text-white'}`}
+                                    >
+                                        {f.name}
+                                    </button>
+                                ))}
+                                {allFabrics.filter(f => personalizingProduct.allowed_fabric_ids?.includes(f.id)).length === 0 && (
+                                    <p className="col-span-2 text-center text-xs text-slate-500 italic py-4">No hay telas permitidas para este producto.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {personalizationForm.tela && (
+                            <div className="animate-in slide-in-from-top-4 duration-300">
+                                <label className="text-[10px] text-premium-gold uppercase font-black mb-3 block tracking-widest">2. Selecciona el Color</label>
+                                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                    {allColors.filter(c => 
+                                        personalizingProduct.allowed_color_ids?.includes(c.id) && 
+                                        allFabrics.find(f => f.name === personalizationForm.tela)?.id === c.fabric_id
+                                    ).map(c => (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => setPersonalizationForm({ ...personalizationForm, color: c.name })}
+                                            className={`p-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${personalizationForm.color === c.name ? 'bg-premium-gold border-premium-gold text-black shadow-md' : 'bg-black/40 border-white/5 text-slate-500 hover:border-white/20 hover:text-white'}`}
+                                        >
+                                            {c.name}
+                                        </button>
+                                    ))}
+                                    {allColors.filter(c => 
+                                        personalizingProduct.allowed_color_ids?.includes(c.id) && 
+                                        allFabrics.find(f => f.name === personalizationForm.tela)?.id === c.fabric_id
+                                    ).length === 0 && (
+                                        <p className="col-span-3 text-center text-[10px] text-red-400/70 italic py-2">No hay colores permitidos para esta tela en este producto.</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-6 border-t border-white/5 flex gap-4">
+                            <button
+                                onClick={() => setPersonalizingProduct(null)}
+                                className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl text-slate-400 font-black uppercase text-xs hover:bg-white/10 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmPersonalization}
+                                disabled={!personalizationForm.tela || !personalizationForm.color}
+                                className="flex-1 py-4 bg-premium-gold text-black rounded-2xl font-black uppercase text-xs hover:bg-yellow-400 transition-all shadow-xl shadow-premium-gold/20 disabled:opacity-20"
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+    </>
     );
 }
 
