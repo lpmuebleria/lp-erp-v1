@@ -83,13 +83,28 @@ function Inventory({ role, isSuperadmin }) {
                             <span>Generar Catálogo PDF</span>
                         </button>
                         {hasEditAccess && (
-                            <button
-                                onClick={() => setShowModal(true)}
-                                className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
-                            >
-                                <Plus size={16} />
-                                <span>Nuevo Producto</span>
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        setEditingProduct(null);
+                                        setShowModal(true);
+                                    }}
+                                    className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
+                                >
+                                    <Plus size={16} />
+                                    <span>Regular</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingProduct({ is_madre: 1, codigo: 'M-' });
+                                        setShowModal(true);
+                                    }}
+                                    className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
+                                >
+                                    <Plus size={16} />
+                                    <span>Madre</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -410,7 +425,7 @@ function ProductQuickView({ product, onClose, interestPct }) {
 }
 
 function ProductModal({ onClose, onSave, product }) {
-    const [form, setForm] = useState(product ? { ...product } : {
+    const initialValues = {
         codigo: '',
         modelo: '',
         tamano: 'Chico',
@@ -426,25 +441,50 @@ function ProductModal({ onClose, onSave, product }) {
         activo: 1,
         stock: 0,
         imagen_url: '',
-        in_catalog: 1
-    });
+        in_catalog: 1,
+        is_madre: 0,
+        allowed_fabric_ids: [],
+        allowed_color_ids: []
+    };
+
+    const [form, setForm] = useState({ ...initialValues, ...product });
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [configs, setConfigs] = useState({ utilities: [], costs: [] });
+    const [configs, setConfigs] = useState({ utilities: [], costs: [], fabrics: [], colors: [] });
 
     useEffect(() => {
+        const loadDetails = async () => {
+            if (product?.id) {
+                try {
+                    const res = await axios.get(`${API_URL}/products/${product.id}`);
+                    setForm(prev => ({ ...prev, ...res.data }));
+                } catch (err) {
+                    console.error("Error fetching product details:", err);
+                }
+            }
+        };
+        loadDetails();
         fetchConfigs();
-    }, []);
+    }, [product]);
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, fRes, ivaRes] = await Promise.all([
+            const [uRes, cRes, fRes, ivaRes, fabRes, colRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`),
                 axios.get(`${API_URL}/config/costs`),
                 axios.get(`${API_URL}/config/flete`),
-                axios.get(`${API_URL}/config/iva`)
+                axios.get(`${API_URL}/config/iva`),
+                axios.get(`${API_URL}/config/fabrics`),
+                axios.get(`${API_URL}/config/colors`)
             ]);
-            setConfigs({ utilities: uRes.data, costs: cRes.data, globalFlete: fRes.data.costo, ivaAutomatico: ivaRes.data.iva_automatico });
+            setConfigs({ 
+                utilities: uRes.data, 
+                costs: cRes.data, 
+                globalFlete: fRes.data.costo, 
+                ivaAutomatico: ivaRes.data.iva_automatico,
+                fabrics: fabRes.data,
+                colors: colRes.data
+            });
         } catch (err) {
             console.error("Error fetching configs for modal:", err);
         }
@@ -479,6 +519,23 @@ function ProductModal({ onClose, onSave, product }) {
             }));
         }
     }, [form.tamano, form.costo_fabrica, form.utilidad_nivel, configs]);
+    
+    // Auto-generación de código
+    useEffect(() => {
+        const fetchNextCode = async () => {
+            if (!product?.id) {
+                try {
+                    const res = await axios.get(`${API_URL}/products/next-code?is_madre=${form.is_madre}`);
+                    if (res.data.next_code) {
+                        setForm(prev => ({ ...prev, codigo: res.data.next_code }));
+                    }
+                } catch (err) {
+                    console.error("Error al obtener consecutivo:", err);
+                }
+            }
+        };
+        fetchNextCode();
+    }, [form.is_madre, product?.id]);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
@@ -585,7 +642,7 @@ function ProductModal({ onClose, onSave, product }) {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div className="grid grid-cols-2 gap-4 pt-2 pb-2">
                             <div className="bg-black/20 p-3 rounded-xl border border-white/5">
                                 <label className="text-[9px] text-slate-500 uppercase font-bold block">Costo Total Final</label>
                                 <span className="text-lg font-black text-white">${form.costo_total.toLocaleString()}</span>
@@ -595,6 +652,66 @@ function ProductModal({ onClose, onSave, product }) {
                                 <span className="text-lg font-black text-premium-gold">${form.precio_lista.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
+
+                        {form.is_madre === 1 && (
+                            <div className="grid grid-cols-2 gap-4 py-4 border-y border-white/5 bg-white/5 px-4 rounded-2xl">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] text-premium-gold uppercase font-black mb-1 block">Telas Disponibles</label>
+                                    <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar text-[11px]">
+                                        {configs.fabrics.length === 0 && <p className="text-slate-600 italic">No hay telas configuradas</p>}
+                                        {configs.fabrics.map(f => (
+                                            <label key={f.id} className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.allowed_fabric_ids?.includes(f.id)}
+                                                    onChange={(e) => {
+                                                        const current = form.allowed_fabric_ids || [];
+                                                        const newFabrics = e.target.checked 
+                                                            ? [...current, f.id]
+                                                            : current.filter(id => id !== f.id);
+                                                        setForm({...form, allowed_fabric_ids: newFabrics});
+                                                    }}
+                                                    className="w-4 h-4 rounded border-white/10 accent-premium-gold"
+                                                />
+                                                <span className="uppercase">{f.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] text-premium-gold uppercase font-black mb-1 block">Colores Disponibles</label>
+                                    <div className="max-h-32 overflow-y-auto space-y-3 pr-2 custom-scrollbar text-[11px]">
+                                        {configs.colors.length === 0 && <p className="text-slate-600 italic">No hay colores configurados</p>}
+                                        {configs.fabrics.map(f => {
+                                            const fabricColors = configs.colors.filter(c => c.fabric_id === f.id);
+                                            if (fabricColors.length === 0) return null;
+                                            return (
+                                                <div key={f.id} className="space-y-1">
+                                                    <div className="text-[8px] text-slate-500 font-black uppercase tracking-widest mb-1 pb-0.5 border-b border-white/5">{f.name}</div>
+                                                    {fabricColors.map(c => (
+                                                        <label key={c.id} className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors pl-1">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={form.allowed_color_ids?.includes(c.id)}
+                                                                onChange={(e) => {
+                                                                    const current = form.allowed_color_ids || [];
+                                                                    const newColors = e.target.checked 
+                                                                        ? [...current, c.id]
+                                                                        : current.filter(id => id !== c.id);
+                                                                    setForm({...form, allowed_color_ids: newColors});
+                                                                }}
+                                                                className="w-3 h-3 rounded border-white/10 accent-premium-gold"
+                                                            />
+                                                            <span className="uppercase text-[9px]">{c.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Imagen del Producto</label>

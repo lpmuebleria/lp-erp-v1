@@ -248,6 +248,12 @@
                 <td style="font-family: monospace; font-size: 12px;">{{ item.codigo }}</td>
                 <td>
                     <div style="font-weight: bold;">{{ item.modelo }}</div>
+                    {% if item.tela or item.color %}
+                    <div style="font-size: 10pt; color: #555; text-transform: uppercase;">
+                        {% if item.tela %}<strong>TELA:</strong> {{ item.tela }}{% endif %}
+                        {% if item.color %}<span style="margin-left: 10px;"><strong>COLOR:</strong> {{ item.color }}</span>{% endif %}
+                    </div>
+                    {% endif %}
                     <div style="font-size: 8pt; color: #666; margin-top: 2px;">
                         {% if item.tipo_precio == 'msi' %}
                             Precio a MSI con tarjetas de crédito Visa y Mastercard
@@ -319,6 +325,22 @@
                 </table>
                 <p style="margin: 5px 0 0 0; font-size: 8px; color: #f57f17; font-style: italic;">* Los precios de esta cotización son de CONTADO.</p>
             </div>
+        </div>
+        {% endif %}
+
+        {% if status == 'COTIZACION' and is_apartado_quote %}
+        <div style="margin-top: 15px; padding: 12px; background-color: #fffde7; border: 1px solid #fbc02d; border-radius: 8px; page-break-inside: avoid;">
+            <p style="margin: 0 0 8px 0; font-size: 11px; font-weight: bold; color: #f57f17; text-transform: uppercase; border-bottom: 1px solid #fff59d; padding-bottom: 4px;">💰 Plan de Apartado Sugerido</p>
+            <table style="width: 100%; font-size: 11px; border: none;">
+                <tr>
+                    <td style="padding: 4px 0;"><strong>Pago Inicial (30%):</strong> ${{ "{:,.2f}".format(pago_inicial) }}</td>
+                    <td style="padding: 4px 0; text-align: right;"><strong>Primer Abono:</strong> {{ primer_pago_fecha }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 4px 0;"><strong>6 Quincenas de:</strong> ${{ "{:,.2f}".format(pago_quincenal) }}</td>
+                    <td style="padding: 4px 0; text-align: right; color: #c62828; font-size: 9px;">*Sujeto a existencias al liquidar</td>
+                </tr>
+            </table>
         </div>
         {% endif %}
 

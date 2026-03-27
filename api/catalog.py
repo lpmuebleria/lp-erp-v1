@@ -25,11 +25,13 @@ class CatalogCommentConfig(BaseModel):
 def get_catalog_comments():
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT v FROM settings WHERE k='comentarios_catalogo'")
-    row = cur.fetchone()
-    conn.close()
-    val = row['v'] if row and row['v'] else ""
-    return {"comentarios": val}
+    try:
+        cur.execute("SELECT v FROM settings WHERE k='comentarios_catalogo'")
+        row = cur.fetchone()
+        val = row['v'] if row and row['v'] else ""
+        return {"comentarios": val}
+    finally:
+        conn.close()
 
 @router.put("/catalog/comments")
 def update_catalog_comments(data: CatalogCommentConfig):
@@ -50,10 +52,9 @@ def update_catalog_comments(data: CatalogCommentConfig):
 
 @router.get("/catalog/pdf")
 def generate_catalog_pdf(include_stock: str = "false"):
+    conn = db()
+    cur = conn.cursor(dictionary=True)
     try:
-        conn = db()
-        cur = conn.cursor(dictionary=True)
-        
         cur.execute("SELECT v FROM settings WHERE k='comentarios_catalogo'")
         row_comment = cur.fetchone()
         comentarios_catalogo = row_comment["v"] if row_comment and row_comment["v"] else ""
@@ -77,14 +78,16 @@ def generate_catalog_pdf(include_stock: str = "false"):
         for p in products:
             p['precio_lista'] = float(p['precio_lista'] or 0)
         
+        # We can close the connection now as we have the data
+        cur.close()
         conn.close()
+        conn = None # Set to None to avoid double closing in finally
 
         for p in products:
             img_url = p.get('imagen_url')
             if not img_url:
                 p['b64'] = None
             else:
-                # Use get_image_b64 which is already robust
                 p['b64'] = get_image_b64(img_url)
 
         if not products:
@@ -112,13 +115,11 @@ def generate_catalog_pdf(include_stock: str = "false"):
             wa_b64=wa_b64,
             comentarios_catalogo=comentarios_catalogo,
             interes_msi_pct=interes_msi_pct,
-            base_url="http://localhost:8000" # fallback if required for static resolution
+            base_url="http://localhost:8000" 
         )
 
-        # Generate PDF with WeasyPrint
         pdf_file = HTML(string=html_out).write_pdf()
 
-        # Send as response
         return Response(
             content=pdf_file,
             media_type="application/pdf",
@@ -129,7 +130,8 @@ def generate_catalog_pdf(include_stock: str = "false"):
     except Exception as e:
         import traceback
         err_msg = traceback.format_exc()
-        with open('c:/tmp/catalog_error.txt', 'w', encoding='utf-8') as f:
-            f.write(err_msg)
         print(f"FAILED CATALOG GENERATION: {e}")
         raise HTTPException(status_code=500, detail=str(err_msg))
+    finally:
+        if conn:
+            conn.close()

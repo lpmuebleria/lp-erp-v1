@@ -13,47 +13,50 @@ router = APIRouter()
 def get_quotes(q: Optional[str] = None):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    q_clean = (q or "").strip()
-    
-    if q_clean:
-        like = f"%{q_clean}%"
-        cur.execute("""
-            SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
-            FROM quotes
-            WHERE (cliente_nombre LIKE %s OR folio LIKE %s)
-            ORDER BY created_at DESC
-            LIMIT 20
-        """, (like, like))
-    else:
-        cur.execute("""
-            SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
-            FROM quotes
-            ORDER BY created_at DESC
-            LIMIT 20
-        """)
-    
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    try:
+        q_clean = (q or "").strip()
+        
+        if q_clean:
+            like = f"%{q_clean}%"
+            cur.execute("""
+                SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
+                FROM quotes
+                WHERE (cliente_nombre LIKE %s OR folio LIKE %s)
+                ORDER BY created_at DESC
+                LIMIT 20
+            """, (like, like))
+        else:
+            cur.execute("""
+                SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
+                FROM quotes
+                ORDER BY created_at DESC
+                LIMIT 20
+            """)
+        
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
 
 @router.get("/quotes/{quote_id}")
 def get_quote_detail(quote_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM quotes WHERE id=%s", (quote_id,))
-    q = cur.fetchone()
-    if not q:
+    try:
+        cur.execute("SELECT * FROM quotes WHERE id=%s", (quote_id,))
+        q = cur.fetchone()
+        if not q:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada")
+        
+        cur.execute("""
+            SELECT ql.*, p.codigo, p.modelo
+            FROM quote_lines ql JOIN products p ON p.id=ql.product_id
+            WHERE ql.quote_id=%s
+        """, (quote_id,))
+        lines = cur.fetchall()
+        return {"quote": q, "lines": lines}
+    finally:
         conn.close()
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
-    cur.execute("""
-        SELECT ql.*, p.codigo, p.modelo
-        FROM quote_lines ql JOIN products p ON p.id=ql.product_id
-        WHERE ql.quote_id=%s
-    """, (quote_id,))
-    lines = cur.fetchall()
-    conn.close()
-    return {"quote": q, "lines": lines}
 
 @router.post("/quotes")
 def create_quote(data: dict): # Using dict to accept dynamic payload for all types
@@ -97,8 +100,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
         lines = data.get("lines", [])
         for ln in lines:
             cur.execute("""
-                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio)
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio, tela, color)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 quote_id,
                 ln.get("product_id"),
@@ -106,7 +109,9 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 ln.get("precio_unit"),
                 ln.get("descuento_manual", 0),
                 ln.get("total_linea", 0),
-                ln.get("tipo_precio", "contado")
+                ln.get("tipo_precio", "contado"),
+                ln.get("tela"),
+                ln.get("color")
             ))
 
         # 3) If it's a direct Order creation (not just quote saving)

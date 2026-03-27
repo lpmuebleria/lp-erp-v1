@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from typing import List
 from database import db
-from schemas import UserCreate, UserUpdate
+from schemas import UserCreate, UserUpdate, FabricBase, ColorBase
 from security import hash_password
 from pydantic import BaseModel
 from api.notifications import trigger_notification
@@ -48,6 +48,9 @@ class CostConfig(BaseModel):
     empaque: float
     comision: float
     garantias: float
+
+class CatalogItem(BaseModel):
+    name: str
 
 @router.get("/config/utility", response_model=List[UtilityConfig])
 def get_utility_config():
@@ -356,6 +359,86 @@ def update_interest_config(data: InterestConfig):
         cur.execute("INSERT INTO settings (k, v) VALUES ('comision_msi_banco_pct', %s) ON DUPLICATE KEY UPDATE v=%s", (str(data.comision_msi_banco_pct), str(data.comision_msi_banco_pct)))
         conn.commit()
         return {"status": "success"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+@router.get("/config/fabrics")
+def get_fabrics():
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT * FROM fabrics")
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
+
+@router.post("/config/fabrics")
+def create_fabric(data: FabricBase):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO fabrics (name) VALUES (%s)", (data.name,))
+        conn.commit()
+        return {"message": "Fabric created"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.delete("/config/fabrics/{fabric_id}")
+def delete_fabric(fabric_id: int):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM fabrics WHERE id = %s", (fabric_id,))
+        conn.commit()
+        return {"message": "Fabric deleted"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/config/colors")
+def get_colors(fabric_id: int = None):
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        if fabric_id:
+            cur.execute("SELECT * FROM colors WHERE fabric_id = %s", (fabric_id,))
+        else:
+            cur.execute("SELECT * FROM colors")
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
+
+@router.post("/config/colors")
+def create_color(data: ColorBase):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO colors (name, fabric_id) VALUES (%s, %s)", (data.name, data.fabric_id))
+        conn.commit()
+        return {"message": "Color created"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.delete("/config/colors/{color_id}")
+def delete_color(color_id: int):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM colors WHERE id = %s", (color_id,))
+        conn.commit()
+        return {"message": "Color deleted"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

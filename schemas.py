@@ -19,15 +19,42 @@ class ProductBase(BaseModel):
     stock: int = 0
     imagen_url: Optional[str] = None
     in_catalog: int = 1
+    is_madre: int = 0
 
 class ProductCreate(ProductBase):
-    pass
+    allowed_fabric_ids: List[int] = [] 
+    allowed_color_ids: List[int] = []  
 
 class Product(ProductBase):
     id: int
 
     class Config:
         from_attributes = True
+
+class ProductDetail(Product):
+    allowed_fabric_ids: List[int] = []
+    allowed_color_ids: List[int] = []
+    allowed_fabric_names: List[str] = []
+    allowed_color_names: List[str] = []
+
+class ProductWithDetails(Product):
+    allowed_fabric_ids: List[int] = []
+    allowed_color_ids: List[int] = []
+    allowed_fabric_names: List[str] = []
+    allowed_color_names: List[str] = []
+
+class FabricBase(BaseModel):
+    name: str
+
+class Fabric(FabricBase):
+    id: int
+
+class ColorBase(BaseModel):
+    name: str
+    fabric_id: int
+
+class Color(ColorBase):
+    id: int
 
 class UserBase(BaseModel):
     username: str
@@ -52,6 +79,8 @@ class QuoteLineBase(BaseModel):
     descuento_val: Optional[float] = None
     total_linea: float
     tipo_precio: Optional[str] = "contado"
+    tela: Optional[str] = None
+    color: Optional[str] = None
 
 class QuoteBase(BaseModel):
     folio: str
