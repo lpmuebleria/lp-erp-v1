@@ -428,7 +428,8 @@ def generate_product_tag_pdf(product_id: int, base_price: float = 0.0):
             discount_pct=discount_pct,
             start_date=start_date,
             end_date=end_date,
-            logo_b64=logo_b64
+            logo_b64=logo_b64,
+            today=today
         )
 
         pdf_file = HTML(string=html_out).write_pdf()

@@ -1,152 +1,188 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        @page {
-            size: 8.5in 5.5in landscape;
-            margin: 0;
-        }
-        body {
-            font-family: 'Arial', sans-serif;
-            color: #000;
-            background-color: #ffffff;
-            margin: 0;
-            padding: 0;
-            width: 8.5in;
-            height: 5.5in;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        .main-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100%;
-            padding: 40px 60px;
-            box-sizing: border-box;
-        }
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet">
+<style>
+    @page {
+        size: 8.5in 5.5in landscape;
+        margin: 0;
+    }
 
-        /* TOP: Name */
-        .product-name {
-            font-size: 26pt;
-            font-weight: normal;
-            margin: 0;
-            color: #000;
-            margin-bottom: 5px;
-        }
+    body {
+        font-family: 'Inter', sans-serif;
+        color: #1a1a1a;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+        width: 8.5in;
+        height: 5.5in;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center; /* Center vertically */
+    }
 
-        /* MIDDLE: Split Left (Cascade) and Right (Logo) */
-        .middle-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex: 1;
-        }
+    /* COMPACT CONTAINER */
+    .tag-container {
+        width: 6.5in;
+        /* Smaller than the page width */
+        border: 2px solid #b8860b;
+        padding: 5px;
+        box-sizing: border-box;
+        position: relative;
+        background-color: #ffffff;
+    }
 
-        .cascade-prices {
-            width: 60%;
-        }
+    .inner-content {
+        border: 1px solid #b8860b;
+        padding: 30px 40px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
 
-        .antes-box {
-            font-size: 22pt;
-            color: #0000FF; /* Blue */
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        .antes-box span {
-            text-decoration: line-through;
-        }
+    /* HEADER */
+    .header {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
 
-        .ahora-box {
-            margin-bottom: 20px;
-        }
-        .ahora-label {
-            font-size: 26pt;
-            color: #000;
-            vertical-align: middle;
-        }
-        .ahora-price {
-            font-size: 48pt;
-            font-weight: bold;
-            color: #FF0000; /* Red */
-            vertical-align: middle;
-            margin-left: 10px;
-        }
+    .logo {
+        max-height: 70px;
+    }
 
-        .msi-box {
-            margin-top: 10px;
-        }
-        .msi-price {
-            font-size: 38pt;
-            font-weight: bold;
-            color: #2E7D32; /* Green */
-            display: block;
-        }
-        .msi-text {
-            font-size: 22pt;
-            color: #333;
-            display: block;
-        }
+    /* PRODUCT INFO */
+    .product-name {
+        font-family: 'Playfair Display', serif;
+        font-size: 28pt;
+        margin: 0;
+        color: #000;
+        text-align: center;
+        line-height: 1.2;
+    }
 
-        /* RIGHT: Logo */
-        .logo-box {
-            width: 35%;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .logo {
-            max-width: 100%;
-            max-height: 180px;
-        }
+    /* PRICE SECTION */
+    .price-section {
+        margin: 30px 0;
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-end;
+    }
 
-        /* BOTTOM: Code */
-        .footer-section {
-            margin-top: 10px;
-        }
-        .product-code {
-            font-size: 22pt;
-            font-weight: normal;
-            color: #666;
-        }
-    </style>
+    .price-column {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .antes-price {
+        font-size: 16pt;
+        color: #999;
+        text-decoration: line-through;
+        margin-bottom: 5px;
+    }
+
+    .ahora-price {
+        font-size: 42pt;
+        font-weight: bold;
+        color: #b12704;
+        /* Professional deep red */
+        font-family: 'Playfair Display', serif;
+    }
+
+    .msi-price {
+        font-size: 36pt;
+        font-weight: bold;
+        color: #1a1a1a;
+        font-family: 'Playfair Display', serif;
+    }
+
+    .price-label {
+        font-size: 12pt;
+        font-weight: bold;
+        color: #b8860b;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-top: 5px;
+    }
+
+    .msi-sublabel {
+        font-size: 10pt;
+        color: #666;
+        margin-top: 2px;
+    }
+
+    /* FOOTER */
+    .footer {
+        width: 100%;
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #b8860b;
+        padding-top: 15px;
+    }
+
+    .product-code {
+        font-size: 14pt;
+        font-weight: bold;
+        color: #444;
+    }
+
+    .store-badge {
+        font-size: 10pt;
+        color: #b8860b;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+</style>
 </head>
+
 <body>
-    <div class="main-container">
-        <!-- TOP: Product Name -->
-        <div class="product-name">{{ product.modelo }}</div>
-
-        <!-- MIDDLE: Cascade Prices and Logo -->
-        <div class="middle-container">
-            <div class="cascade-prices">
-                <div class="antes-box">
-                    Antes <span>$ {{ "{:,.0f}".format(base_price) }} -</span>
-                </div>
-                
-                <div class="ahora-box">
-                    <span class="ahora-label">Ahora</span>
-                    <span class="ahora-price">$ {{ "{:,.0f}".format(product.precio_lista) }} -</span>
-                </div>
-
-                <div class="msi-box">
-                    <span class="msi-price">$ {{ "{:,.0f}".format(msi_total) }} -</span>
-                    <span class="msi-text">A 12 Meses sin intereses</span>
-                </div>
-            </div>
-
-            <div class="logo-box">
+    <div class="tag-container">
+        <div class="inner-content">
+            <!-- HEADER -->
+            <div class="header">
                 {% if logo_b64 %}
-                    <img class="logo" src="{{ logo_b64 }}" />
+                <img class="logo" src="{{ logo_b64 }}" />
                 {% else %}
-                    <div style="font-size: 20pt; font-weight: bold;">LP MUEBLERÍA</div>
+                <div style="font-size: 18pt; font-weight: bold; color: #b8860b;">LP MUEBLERÍA</div>
                 {% endif %}
             </div>
-        </div>
 
-        <!-- BOTTOM: Code -->
-        <div class="footer-section">
-            <div class="product-code">{{ product.codigo }}</div>
+            <!-- PRODUCT -->
+            <h1 class="product-name">{{ product.modelo }}</h1>
+
+            <!-- PRICE -->
+            <div class="price-section">
+                <!-- CONTADO -->
+                <div class="price-column">
+                    {% if base_price > 0 %}
+                    <div class="antes-price">$ {{ "{:,.0f}".format(base_price) }}</div>
+                    {% endif %}
+                    <div class="ahora-price">$ {{ "{:,.0f}".format(product.precio_lista) }}</div>
+                    <div class="price-label">Precio de Contado</div>
+                </div>
+
+                <!-- MSI -->
+                <div class="price-column">
+                    <div class="msi-sublabel" style="margin-bottom: 5px; font-weight: bold; color: #b8860b;">12 PAGOS DE:</div>
+                    <div class="msi-price">$ {{ "{:,.0f}".format(msi_total / 12) }}</div>
+                    <div class="price-label">Precio a Crédito</div>
+                    <div class="msi-sublabel">Total: $ {{ "{:,.0f}".format(msi_total) }}</div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="footer">
+                <div class="store-badge">Calidad Garantizada</div>
+                <div class="product-code">CÓDIGO: {{ product.codigo }}</div>
+            </div>
         </div>
     </div>
 </body>
+
 </html>
