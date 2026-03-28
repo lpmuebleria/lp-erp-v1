@@ -305,11 +305,13 @@
         </p>
         {% endif %}
 
-        {% if is_apartado_quote and status == 'COTIZACION' %}
+        {% if is_apartado_quote or status == 'APARTADO' %}
         <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
-            <div style="margin-bottom: 15px; border: 1px solid #ffd600; padding: 10px; background-color: #fffde7; border-radius: 8px;">
-                <p style="margin: 0 0 5px 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #f57f17; letter-spacing: 0.5px;">⭐ Proyección de Sistema de Apartado</p>
-                <table style="width: 100%; font-size: 10px; border-collapse: collapse; border: none;">
+            <div style="margin-bottom: 15px; border: 1px solid #ffd600; padding: 12px; background-color: #fffde7; border-radius: 8px; page-break-inside: avoid;">
+                <p style="margin: 0 0 8px 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #f57f17; letter-spacing: 0.5px;">
+                    {{ '💰 Plan de Apartado Actual' if status == 'APARTADO' else '⭐ Proyección de Sistema de Apartado' }}
+                </p>
+                <table style="width: 100%; font-size: 11px; border-collapse: collapse; border: none;">
                     <tr>
                         <td style="padding: 4px 0; border-bottom: 1px solid #fff59d;"><strong>Pago Inicial Requerido (30%):</strong></td>
                         <td style="padding: 4px 0; border-bottom: 1px solid #fff59d; text-align: right; font-weight: bold; color: #2e7d32;">${{ "{:,.2f}".format(pago_inicial) }}</td>
@@ -323,24 +325,10 @@
                         <td style="padding: 4px 0; text-align: right; color: #666;">{{ primer_pago_fecha }}</td>
                     </tr>
                 </table>
-                <p style="margin: 5px 0 0 0; font-size: 8px; color: #f57f17; font-style: italic;">* Los precios de esta cotización son de CONTADO.</p>
+                <p style="margin: 5px 0 0 0; font-size: 8px; color: #f57f17; font-style: italic;">
+                    * Plazo de 3 meses para liquidar. Sujeto a existencias al liquidar.
+                </p>
             </div>
-        </div>
-        {% endif %}
-
-        {% if status == 'COTIZACION' and is_apartado_quote %}
-        <div style="margin-top: 15px; padding: 12px; background-color: #fffde7; border: 1px solid #fbc02d; border-radius: 8px; page-break-inside: avoid;">
-            <p style="margin: 0 0 8px 0; font-size: 11px; font-weight: bold; color: #f57f17; text-transform: uppercase; border-bottom: 1px solid #fff59d; padding-bottom: 4px;">💰 Plan de Apartado Sugerido</p>
-            <table style="width: 100%; font-size: 11px; border: none;">
-                <tr>
-                    <td style="padding: 4px 0;"><strong>Pago Inicial (30%):</strong> ${{ "{:,.2f}".format(pago_inicial) }}</td>
-                    <td style="padding: 4px 0; text-align: right;"><strong>Primer Abono:</strong> {{ primer_pago_fecha }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 4px 0;"><strong>6 Quincenas de:</strong> ${{ "{:,.2f}".format(pago_quincenal) }}</td>
-                    <td style="padding: 4px 0; text-align: right; color: #c62828; font-size: 9px;">*Sujeto a existencias al liquidar</td>
-                </tr>
-            </table>
         </div>
         {% endif %}
 
@@ -486,7 +474,7 @@
                     <td style="vertical-align: top; padding-right: 10px;"><strong>3. CANCELACIONES:</strong> No reembolsables una vez iniciado.</td>
                     {% endif %}
                     {% if status == 'APARTADO' or is_apartado_quote %}
-                    <td style="vertical-align: top; padding-right: 10px; color: #b71c1c;"><strong>6. APARTADO:</strong> 3 meses para liquidar con abonos quincenales. No hay cambios ni devoluciones.</td>
+                    <td style="vertical-align: top; padding-right: 10px; color: #b71c1c;"><strong>6. APARTADO:</strong> 3 meses (90 días) para liquidar con abonos quincenales obligatorios. En caso de atraso en el abono, se aplicará un cargo administrativo de <strong>$200.00 MXN</strong> por quincena vencida. No hay cambios ni devoluciones.</td>
                     {% endif %}
                     <td style="vertical-align: top;" colspan="2"><strong>5. REVISIÓN:</strong> Firma de conformidad deslinda responsabilidad por daños físicos.</td>
                 </tr>
