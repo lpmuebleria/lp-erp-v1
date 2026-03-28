@@ -92,7 +92,7 @@ def startup_event():
 
 
 from fastapi.staticfiles import StaticFiles
-from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping, catalog, reports
+from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping, catalog, reports, backups
 
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(products.router, prefix="/api", tags=["Products"])
@@ -109,8 +109,16 @@ app.include_router(expenses.router, prefix="/api", tags=["Expenses"])
 app.include_router(roles.router, prefix="/api", tags=["Roles"])
 app.include_router(catalog.router, prefix="/api", tags=["Catalog"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
+app.include_router(backups.router, prefix="/api", tags=["Backups"])
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.on_event("startup")
+async def start_scheduler():
+    import asyncio
+    from api.backups import backup_scheduler
+    # Launch in background without blocking
+    asyncio.create_task(backup_scheduler())
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
