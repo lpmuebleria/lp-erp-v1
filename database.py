@@ -44,7 +44,7 @@ from logger_config import logger
 try:
     db_pool = pooling.MySQLConnectionPool(
         pool_name="lp_erp_pool",
-        pool_size=5,
+        pool_size=20,
         pool_reset_session=True,
         **MYSQL_CONFIG
     )
@@ -381,6 +381,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE products ADD COLUMN flete DECIMAL(15,2) NOT NULL DEFAULT 0")
     if not col_exists(cur, "products", "in_catalog"):
         cur.execute("ALTER TABLE products ADD COLUMN in_catalog INT NOT NULL DEFAULT 1")
+    if not col_exists(cur, "products", "round_adjustment"):
+        cur.execute("ALTER TABLE products ADD COLUMN round_adjustment DECIMAL(15,2) DEFAULT 0")
 
     # quotes
     if not col_exists(cur, "quotes", "cliente_nombre"):
@@ -403,6 +405,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE quotes ADD COLUMN referencia_envio TEXT")
     if not col_exists(cur, "quotes", "nota_envio"):
         cur.execute("ALTER TABLE quotes ADD COLUMN nota_envio TEXT")
+    if not col_exists(cur, "quotes", "round_adjustment"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN round_adjustment DECIMAL(15,2) DEFAULT 0")
 
     # orders
     if not col_exists(cur, "orders", "tipo"):
@@ -433,6 +437,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE orders ADD COLUMN referencia_envio TEXT")
     if not col_exists(cur, "orders", "nota_envio"):
         cur.execute("ALTER TABLE orders ADD COLUMN nota_envio TEXT")
+    if not col_exists(cur, "orders", "round_adjustment"):
+        cur.execute("ALTER TABLE orders ADD COLUMN round_adjustment DECIMAL(15,2) DEFAULT 0")
     
     # Billing / Facturacion
     if not col_exists(cur, "orders", "factura_rfc"):
@@ -470,6 +476,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN tela TEXT")
     if not col_exists(cur, "quote_lines", "color"):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN color TEXT")
+    if not col_exists(cur, "quote_lines", "round_adjustment"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN round_adjustment DECIMAL(15,2) DEFAULT 0")
 
     # products
     if not col_exists(cur, "products", "is_madre"):
