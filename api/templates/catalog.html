@@ -194,8 +194,8 @@
             <div class="product-info">
                 <div class="model-name">{{ p.modelo }}</div>
                 <div class="product-code">CÓDIGO: {{ p.codigo }}</div>
-                <div class="price">${{ "{:,.2f}".format(p.precio_lista or 0) }} <span style="font-size: 8pt; color: #64748b; font-weight: normal;">(Contado)</span></div>
-                <div style="font-size: 11pt; font-weight: bold; color: #b8860b;">MSI: ${{ "{:,.2f}".format((p.precio_lista or 0) * (1 + (interes_msi_pct or 15) / 100)) }}</div>
+                <div class="price">${{ "{:,.0f}".format(p.precio_lista or 0) }} <span style="font-size: 8pt; color: #64748b; font-weight: normal;">(Contado)</span></div>
+                <div style="font-size: 11pt; font-weight: bold; color: #b8860b;">MSI: ${{ "{:,.0f}".format(p.precio_msi or 0) }}</div>
                 {% if show_stock %}
                 <div class="stock">EXISTENCIA: {{ p.stock|default(0) }}</div>
                 {% endif %}

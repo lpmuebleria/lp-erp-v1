@@ -4,6 +4,7 @@ from schemas import PaymentCreate, PaymentCancel
 from utils import today_iso
 from api.notifications import trigger_notification
 import datetime
+import os
 
 router = APIRouter()
 
@@ -28,23 +29,8 @@ def create_payment(data: PaymentCreate):
             monto = saldo_actual
 
         # 2) Calculate Bank Commission
-        comision_bancaria = 0.0
-        if data.metodo == "tarjeta de debito":
-            cur.execute("SELECT v FROM settings WHERE k='comision_debito_pct'")
-            row_c = cur.fetchone()
-            pct = float(row_c["v"]) if row_c and row_c["v"] else 2.0
-            comision_bancaria = round(monto * (pct / 100.0), 2)
-        elif data.metodo in ["6 meses sin intereses", "9 meses sin intereses", "12 meses sin intereses"]:
-            cur.execute("SELECT v FROM settings WHERE k='comision_msi_banco_pct'")
-            row_c = cur.fetchone()
-            pct = float(row_c["v"]) if row_c and row_c["v"] else 12.0
-            comision_bancaria = round(monto * (pct / 100.0), 2)
-        elif data.metodo == "tarjeta de crédito":
-            # Si es crédito normal (una sola exhibición), usamos la comisión de débito por ahora o una base de 3%
-            cur.execute("SELECT v FROM settings WHERE k='comision_debito_pct'")
-            row_c = cur.fetchone()
-            pct = (float(row_c["v"]) if row_c and row_c["v"] else 2.0) + 1.0 # +1% por ser crédito normal
-            comision_bancaria = round(monto * (pct / 100.0), 2)
+        from utils import calculate_bank_commission
+        comision_bancaria = calculate_bank_commission(cur, data.metodo, monto)
 
         # 3) Insert Payment
         cambio = None

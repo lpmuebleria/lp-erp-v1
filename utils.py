@@ -2,6 +2,7 @@ import datetime
 import base64
 import os
 from database import db
+import math
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +71,44 @@ QUOTE_VALID_DAYS = 30
 def money(x):
     return f"${x:,.2f}"
 
+def calculate_rounding(amount: float) -> float:
+    if not amount: return 0.0
+    remainder = amount % 10
+    if remainder < 1.0:
+        return float((amount // 10) * 10)
+    else:
+        return float(math.ceil(amount / 10) * 10)
+
+def calculate_bank_commission(cur, metodo: str, monto: float) -> float:
+    if not metodo or not monto:
+        return 0.0
+    
+    try:
+        # Normalize method name (Greedy keyword match)
+        mn = str(metodo).lower().replace("_", " ").strip()
+        is_msi = "meses sin intereses" in mn or mn == "msi"
+        is_any_card = is_msi or "tarjeta" in mn or mn in ["debito", "credito", "td", "tc"]
+        
+        # Get card base rate (typically 3%)
+        cur.execute("SELECT v FROM settings WHERE k='comision_debito_pct'")
+        res_card = cur.fetchone()
+        card_rate = float(res_card["v"]) if res_card and res_card["v"] else 3.0
+
+        if is_msi:
+            # MSI: Bank financing rate (e.g. 18%) + Card base rate (3%) = 21% total
+            cur.execute("SELECT v FROM settings WHERE k='comision_msi_banco_pct'")
+            res_msi = cur.fetchone()
+            msi_rate = float(res_msi["v"]) if res_msi and res_msi["v"] else 18.0
+            
+            total_rate = card_rate + msi_rate
+            return round(float(monto) * (total_rate / 100.0), 2)
+        elif is_any_card:
+            return round(float(monto) * (card_rate / 100.0), 2)
+        
+        return 0.0
+    except Exception:
+        return 0.0
+
 def today_iso():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -112,7 +151,7 @@ def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilida
     if iva_automatico:
         precio_final = precio_final * 1.16
 
-    return round(precio_final, 2)
+    return calculate_rounding(precio_final)
 
 def compute_line_total(precio_unit: float, cantidad: int, desc_tipo: str|None, desc_val: float|None):
     subtotal = precio_unit * cantidad
@@ -125,9 +164,12 @@ def compute_line_total(precio_unit: float, cantidad: int, desc_tipo: str|None, d
     return subtotal
 
 def compute_bolsas(cur, quote_id: int):
-    cur.execute("SELECT v FROM settings WHERE k='flete_unitario'")
-    row_flete = cur.fetchone()
-    flete_unitario = float(row_flete["v"]) if row_flete else 0.0
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('flete_unitario', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
+    setts = {r["k"]: r["v"] for r in cur.fetchall()}
+    flete_unitario = float(setts.get("flete_unitario", 0.0))
+    comm_debito_pct = float(setts.get("comision_debito_pct", 0.0))
+    comm_msi_pct = float(setts.get("comision_msi_banco_pct", 0.0))
+    iva_auto = int(setts.get("iva_automatico", 1))
 
     cur.execute("""
         SELECT ql.*, p.tamano, p.costo_fabrica
@@ -141,8 +183,10 @@ def compute_bolsas(cur, quote_id: int):
     cur.execute("SELECT id, iva, costo_envio FROM orders WHERE quote_id=%s LIMIT 1", (quote_id,))
     order_info = cur.fetchone()
     
-    iva_val = 0.0
-    comisiones_bancarias = 0.0
+    costo_env = 0.0
+    comision_tarjeta = 0.0
+    comision_msi = 0.0
+
     if not order_info:
         # Fallback to quote info if no order yet
         cur.execute("SELECT costo_envio FROM quotes WHERE id=%s", (quote_id,))
@@ -150,16 +194,35 @@ def compute_bolsas(cur, quote_id: int):
         costo_env = float(q_info["costo_envio"]) if q_info and q_info.get("costo_envio") else 0.0
     else:
         costo_env = float(order_info["costo_envio"] or 0)
-        iva_val = float(order_info["iva"] or 0)
-        # Sum bank commissions from payments
-        cur.execute("SELECT SUM(comision_bancaria) as s FROM payments WHERE order_id=%s AND anulado=0", (order_info["id"],))
-        comm_row = cur.fetchone()
-        comisiones_bancarias = float(comm_row["s"] or 0.0)
+        # Sum bank commissions from payments by splitting debit vs msi
+        cur.execute("SELECT metodo, monto, comision_bancaria FROM payments WHERE order_id=%s AND anulado=0", (order_info["id"],))
+        payments = cur.fetchall()
+        
+        # Determine if order is MSI (if any line is MSI)
+        cur.execute("SELECT COUNT(*) as c FROM quote_lines WHERE quote_id=%s AND tipo_precio='msi'", (quote_id,))
+        is_msi_order = (cur.fetchone()["c"] > 0)
+
+        for p in payments:
+            mn = p["metodo"].lower().replace("_", " ").strip() if p["metodo"] else ""
+            saved_comm = float(p["comision_bancaria"] or 0.0)
+            monto_abono = float(p["monto"])
+
+            is_msi = "meses sin intereses" in mn or mn == "msi"
+            is_any_card = is_msi or "tarjeta" in mn or mn in ["debito", "credito", "td", "tc"]
+
+            # All installment plans (MSI) go to MSI bag (they include terminal 3% + bank 18% = 21% total)
+            if is_msi:
+                comision_msi += saved_comm
+            # All normal cards (Debit/Credit) go to 'comision_tarjeta'
+            elif is_any_card:
+                comision_tarjeta += saved_comm
+            elif is_msi_order and mn == 'transferencia':
+                 pass
 
     bols = {
         "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
         "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, 
-        "envios": costo_env, "iva": iva_val, "comisiones_bancarias": comisiones_bancarias
+        "envios": costo_env, "iva": 0.0, "comision_tarjeta": comision_tarjeta, "comision_msi": comision_msi
     }
     for ln in lines:
         cfg = get_cfg_for_tamano(cur, ln["tamano"])
@@ -173,10 +236,18 @@ def compute_bolsas(cur, quote_id: int):
         bols["costo"] += float(ln["costo_fabrica"] or 0) * qty
         bols["venta"] += float(ln["total_linea"] or 0)
     
+    # IVA Calculation (16% of sale, extracted if automatic)
+    if iva_auto:
+        bols["iva"] = bols["venta"] - (bols["venta"] / 1.16)
+    else:
+        bols["iva"] = bols["venta"] * 0.16
+
     # Final Utility calculation: 
-    # Venta - IVA - Comisiones Bancarias - Costo Fabrica - (Maniobras+Empaque+Comision+Garantias+Fletes+Envios)
-    bols["utilidad_bruta"] = float(bols["venta"]) - float(bols["iva"]) - float(bols["comisiones_bancarias"]) - float(bols["costo"]) - \
-                            (bols["maniobras"] + bols["empaque"] + bols["comision"] + bols["garantias"] + bols["fletes"] + bols["envios"])
+    # Venta - IVA - Bank Fees - Costo Fabrica - Config Costs (Maniobras etc) - Fletes - Envios
+    bols["utilidad_bruta"] = (
+        bols["venta"] - bols["iva"] - bols["comision_tarjeta"] - bols["comision_msi"] - 
+        bols["muebles"] - (bols["maniobras"] + bols["empaque"] + bols["comision"] + bols["garantias"] + bols["fletes"])
+    )
     return bols
 
 def get_image_path(filename):

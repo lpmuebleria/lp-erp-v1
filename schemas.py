@@ -20,6 +20,7 @@ class ProductBase(BaseModel):
     imagen_url: Optional[str] = None
     in_catalog: int = 1
     is_madre: int = 0
+    round_adjustment: float = 0
 
 class ProductCreate(ProductBase):
     allowed_fabric_ids: List[int] = [] 
@@ -81,6 +82,7 @@ class QuoteLineBase(BaseModel):
     tipo_precio: Optional[str] = "contado"
     tela: Optional[str] = None
     color: Optional[str] = None
+    round_adjustment: float = 0
 
 class QuoteBase(BaseModel):
     folio: str
@@ -100,6 +102,7 @@ class QuoteBase(BaseModel):
     monto_pago: Optional[float] = 0
     metodo_pago: Optional[str] = 'efectivo'
     referencia: Optional[str] = ''
+    round_adjustment: Optional[float] = 0
 
 class QuoteCreate(QuoteBase):
     lines: List[QuoteLineBase]

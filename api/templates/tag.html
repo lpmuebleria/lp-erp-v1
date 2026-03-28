@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: 8.5in 5.5in landscape;
+            margin: 0;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            color: #000;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+            width: 8.5in;
+            height: 5.5in;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            padding: 40px 60px;
+            box-sizing: border-box;
+        }
+
+        /* TOP: Name */
+        .product-name {
+            font-size: 26pt;
+            font-weight: normal;
+            margin: 0;
+            color: #000;
+            margin-bottom: 5px;
+        }
+
+        /* MIDDLE: Split Left (Cascade) and Right (Logo) */
+        .middle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+        }
+
+        .cascade-prices {
+            width: 60%;
+        }
+
+        .antes-box {
+            font-size: 22pt;
+            color: #0000FF; /* Blue */
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .antes-box span {
+            text-decoration: line-through;
+        }
+
+        .ahora-box {
+            margin-bottom: 20px;
+        }
+        .ahora-label {
+            font-size: 26pt;
+            color: #000;
+            vertical-align: middle;
+        }
+        .ahora-price {
+            font-size: 48pt;
+            font-weight: bold;
+            color: #FF0000; /* Red */
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+
+        .msi-box {
+            margin-top: 10px;
+        }
+        .msi-price {
+            font-size: 38pt;
+            font-weight: bold;
+            color: #2E7D32; /* Green */
+            display: block;
+        }
+        .msi-text {
+            font-size: 22pt;
+            color: #333;
+            display: block;
+        }
+
+        /* RIGHT: Logo */
+        .logo-box {
+            width: 35%;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .logo {
+            max-width: 100%;
+            max-height: 180px;
+        }
+
+        /* BOTTOM: Code */
+        .footer-section {
+            margin-top: 10px;
+        }
+        .product-code {
+            font-size: 22pt;
+            font-weight: normal;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- TOP: Product Name -->
+        <div class="product-name">{{ product.modelo }}</div>
+
+        <!-- MIDDLE: Cascade Prices and Logo -->
+        <div class="middle-container">
+            <div class="cascade-prices">
+                <div class="antes-box">
+                    Antes <span>$ {{ "{:,.0f}".format(base_price) }} -</span>
+                </div>
+                
+                <div class="ahora-box">
+                    <span class="ahora-label">Ahora</span>
+                    <span class="ahora-price">$ {{ "{:,.0f}".format(product.precio_lista) }} -</span>
+                </div>
+
+                <div class="msi-box">
+                    <span class="msi-price">$ {{ "{:,.0f}".format(msi_total) }} -</span>
+                    <span class="msi-text">A 12 Meses sin intereses</span>
+                </div>
+            </div>
+
+            <div class="logo-box">
+                {% if logo_b64 %}
+                    <img class="logo" src="{{ logo_b64 }}" />
+                {% else %}
+                    <div style="font-size: 20pt; font-weight: bold;">LP MUEBLERÍA</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- BOTTOM: Code -->
+        <div class="footer-section">
+            <div class="product-code">{{ product.codigo }}</div>
+        </div>
+    </div>
+</body>
+</html>

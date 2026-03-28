@@ -23,11 +23,11 @@ if DB_MODE == 'REMOTE':
     }
 else:
     MYSQL_CONFIG = {
-        'host': os.getenv('LOCAL_DB_HOST', 'localhost'),
-        'user': os.getenv('LOCAL_DB_USER', 'root'),
-        'password': os.getenv('LOCAL_DB_PASSWORD', ''),
-        'database': os.getenv('LOCAL_DB_NAME', 'lp_erp'),
-        'port': int(os.getenv('LOCAL_DB_PORT', 3306)),
+        'host': os.getenv('LOCAL_DB_HOST') or os.getenv('DB_HOST') or 'localhost',
+        'user': os.getenv('LOCAL_DB_USER') or os.getenv('DB_USER') or 'root',
+        'password': os.getenv('LOCAL_DB_PASSWORD') or os.getenv('DB_PASSWORD') or '',
+        'database': os.getenv('LOCAL_DB_NAME') or os.getenv('DB_NAME') or 'lp_erp',
+        'port': int(os.getenv('LOCAL_DB_PORT') or os.getenv('DB_PORT') or 3306),
         'raise_on_warnings': False
     }
 
@@ -89,10 +89,18 @@ def init_db():
                 tamano VARCHAR(255) NOT NULL, -- Chico/Mediano/Grande
                 precio_lista DECIMAL(15,2) NOT NULL,
                 costo_total DECIMAL(15,2) NOT NULL,
+                costo_fabrica DECIMAL(15,2) DEFAULT 0,
                 flete DECIMAL(15,2) NOT NULL DEFAULT 0,
+                maniobras DECIMAL(15,2) DEFAULT 0,
+                empaque DECIMAL(15,2) DEFAULT 0,
+                comision DECIMAL(15,2) DEFAULT 0,
+                garantias DECIMAL(15,2) DEFAULT 0,
+                utilidad_nivel VARCHAR(100) DEFAULT 'media',
                 activo INT NOT NULL DEFAULT 1,
+                imagen_url TEXT,
                 in_catalog INT NOT NULL DEFAULT 1,
-                is_madre INT NOT NULL DEFAULT 0
+                is_madre INT NOT NULL DEFAULT 0,
+                round_adjustment DECIMAL(15,2) DEFAULT 0
             )""",
             """CREATE TABLE IF NOT EXISTS fabrics(
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -151,6 +159,7 @@ def init_db():
                 colonia_envio TEXT,
                 referencia_envio TEXT,
                 nota_envio TEXT,
+                round_adjustment DECIMAL(15,2) DEFAULT 0,
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
             """CREATE TABLE IF NOT EXISTS quote_lines(
@@ -162,6 +171,7 @@ def init_db():
                 descuento_tipo VARCHAR(20), -- % or $
                 descuento_val DECIMAL(15,2),
                 total_linea DECIMAL(15,2) NOT NULL,
+                round_adjustment DECIMAL(15,2) DEFAULT 0,
                 FOREIGN KEY(quote_id) REFERENCES quotes(id),
                 FOREIGN KEY(product_id) REFERENCES products(id)
             )""",
@@ -187,6 +197,7 @@ def init_db():
                 colonia_envio TEXT,
                 referencia_envio TEXT,
                 nota_envio TEXT,
+                round_adjustment DECIMAL(15,2) DEFAULT 0,
                 FOREIGN KEY(quote_id) REFERENCES quotes(id),
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )""",
@@ -293,9 +304,9 @@ def init_db():
         cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Grande', 250, 50, 300, 200)")
         
         # Seed bank interests
-        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_debito_pct', '2.0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_debito_pct', '3.0')")
         cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('interes_msi_pct', '15.0')")
-        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_msi_banco_pct', '12.0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('comision_msi_banco_pct', '18.0')")
 
         # Seed roles if empty
         cur.execute("SELECT COUNT(*) as c FROM roles")

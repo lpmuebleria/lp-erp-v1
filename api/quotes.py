@@ -73,8 +73,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
 
         # 1) Insert Quote
         cur.execute("""
-            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, is_apartado_quote)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, is_apartado_quote, round_adjustment)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.get("folio", f"COT-{int(datetime.datetime.now().timestamp())}"),
             today_iso(),
@@ -92,7 +92,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             data.get("colonia_envio"),
             data.get("referencia_envio"),
             data.get("nota_envio"),
-            data.get("is_apartado_quote", False)
+            data.get("is_apartado_quote", False),
+            data.get("round_adjustment", 0)
         ))
         quote_id = cur.lastrowid
 
@@ -100,8 +101,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
         lines = data.get("lines", [])
         for ln in lines:
             cur.execute("""
-                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio, tela, color)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio, tela, color, round_adjustment)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 quote_id,
                 ln.get("product_id"),
@@ -111,7 +112,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 ln.get("total_linea", 0),
                 ln.get("tipo_precio", "contado"),
                 ln.get("tela"),
-                ln.get("color")
+                ln.get("color"),
+                ln.get("round_adjustment", 0)
             ))
 
         # 3) If it's a direct Order creation (not just quote saving)
@@ -166,9 +168,9 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                     folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, 
                     estatus, entrega_estimada, tipo, nota, iva, 
                     factura_rfc, factura_razon, factura_cp, factura_regimen, factura_uso_cfdi, factura_metodo_pago, factura_forma_pago,
-                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio
+                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, round_adjustment
                 )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 folio_o,
                 today_iso(),
@@ -196,7 +198,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 data.get("numero_envio"),
                 data.get("colonia_envio"),
                 data.get("referencia_envio"),
-                data.get("nota_envio")
+                data.get("nota_envio"),
+                data.get("round_adjustment", 0)
             ))
             
             order_id = cur.lastrowid
@@ -211,13 +214,16 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             # But the frontend already sends monto_pago as the sum. 
             # If there's cambio, it belongs to the cash payment.
             
+            from utils import calculate_bank_commission
             for p in pays:
                 m_val = float(p.get("monto") or 0)
                 if m_val > 0:
+                    metodo_p = p.get("metodo", "efectivo")
+                    comm = calculate_bank_commission(cur, metodo_p, m_val)
                     cur.execute("""
-                        INSERT INTO payments(order_id, created_at, metodo, monto, referencia)
-                        VALUES (%s,%s,%s,%s,%s)
-                    """, (order_id, today_iso(), p.get("metodo", "efectivo"), m_val, p.get("referencia", "")))
+                        INSERT INTO payments(order_id, created_at, metodo, monto, referencia, comision_bancaria)
+                        VALUES (%s,%s,%s,%s,%s,%s)
+                    """, (order_id, today_iso(), metodo_p, m_val, p.get("referencia", ""), comm))
 
             # 6) If it's VENTA_STOCK, register delivery and deduct stock
             if tipo_pedido == "VENTA_STOCK":
@@ -285,8 +291,8 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
 
         # 2) Create Order
         cur.execute("""
-            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO orders(folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, estatus, entrega_estimada, tipo, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, round_adjustment)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             folio_o,
             today_iso(),
@@ -305,16 +311,19 @@ def convert_quote_to_order(quote_id: int, request: Request, data: dict):
             q.get("numero_envio"),
             q.get("colonia_envio"),
             q.get("referencia_envio"),
-            q.get("nota_envio")
+            q.get("nota_envio"),
+            q.get("round_adjustment", 0)
         ))
         order_id = cur.lastrowid
 
         # 3) Register Payment if any
         if monto_anticipo > 0:
+            from utils import calculate_bank_commission
+            comm = calculate_bank_commission(cur, metodo, monto_anticipo)
             cur.execute("""
-                INSERT INTO payments(order_id, created_at, metodo, monto, referencia)
-                VALUES (%s,%s,%s,%s,%s)
-            """, (order_id, today_iso(), metodo, monto_anticipo, referencia))
+                INSERT INTO payments(order_id, created_at, metodo, monto, referencia, comision_bancaria)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (order_id, today_iso(), metodo, monto_anticipo, referencia, comm))
 
         # Notify admin
         from api.notifications import trigger_notification
