@@ -552,7 +552,12 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                     print(f"Error parsing date for Apartado PDF: {ex}")
                     context["primer_pago_fecha"] = "Pendiente"
                 
-                context["pago_quincenal"] = round(float(order_info["saldo"] or 0) / 6, 2)
+                # Bi-weekly installments calculation (assume 6)
+                total_val = float(order_info["total"] or 0)
+                # The down payment for an order is usually provided in anticipo_req
+                context["pago_inicial"] = float(order_info.get("anticipo_req") or (total_val * 0.30))
+                context["pago_quincenal"] = round(float(order_info["saldo"] or (total_val - context["pago_inicial"])) / 6, 2)
+                context["is_apartado_quote"] = True
 
         # Use the isolated PDF service
         pdf = generate_receipt_pdf(context)
