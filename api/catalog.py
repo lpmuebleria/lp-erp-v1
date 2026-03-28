@@ -8,7 +8,7 @@ import os
 import datetime
 import base64
 
-from utils import get_image_b64
+from utils import get_image_b64, calculate_rounding
 
 router = APIRouter()
 
@@ -77,6 +77,9 @@ def generate_catalog_pdf(include_stock: str = "false"):
         products = cur.fetchall()
         for p in products:
             p['precio_lista'] = float(p['precio_lista'] or 0)
+            # Calculate rounded MSI
+            raw_msi = p['precio_lista'] * (1 + interes_msi_pct / 100)
+            p['precio_msi'] = calculate_rounding(raw_msi)
         
         # We can close the connection now as we have the data
         cur.close()

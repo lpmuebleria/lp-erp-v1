@@ -47,7 +47,7 @@ def get_dashboard_metrics():
         bolsas_mes_total = {
             "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
             "muebles": 0.0, "fletes": 0.0, "envios": 0.0, "iva": 0.0, 
-            "comisiones_bancarias": 0.0, "utilidad_bruta": 0.0
+            "comision_tarjeta": 0.0, "comision_msi": 0.0, "utilidad_bruta": 0.0
         }
         cur.execute("""
             SELECT quote_id FROM orders

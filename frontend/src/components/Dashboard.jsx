@@ -25,7 +25,8 @@ const FAMILIAS_OPCIONES = [
     'fletes',
     'envios',
     'iva',
-    'comisiones_bancarias',
+    'comision_tarjeta',
+    'comision_msi',
     'utilidad_bruta'
 ];
 
@@ -37,8 +38,9 @@ const FAMILIAS_LABELS = {
     'muebles': 'Muebles (Venta)',
     'fletes': 'Fletes (Traslado)',
     'envios': 'Envíos Domicilio',
-    'iva': 'IVA (Impuesto)',
-    'comisiones_bancarias': 'Comisiones Bancarias',
+    'iva': 'IVA (16% Impuesto)',
+    'comision_tarjeta': 'Comisión Tarjeta',
+    'comision_msi': 'Costo MSI Banco',
     'utilidad_bruta': 'Utilidad Bruta'
 };
 
@@ -294,7 +296,8 @@ function Dashboard({ onConceptClick }) {
                                 <BagItem label="Fletes" value={metrics.bolsas_mes.fletes} onClick={() => onConceptClick && onConceptClick('fletes')} />
                                 <BagItem label="Envíos a Domicilio" value={metrics.bolsas_mes.envios} onClick={() => onConceptClick && onConceptClick('envios')} />
                                 <BagItem label="IVA" value={metrics.bolsas_mes.iva} onClick={() => onConceptClick && onConceptClick('iva')} />
-                                <BagItem label="Comis. Bancarias" value={metrics.bolsas_mes.comisiones_bancarias} onClick={() => onConceptClick && onConceptClick('comisiones_bancarias')} />
+                                <BagItem label="Comisión Tarjeta" value={metrics.bolsas_mes.comision_tarjeta} onClick={() => onConceptClick && onConceptClick('comision_tarjeta')} />
+                                <BagItem label="Costo MSI Banco" value={metrics.bolsas_mes.comision_msi} onClick={() => onConceptClick && onConceptClick('comision_msi')} />
                                 <div className="pt-4 mt-4 border-t border-white/10">
                                     <button
                                         onClick={() => onConceptClick && onConceptClick('utilidad_bruta')}

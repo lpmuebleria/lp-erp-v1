@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { calculateRounding, getRoundingAdjustment } from '../utils/rounding';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
@@ -13,6 +14,8 @@ function Inventory({ role, isSuperadmin }) {
     const [showCatalogModal, setShowCatalogModal] = useState(false);
     const [generatingCatalog, setGeneratingCatalog] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [showTagModal, setShowTagModal] = useState(false);
+    const [productForTag, setProductForTag] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [interestPct, setInterestPct] = useState(15.0);
 
@@ -153,6 +156,17 @@ function Inventory({ role, isSuperadmin }) {
                 />
             )}
 
+            {showTagModal && (
+                <PriceTagModal
+                    product={productForTag}
+                    onClose={() => setShowTagModal(false)}
+                    onGenerate={(basePrice) => {
+                        window.open(`${API_URL}/products/${productForTag.id}/tag-pdf?base_price=${basePrice}`, '_blank');
+                        setShowTagModal(false);
+                    }}
+                />
+            )}
+
             {showImportModal && (
                 <ImportExcelModal
                     onClose={() => setShowImportModal(false)}
@@ -187,6 +201,10 @@ function Inventory({ role, isSuperadmin }) {
                                 setEditingProduct(product);
                                 setShowModal(true);
                             }}
+                            onPrintTag={() => {
+                                setProductForTag(product);
+                                setShowTagModal(true);
+                            }}
                         />
                     ))}
                 </div>
@@ -200,7 +218,9 @@ function Inventory({ role, isSuperadmin }) {
     );
 }
 
-function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, interestPct }) {
+function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintTag, interestPct }) {
+    const auth = JSON.parse(localStorage.getItem('lp_erp_auth'));
+    const isSuperadmin = auth?.is_superadmin === true;
     const isLowStock = product.stock <= 2;
     const [showQuickView, setShowQuickView] = useState(false);
 
@@ -246,6 +266,15 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, interest
                                     <Edit2 size={16} />
                                 </button>
                             )}
+                            {isSuperadmin && (
+                                <button
+                                    onClick={onPrintTag}
+                                    className="p-2 bg-blue-600 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
+                                    title="Imprimir Etiqueta de Piso"
+                                >
+                                    <FileText size={16} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -277,7 +306,7 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, interest
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[10px] text-premium-gold/70 uppercase tracking-widest text-right">Crédito MSI</span>
-                        <span className="text-lg font-bold text-premium-gold text-right">${((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-lg font-bold text-premium-gold text-right">${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
                     </div>
                 </div>
             </div>
@@ -402,7 +431,7 @@ function ProductQuickView({ product, onClose, interestPct }) {
                                 <span className="text-[11px] font-black text-premium-gold/70 uppercase tracking-[0.2em] mb-1 text-center md:text-left">Precio Crédito MSI</span>
                                 <div className="flex items-baseline justify-center md:justify-start space-x-1">
                                     <span className="text-4xl md:text-5xl font-black text-premium-gold tracking-tighter">
-                                        ${((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                        ${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
                                     </span>
                                     <span className="text-xs font-bold text-premium-gold/50">MXN</span>
                                 </div>
@@ -501,10 +530,15 @@ function ProductModal({ onClose, onSave, product }) {
             const subtotal = form.costo_fabrica + fleteGlobal;
 
             // Requerimiento Muebleria: (Costo + Flete) * Margen + Fijos
-            let listPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+            let rawPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
             if (configs.ivaAutomatico) {
-                listPrice = listPrice * 1.16;
+                rawPrice = rawPrice * 1.16;
             }
+            
+            // Aplicar Redondeo "Silencioso" corregido
+            const listPrice = calculateRounding(rawPrice);
+            const round_adjustment = listPrice - rawPrice;
+
             const totalCost = subtotal + sumFixed;
 
             setForm(prev => ({
@@ -515,7 +549,8 @@ function ProductModal({ onClose, onSave, product }) {
                 comision: costConfig.comision,
                 garantias: costConfig.garantias,
                 costo_total: totalCost,
-                precio_lista: listPrice
+                precio_lista: listPrice,
+                round_adjustment: round_adjustment
             }));
         }
     }, [form.tamano, form.costo_fabrica, form.utilidad_nivel, configs]);
@@ -789,6 +824,65 @@ function InputField({ label, value, onChange, type = "text", placeholder, requir
                 required={required}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold placeholder:text-slate-600 transition-all"
             />
+        </div>
+    );
+}
+
+function PriceTagModal({ product, onClose, onGenerate }) {
+    const [basePrice, setBasePrice] = useState(product?.precio_lista ? Math.round(product.precio_lista * 1.3) : 0);
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-premium-slate w-full max-w-sm rounded-3xl border border-white/10 shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+                <div className="text-center space-y-4">
+                    <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mx-auto">
+                        <FileText size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Etiqueta de Piso</h3>
+                    <p className="text-xs text-slate-500">Configura el precio "tachado" para resaltar la oferta en el mueble físico.</p>
+                </div>
+
+                <div className="mt-8 space-y-6">
+                    <div>
+                        <label className="text-[10px] text-slate-500 uppercase font-black mb-2 block tracking-widest text-center">Precio de Lista (A tachar)</label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                            <input
+                                type="number"
+                                value={basePrice}
+                                onChange={(e) => setBasePrice(e.target.value)}
+                                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 pl-10 text-2xl font-black text-white focus:outline-none focus:border-blue-500 transition-all text-center"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                        <div className="flex justify-between text-xs font-bold">
+                            <span className="text-slate-500">PRECIO VENTA:</span>
+                            <span className="text-green-400 font-mono">${product?.precio_lista?.toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-600 italic">
+                            * Este es el precio real que cobrarás al cliente.
+                        </div>
+                    </div>
+
+                    <div className="flex space-x-3">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-sm font-bold text-slate-400 hover:text-white transition-all uppercase tracking-widest"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={() => onGenerate(basePrice)}
+                            className="flex-1 px-4 py-4 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 uppercase tracking-widest"
+                        >
+                            Generar PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

@@ -22,6 +22,7 @@ import {
     X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { calculateRounding } from '../utils/rounding';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
@@ -166,9 +167,12 @@ function Sales({ vendedor }) {
             return;
         }
 
+        const rawMsiPrice = product.precio_lista * (1 + (interestMSI / 100));
         const precioUnit = docTipo === 'msi' 
-            ? product.precio_lista * (1 + (interestMSI / 100)) 
+            ? calculateRounding(rawMsiPrice)
             : product.precio_lista;
+        
+        const round_adjustment = docTipo === 'msi' ? (precioUnit - rawMsiPrice) : 0;
         
         const cartId = Date.now(); // Unique per price type
         const existing = cart.find(item => item.product_id === product.id && item.tipo_precio === docTipo && !item.tela); // Check for non-personalized existing item
@@ -188,10 +192,12 @@ function Sales({ vendedor }) {
                 cantidad: 1,
                 precio_unit: precioUnit,
                 precio_original: product.precio_lista,
+                precio_original: product.precio_lista,
                 total_linea: precioUnit,
                 descuento_manual: 0,
                 descuento_pct: 0,
-                tipo_precio: docTipo
+                tipo_precio: docTipo,
+                round_adjustment: round_adjustment
             }]);
         }
         setSearchTerm('');
@@ -207,7 +213,9 @@ function Sales({ vendedor }) {
         const cartId = Date.now();
         const product = personalizingProduct;
         const tipo_precio = personalizationForm.tipo_precio;
-        const finalPrice = tipo_precio === 'msi' ? product.precio_lista * (1 + interestMSI / 100) : product.precio_lista;
+        const rawFinalPrice = tipo_precio === 'msi' ? product.precio_lista * (1 + interestMSI / 100) : product.precio_lista;
+        const finalPrice = calculateRounding(rawFinalPrice);
+        const round_adjustment = finalPrice - rawFinalPrice;
         
         setCart([...cart, { 
             ...product, 
@@ -217,7 +225,8 @@ function Sales({ vendedor }) {
             cartId, 
             tipo_precio,
             tela: personalizationForm.tela,
-            color: personalizationForm.color
+            color: personalizationForm.color,
+            round_adjustment: round_adjustment
         }]);
         
         setSearchTerm('');
@@ -247,19 +256,53 @@ function Sales({ vendedor }) {
             pct = 10;
         }
 
-        setCart(cart.map(item =>
-            item.cartId === cartId
-                ? { 
+        setCart(cart.map(item => {
+            if (item.cartId === cartId) {
+                const discountedPriceRaw = unitPrice * (1 - pct / 100);
+                const roundedPrice = calculateRounding(discountedPriceRaw);
+                const adj = roundedPrice - discountedPriceRaw;
+                
+                return { 
                     ...item, 
                     descuento_pct: pct, 
-                    descuento_manual: (unitPrice * (pct / 100)),
-                    total_linea: item.cantidad * (unitPrice - (unitPrice * (pct / 100)))
-                  }
-                : item
-        ));
+                    precio_unit: roundedPrice,
+                    total_linea: item.cantidad * roundedPrice,
+                    round_adjustment: (item.round_adjustment || 0) + adj
+                };
+            }
+            return item;
+        }));
     };
 
     // --- Calculations ---
+    const hasMsiItem = cart.some(item => item.tipo_precio === 'msi');
+    
+    // Auto-reset payment methods if they become invalid after cart changes
+    useEffect(() => {
+        if (status === 'COTIZACION') return;
+        
+        const validMsi = ['6 meses sin intereses', '9 meses sin intereses', '12 meses sin intereses'];
+        let changed = false;
+        const newPayments = payments.map(p => {
+            const isMsiMethod = validMsi.includes(p.metodo);
+            if (hasMsiItem && !isMsiMethod) {
+                changed = true;
+                return { ...p, metodo: '12 meses sin intereses' };
+            }
+            if (!hasMsiItem && isMsiMethod) {
+                changed = true;
+                return { ...p, metodo: 'efectivo' };
+            }
+            return p;
+        });
+
+        if (changed) {
+            setPayments(newPayments);
+            const msg = hasMsiItem ? "Solo se permiten pagos MSI para este carrito" : "Pagos MSI removidos (carrito de contado)";
+            toast.success(msg, { icon: '💳', duration: 2000 });
+        }
+    }, [hasMsiItem, status]);
+
     const subtotal = cart.reduce((acc, item) => acc + item.total_linea, 0);
     const sumDescuentosManuales = cart.reduce((acc, item) => acc + (item.descuento_manual * item.cantidad), 0);
 
@@ -275,7 +318,9 @@ function Sales({ vendedor }) {
     const baseTotal = Math.max(0, subtotal - sumDescuentosManuales - descGlobalVal);
     const shippingAmount = parseFloat(shipping.costo) || 0;
     const ivaAmount = (billing.requiere_factura && !ivaAutomatico) ? baseTotal * 0.16 : 0;
-    const total = baseTotal + shippingAmount + ivaAmount;
+    const rawTotal = baseTotal + shippingAmount + ivaAmount;
+    const total = calculateRounding(rawTotal);
+    const final_round_adjustment = total - rawTotal;
 
     const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
 
@@ -351,6 +396,18 @@ function Sales({ vendedor }) {
                 setLoading(false);
                 return toast.error("Los pagos con Tarjeta/Transferencia no pueden superar el total de la venta.");
             }
+
+            // Final safety check for MSI vs Contado consistency
+            const msiMethods = ['6 meses sin intereses', '9 meses sin intereses', '12 meses sin intereses'];
+            const hasMsiPayment = payments.some(p => msiMethods.includes(p.metodo));
+            if (hasMsiItem && !hasMsiPayment) {
+                setLoading(false);
+                return toast.error("Carrito con MSI requiere un método de pago MSI.");
+            }
+            if (!hasMsiItem && hasMsiPayment) {
+                setLoading(false);
+                return toast.error("No se permiten pagos MSI para productos a precio de contado.");
+            }
         }
 
         const payload = {
@@ -388,7 +445,8 @@ function Sales({ vendedor }) {
             factura_uso_cfdi: billing.uso_cfdi,
             factura_metodo_pago: billing.metodo_pago,
             factura_forma_pago: billing.forma_pago,
-            is_apartado_quote: isApartadoQuote
+            is_apartado_quote: isApartadoQuote,
+            round_adjustment: (cart.reduce((acc, item) => acc + (item.round_adjustment || 0) * (item.cantidad || 1), 0) + (final_round_adjustment || 0))
         };
 
         try {
@@ -673,7 +731,7 @@ function Sales({ vendedor }) {
                                                     className={`flex-1 p-2 rounded-xl border text-[10px] font-black uppercase transition-all flex flex-col items-center ${isApartadoQuote ? 'bg-slate-800 text-slate-600 border-white/5 cursor-not-allowed opacity-50' : 'bg-premium-gold/10 hover:bg-premium-gold/20 text-premium-gold border-premium-gold/20'}`}
                                                 >
                                                     <span>Crédito MSI (+{interestMSI}%)</span>
-                                                    <span className="text-xs font-mono font-bold">${(p.precio_lista * (1 + interestMSI / 100)).toLocaleString()}</span>
+                                                    <span className="text-xs font-mono font-bold">${calculateRounding(p.precio_lista * (1 + interestMSI / 100)).toLocaleString()}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -865,11 +923,15 @@ function Sales({ vendedor }) {
                                                         }}
                                                         className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-premium-gold appearance-none cursor-pointer font-bold"
                                                     >
-                                                        <option value="efectivo">EFECTIVO</option>
-                                                        <option value="transferencia">TRANSFERENCIA</option>
-                                                        <option value="tarjeta de debito">T. DÉBITO</option>
-                                                        <option value="tarjeta de crédito">T. CRÉDITO (BÁSICA)</option>
-                                                        {status !== 'APARTADO' && (
+                                                        {!hasMsiItem && (
+                                                            <>
+                                                                <option value="efectivo">EFECTIVO</option>
+                                                                <option value="transferencia">TRANSFERENCIA</option>
+                                                                <option value="tarjeta de debito">T. DÉBITO</option>
+                                                                <option value="tarjeta de crédito">T. CRÉDITO (BÁSICA)</option>
+                                                            </>
+                                                        )}
+                                                        {hasMsiItem && status !== 'APARTADO' && (
                                                             <>
                                                                 <option value="6 meses sin intereses">6 MSI</option>
                                                                 <option value="9 meses sin intereses">9 MSI</option>

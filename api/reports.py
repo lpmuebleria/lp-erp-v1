@@ -118,12 +118,12 @@ def generate_team_activity_report(request: ReportRequest):
             """, quote_ids)
             all_lines = cur.fetchall()
 
-            # Pre-fetch flete_unitario
-            cur.execute("SELECT v FROM settings WHERE k='flete_unitario'")
-            row_flete = cur.fetchone()
-            flete_unitario = float(row_flete["v"]) if row_flete else 0.0
+            # Pre-fetch configs and settings
+            cur.execute("SELECT k, v FROM settings WHERE k IN ('flete_unitario', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
+            setts = {r["k"]: r["v"] for r in cur.fetchall()}
+            flete_unitario = float(setts.get("flete_unitario", 0.0))
+            iva_auto = int(setts.get("iva_automatico", 1))
 
-            # Pre-fetch configs mapped by tamano
             cur.execute("SELECT tamano, maniobras, empaque, comision, garantias FROM cost_config")
             config_rows = cur.fetchall()
             configs_by_tamano = {r["tamano"]: r for r in config_rows}
@@ -134,7 +134,8 @@ def generate_team_activity_report(request: ReportRequest):
             for q_id in quote_ids:
                  bolsas_by_quote[q_id] = {
                      "maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0, 
-                     "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0, "iva": 0.0, "comisiones_bancarias": 0.0
+                     "costo": 0.0, "venta": 0.0, "muebles": 0.0, "fletes": 0.0, "envios": 0.0, 
+                     "iva": 0.0, "comision_tarjeta": 0.0, "comision_msi": 0.0
                  }
 
             for row in all_lines:
@@ -154,7 +155,8 @@ def generate_team_activity_report(request: ReportRequest):
 
             # Priority order for money allocation (Waterfall)
             PRIORITY_ORDER = [
-                "comisiones_bancarias",
+                "comision_msi",
+                "comision_tarjeta",
                 "iva",
                 "comision",
                 "muebles",
@@ -174,18 +176,43 @@ def generate_team_activity_report(request: ReportRequest):
                 qid = o["quote_id"]
                 bolsas_teoricas = bolsas_by_quote[qid]
                 
-                # Add envios (costo_envio), IVA and Bank Fees from order level
+                # Add envios (costo_envio) from order level
                 bolsas_teoricas["envios"] = float(o["costo_envio"] or 0.0)
-                bolsas_teoricas["iva"] = float(o["iva"] or 0.0)
                 
-                # Fetch bank commissions for this order
-                cur.execute("SELECT SUM(comision_bancaria) as s FROM payments WHERE order_id=%s AND anulado=0", (o["id"],))
-                comm_row = cur.fetchone()
-                bolsas_teoricas["comisiones_bancarias"] = float(comm_row["s"] or 0.0)
+                # IVA Calculation (16% of sale, extracted if automatic)
+                if iva_auto:
+                    bolsas_teoricas["iva"] = bolsas_teoricas["venta"] - (bolsas_teoricas["venta"] / 1.16)
+                else:
+                    bolsas_teoricas["iva"] = bolsas_teoricas["venta"] * 0.16
+                    
+                # Fetch bank commissions for this order and split them
+                cur.execute("SELECT metodo, monto, comision_bancaria FROM payments WHERE order_id=%s AND anulado=0", (o["id"],))
+                payments = cur.fetchall()
+                
+                # Check if it's an MSI order (to potentially classify commissions if metodo is ambiguous)
+                cur.execute("SELECT COUNT(*) as c FROM quote_lines WHERE quote_id=%s AND tipo_precio='msi'", (qid,))
+                is_msi_order = (cur.fetchone()["c"] > 0)
+
+                for p in payments:
+                    mn = p["metodo"].lower().replace("_", " ").strip() if p["metodo"] else ""
+                    saved_comm = float(p["comision_bancaria"] or 0.0)
+                    monto_abono = float(p["monto"])
+
+                    is_msi = "meses sin intereses" in mn or mn == "msi"
+                    is_any_card = is_msi or "tarjeta" in mn or mn in ["debito", "credito", "td", "tc"]
+
+                    # All installment plans (MSI) go to MSI bag (they include terminal 3% + bank 18% = 21% total)
+                    if is_msi:
+                        bolsas_teoricas["comision_msi"] += saved_comm
+                    # All normal cards (Debit/Credit) go to 'comision_tarjeta'
+                    elif is_any_card:
+                        bolsas_teoricas["comision_tarjeta"] += saved_comm
+                    elif is_msi_order and mn == 'transferencia':
+                        pass
 
                 bolsas_teoricas["utilidad_bruta"] = (
-                    bolsas_teoricas["venta"] - bolsas_teoricas["iva"] - bolsas_teoricas["comisiones_bancarias"] - bolsas_teoricas["costo"] - 
-                    (bolsas_teoricas["maniobras"] + bolsas_teoricas["empaque"] + bolsas_teoricas["comision"] + bolsas_teoricas["garantias"] + bolsas_teoricas["fletes"] + bolsas_teoricas["envios"])
+                    bolsas_teoricas["venta"] - bolsas_teoricas["iva"] - bolsas_teoricas["comision_tarjeta"] - bolsas_teoricas["comision_msi"] - bolsas_teoricas["costo"] - 
+                    (bolsas_teoricas["maniobras"] + bolsas_teoricas["empaque"] + bolsas_teoricas["comision"] + bolsas_teoricas["garantias"] + bolsas_teoricas["fletes"])
                 )
 
                 # Waterfall (Cascada) Distribution

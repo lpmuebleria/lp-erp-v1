@@ -11,8 +11,11 @@ import cloudinary.uploader
 from typing import List, Optional
 from database import db
 from schemas import Product, ProductCreate
-from utils import money
+from utils import money, get_image_b64, calculate_rounding
 from api.notifications import trigger_notification
+from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML
+import datetime
 
 router = APIRouter()
 
@@ -178,8 +181,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo.strip(),
             data.modelo.strip(),
@@ -197,7 +200,8 @@ def create_product(data: ProductCreate):
             data.stock,
             data.imagen_url,
             data.in_catalog,
-            data.is_madre
+            data.is_madre,
+            data.round_adjustment
         ))
         product_id = cur.lastrowid
 
@@ -231,7 +235,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -251,6 +255,7 @@ def update_product(product_id: int, data: ProductCreate):
             data.imagen_url,
             data.in_catalog,
             data.is_madre,
+            data.round_adjustment,
             product_id
         ))
 
@@ -372,3 +377,72 @@ async def import_products(file: UploadFile = File(...)):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+# PDF Tag Generation
+TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+
+@router.get("/products/{product_id}/tag-pdf")
+def generate_product_tag_pdf(product_id: int, base_price: float = 0.0):
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        # Fetch Product
+        cur.execute("SELECT codigo, modelo, precio_lista FROM products WHERE id=%s", (product_id,))
+        product = cur.fetchone()
+        if not product:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        
+        # Fetch Interest for MSI calculation
+        cur.execute("SELECT v FROM settings WHERE k='interes_msi_pct'")
+        row_int = cur.fetchone()
+        interest_pct = float(row_int["v"]) if row_int and row_int["v"] else 15.0
+
+        # Calculate MSI total
+        raw_msi_total = float(product['precio_lista']) * (1 + interest_pct / 100)
+        msi_total = calculate_rounding(raw_msi_total)
+
+        # Calculate Discount %
+        discount_pct = 0
+        if base_price > product['precio_lista']:
+            discount_pct = ((base_price - float(product['precio_lista'])) / base_price) * 100
+
+        # Dates (Vigencia)
+        months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        today = datetime.date.today()
+        start_date = f"{today.day} de {months[today.month-1]}"
+        
+        # Last day of month
+        import calendar
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        end_date = f"{last_day} de {months[today.month-1]}"
+
+        # Branding
+        logo_b64 = get_image_b64('logo.jpg') or get_image_b64('logo.png') or get_image_b64('logo.jpeg')
+
+        # Render Template
+        template = env.get_template("tag.html")
+        html_out = template.render(
+            product=product,
+            base_price=base_price,
+            msi_total=msi_total,
+            discount_pct=discount_pct,
+            start_date=start_date,
+            end_date=end_date,
+            logo_b64=logo_b64
+        )
+
+        pdf_file = HTML(string=html_out).write_pdf()
+
+        return StreamingResponse(
+            io.BytesIO(pdf_file),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"inline; filename=Etiqueta_{product['codigo']}.pdf"
+            }
+        )
+    except Exception as e:
+        import traceback
+        logger.error(f"FAILED TAG GENERATION: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
