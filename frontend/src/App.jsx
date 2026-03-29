@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { Toaster } from 'react-hot-toast';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Catalog from './components/Catalog';
 
 // Ensure all requests send and receive cookies for FastAPI SessionMiddleware
 axios.defaults.withCredentials = true;
@@ -34,7 +36,7 @@ import Layaways from './components/Layaways';
 import Payments from './components/Payments';
 import ConceptDetails from './components/ConceptDetails';
 
-function App() {
+function ERPContainer() {
   const [auth, setAuth] = useState(() => {
     const saved = localStorage.getItem('lp_erp_auth');
     return saved ? JSON.parse(saved) : null;
@@ -51,6 +53,11 @@ function App() {
   const [activeConcept, setActiveConcept] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
+
+  useEffect(() => {
+    document.title = "LP | Sistema ERP";
+    return () => { document.title = "LP Mueblería de Jalisco"; };
+  }, []);
 
   useEffect(() => {
     if (auth) {
@@ -285,8 +292,25 @@ function App() {
           {activeTab === 'settings' && canAccess('settings') && <Settings isSuperadmin={auth.is_superadmin} />}
         </div>
       </main>
-      <Toaster position="top-right" />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        {/* Public Catalog Landing Page */}
+        <Route path="/" element={<Catalog />} />
+
+        {/* ERP Admin Routes */}
+        <Route path="/erp/*" element={<ERPContainer />} />
+
+        {/* Catch all to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Toaster position="top-right" />
+    </Router>
   );
 }
 

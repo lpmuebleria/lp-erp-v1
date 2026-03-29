@@ -100,7 +100,8 @@ def init_db():
                 imagen_url TEXT,
                 in_catalog INT NOT NULL DEFAULT 1,
                 is_madre INT NOT NULL DEFAULT 0,
-                round_adjustment DECIMAL(15,2) DEFAULT 0
+                round_adjustment DECIMAL(15,2) DEFAULT 0,
+                is_offer INT NOT NULL DEFAULT 0
             )""",
             """CREATE TABLE IF NOT EXISTS fabrics(
                 id INT AUTO_INCREMENT PRIMARY KEY,
