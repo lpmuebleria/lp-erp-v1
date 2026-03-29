@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign, Database, Download, RefreshCcw } from 'lucide-react';
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
-function Settings() {
-    const [activeTab, setActiveTab] = useState('utilidades'); // 'utilidades', 'costos', 'promociones'
+function Settings({ isSuperadmin }) {
+    const [activeTab, setActiveTab] = useState('utilidades'); // 'utilidades', 'costos', 'promociones', 'backups'
 
     const [utilities, setUtilities] = useState([]);
     const [costs, setCosts] = useState([]);
@@ -21,6 +22,7 @@ function Settings() {
     });
     const [fabrics, setFabrics] = useState([]);
     const [colors, setColors] = useState([]);
+    const [backups, setBackups] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -28,7 +30,8 @@ function Settings() {
 
     useEffect(() => {
         fetchConfigs();
-    }, []);
+        if (isSuperadmin) fetchBackups();
+    }, [isSuperadmin]);
 
     const fetchConfigs = async () => {
         try {
@@ -54,6 +57,29 @@ function Settings() {
             console.error("Error fetching configs:", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchBackups = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/backups`, { withCredentials: true });
+            setBackups(res.data);
+        } catch (err) {
+            console.error("Error fetching backups:", err);
+        }
+    };
+
+    const handleTriggerBackup = async () => {
+        setSaving(true);
+        try {
+            await axios.post(`${API_URL}/backups/trigger`, {}, { withCredentials: true });
+            toast.success("Respaldo iniciado en segundo plano");
+            setTimeout(fetchBackups, 3000);
+        } catch (err) {
+            console.error("Error triggering backup:", err);
+            toast.error("Error al iniciar respaldo");
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -243,6 +269,15 @@ function Settings() {
                 >
                     Catálogos
                 </button>
+                {isSuperadmin && (
+                    <button
+                        onClick={() => setActiveTab('backups')}
+                        className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'backups' ? 'bg-indigo-600/30 text-indigo-400 shadow-xl border border-indigo-500/30' : 'text-slate-500 hover:text-white'
+                            }`}
+                    >
+                        Respaldos
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -513,6 +548,95 @@ function Settings() {
                                 {promotions.length === 0 && (
                                     <div className="col-span-2 text-center p-8 text-slate-500 italic">No hay promociones registradas</div>
                                 )}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Database Backups Section */}
+                {activeTab === 'backups' && isSuperadmin && (
+                    <section className="bg-premium-slate/50 border border-white/5 rounded-3xl p-8 backdrop-blur-sm lg:col-span-2">
+                        <div className="flex justify-between items-start mb-8">
+                            <div>
+                                <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                                    <Database className="text-premium-gold" size={28} />
+                                    RESPALDOS DE BASE DE DATOS
+                                </h2>
+                                <p className="text-slate-400 text-sm mt-2">
+                                    El sistema genera respaldos automáticos cada 12 horas y mantiene los últimos 7 días.
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleTriggerBackup}
+                                disabled={saving}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20 active:scale-95 disabled:opacity-50"
+                            >
+                                {saving ? <RefreshCcw className="animate-spin" size={20} /> : <RefreshCcw size={20} />}
+                                Generar Respaldo Ahora
+                            </button>
+                        </div>
+
+                        <div className="bg-black/30 rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-white/5 text-[10px] font-black uppercase tracking-[2px] text-slate-500">
+                                        <tr>
+                                            <th className="px-6 py-4">Archivo</th>
+                                            <th className="px-6 py-4">Fecha</th>
+                                            <th className="px-6 py-4 text-right">Tamaño</th>
+                                            <th className="px-6 py-4 text-center">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {backups.map((b) => (
+                                            <tr key={b.filename} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-6 py-4 font-mono text-sm text-slate-300">
+                                                    {b.filename}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">
+                                                    {new Date(b.created_at).toLocaleString('es-MX', {
+                                                        day: '2-digit', month: 'short', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
+                                                    })}
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-mono text-xs text-premium-gold">
+                                                    {(b.size / 1024 / 1024).toFixed(2)} MB
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <a
+                                                        href={`${API_URL}/backups/download/${b.filename}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 text-indigo-400 hover:text-white text-xs font-bold uppercase transition-colors"
+                                                    >
+                                                        <Download size={14} />
+                                                        Bajar
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {backups.length === 0 && (
+                                            <tr>
+                                                <td colSpan="4" className="px-6 py-12 text-center text-slate-500 italic">
+                                                    Cargando listado de respaldos o no hay archivos disponibles...
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-start gap-4">
+                            <div className="bg-yellow-500/20 p-2 rounded-lg shrink-0">
+                                <CheckCircle2 className="text-yellow-500" size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-yellow-500 font-bold text-sm">Aviso de Seguridad</h4>
+                                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                                    Los archivos SQL contienen información sensible de la base de datos.
+                                    Asegúrate de guardarlos en un lugar seguro y no compartirlos con personal no autorizado.
+                                </p>
                             </div>
                         </div>
                     </section>

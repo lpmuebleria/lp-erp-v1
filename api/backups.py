@@ -5,12 +5,15 @@ from fastapi.responses import FileResponse
 from scripts.backup_db import create_backup, BACKUP_DIR
 from logger_config import logger
 from database import DB_MODE
+from api.config import require_superadmin
+from fastapi import Request
 
 router = APIRouter()
 
 @router.get("/backups")
-def list_backups():
+def list_backups(request: Request):
     """Returns a list of available database backups."""
+    require_superadmin(request)
     if not os.path.exists(BACKUP_DIR):
         return []
     
@@ -30,8 +33,9 @@ def list_backups():
     return files
 
 @router.get("/backups/download/{filename}")
-def download_backup(filename: str):
+def download_backup(filename: str, request: Request):
     """Downloads a specific backup file."""
+    require_superadmin(request)
     # Security: Prevent directory traversal
     safe_filename = os.path.basename(filename)
     file_path = os.path.join(BACKUP_DIR, safe_filename)
@@ -46,8 +50,9 @@ def download_backup(filename: str):
     )
 
 @router.post("/backups/trigger")
-def trigger_manual_backup(background_tasks: BackgroundTasks):
+def trigger_manual_backup(background_tasks: BackgroundTasks, request: Request):
     """Triggers a backup manually as a background task."""
+    require_superadmin(request)
     background_tasks.add_task(create_backup)
     return {"message": "Proceso de respaldo iniciado en segundo plano."}
 
