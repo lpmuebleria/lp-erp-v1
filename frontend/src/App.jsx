@@ -282,7 +282,7 @@ function App() {
               : <Layaways onSelectOrder={(id) => setSelectedOrderId(id)} />
           )}
           {activeTab === 'payments' && canAccess('payments') && <Payments />}
-          {activeTab === 'settings' && canAccess('settings') && <Settings />}
+          {activeTab === 'settings' && canAccess('settings') && <Settings isSuperadmin={auth.is_superadmin} />}
         </div>
       </main>
       <Toaster position="top-right" />
