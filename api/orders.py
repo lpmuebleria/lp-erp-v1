@@ -516,3 +516,74 @@ async def apply_penalty(order_id: int, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+@router.get("/orders/{order_id}/delivery-pdf")
+def generate_delivery_pdf(order_id: int):
+    from services.pdf_service import generate_receipt_pdf
+    from fastapi.responses import Response
+    import datetime
+    from database import db
+    from utils import today_iso
+
+    conn = db()
+    cur = conn.cursor(dictionary=True, buffered=True)
+    
+    try:
+        cur.execute("""
+            SELECT o.*, q.cliente_nombre, q.cliente_tel, q.cliente_email 
+            FROM orders o
+            LEFT JOIN quotes q ON q.id = o.quote_id
+            WHERE o.id=%s
+        """, (order_id,))
+        order_info = cur.fetchone()
+        
+        if not order_info:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+        
+        # Fetch lines
+        cur.execute("""
+            SELECT ql.*, p.codigo, p.modelo
+            FROM quote_lines ql 
+            JOIN products p ON p.id=ql.product_id 
+            WHERE ql.quote_id=%s
+        """, (order_info["quote_id"],))
+        lines = cur.fetchall()
+
+        tipo = order_info["tipo"]
+        tipo_map = {
+            "VENTA_STOCK": "Venta Stock",
+            "PEDIDO_FABRICACION": "Pedido Fabricación",
+            "APARTADO": "Sistema de Apartado"
+        }
+
+        context = {
+            "cliente_nombre": order_info.get("cliente_nombre") or "Público General",
+            "cliente_tel": order_info.get("cliente_tel") or "N/A",
+            "cliente_email": order_info.get("cliente_email") or "N/A",
+            "folio": order_info["folio"],
+            "fecha": order_info["created_at"].split()[0] if isinstance(order_info["created_at"], str) else order_info["created_at"].strftime('%d/%m/%Y'),
+            "fecha_actual": datetime.datetime.now().strftime('%d/%m/%Y'),
+            "vendedor": order_info["vendedor"],
+            "tipo_display": tipo_map.get(tipo, "Pedido"),
+            "lineas": lines,
+            "total": float(order_info["total"] or 0),
+            "saldo": float(order_info.get("saldo") or 0),
+            "entrega_estimada": order_info.get("entrega_estimada") or "",
+            "calle_envio": order_info.get("calle_envio") or "",
+            "numero_envio": order_info.get("numero_envio") or "",
+            "colonia_envio": order_info.get("colonia_envio") or "",
+            "cp_envio": order_info.get("cp_envio") or "",
+            "referencia_envio": order_info.get("referencia_envio") or "",
+            "nota_envio": order_info.get("nota_envio") or ""
+        }
+
+        pdf = generate_receipt_pdf(context, template_name='delivery_receipt.html')
+        
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=entrega_{order_info['folio']}.pdf"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

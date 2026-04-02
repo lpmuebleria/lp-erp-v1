@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo de Pago - LP Mueblería</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 15mm 10mm 20mm 10mm;
+        }
+
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #333;
+            background-color: #ffffff;
+            font-size: 11pt;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            border-bottom: 2px solid #D4AF37;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            max-width: 140px;
+        }
+
+        .gold {
+            color: #D4AF37;
+        }
+
+        .receipt-title {
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 18pt;
+            margin: 10px 0;
+        }
+
+        .info-grid {
+            width: 100%;
+            margin-bottom: 25px;
+        }
+
+        .info-box {
+            border: 1px solid #eee;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #fcfcfc;
+        }
+
+        .amount-highlight {
+            font-size: 26pt;
+            font-weight: black;
+            color: #2e7d32;
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #e8f5e9;
+            border-radius: 12px;
+            border: 1px solid #c8e6c9;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .summary-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .summary-table .label {
+            color: #666;
+            text-transform: uppercase;
+            font-size: 9pt;
+            font-weight: bold;
+        }
+
+        .summary-table .value {
+            text-align: right;
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .summary-table .total-row {
+            background-color: #f9f9f9;
+            border-top: 2px solid #D4AF37;
+        }
+
+        .history-section {
+            margin-top: 30px;
+        }
+
+        .history-table {
+            width: 100%;
+            font-size: 9pt;
+            border-collapse: collapse;
+        }
+
+        .history-table th {
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            padding: 5px;
+            color: #777;
+        }
+
+        .history-table td {
+            padding: 5px;
+            border-bottom: 1px solid #f5f5f5;
+        }
+
+        .signatures {
+            width: 100%;
+            margin-top: 60px;
+        }
+
+        .signatures td {
+            width: 50%;
+            text-align: center;
+            vertical-align: bottom;
+            padding-top: 50px;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 70%;
+            margin: 0 auto;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+
+        .legal-notice {
+            margin-top: 40px;
+            font-size: 8pt;
+            color: #888;
+            text-align: justify;
+            line-height: 1.4;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 30%;">
+                    {% if logo_b64 %}
+                    <img class="logo" src="{{ logo_b64 }}" alt="LP Mueblería" />
+                    {% endif %}
+                </td>
+                <td style="width: 70%; text-align: right;">
+                    <h1 class="gold receipt-title">COMPROBANTE DE PAGO</h1>
+                    <p style="margin: 0; color: #555; font-weight: bold;">
+                        Pedido Folio: <span class="gold">{{ order_folio }}</span><br>
+                        Recibo No: <span style="font-family: monospace;">#PAY-{{ payment_id }}</span>
+                    </p>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="info-grid">
+        <tr>
+            <td style="width: 60%; vertical-align: top; padding-right: 15px;">
+                <div class="info-box">
+                    <h3 style="margin: 0 0 8px 0; font-size: 10pt; color: #D4AF37;">DATOS DEL CLIENTE</h3>
+                    <strong>Nombre:</strong> {{ cliente_nombre }}<br>
+                    <strong>Teléfono:</strong> {{ cliente_tel }}<br>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <strong>Método de Pago:</strong> <span style="text-transform: uppercase;">{{ metodo }}</span><br>
+                    {% if referencia %}
+                    <strong>Referencia:</strong> {{ referencia }}<br>
+                    {% endif %}
+                    <strong>Fecha de Pago:</strong> {{ fecha_pago }}
+                </div>
+            </td>
+            <td style="width: 40%; vertical-align: top;">
+                <div class="amount-highlight">
+                    <div style="font-size: 9pt; color: #666; text-transform: uppercase; margin-bottom: -5px;">Cantidad Recibida</div>
+                    ${{ "{:,.2f}".format(monto_recibido) }}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <h3 style="border-bottom: 1px solid #D4AF37; padding-bottom: 5px; font-size: 11pt; color: #444;">ESTADO DE CUENTA</h3>
+    <table class="summary-table">
+        <tr>
+            <td class="label">Total de la Venta</td>
+            <td class="value">${{ "{:,.2f}".format(total_venta) }}</td>
+        </tr>
+        <tr>
+            <td class="label">Pagado Anteriormente (Acumulado)</td>
+            <td class="value">${{ "{:,.2f}".format(pagado_anterior) }}</td>
+        </tr>
+        <tr style="color: #2e7d32;">
+            <td class="label">Abono Realizado en esta Fecha</td>
+            <td class="value">+ ${{ "{:,.2f}".format(monto_recibido) }}</td>
+        </tr>
+        <tr class="total-row">
+            <td class="label" style="color: #D4AF37; font-size: 10pt;">Saldo Pendiente Actual</td>
+            <td class="value" style="font-size: 14pt;">${{ "{:,.2f}".format(saldo_restante) }}</td>
+        </tr>
+    </table>
+
+    {% if historial %}
+    <div class="history-section">
+        <h4 style="margin: 0 0 10px 0; font-size: 9pt; color: #777; text-transform: uppercase;">Desglose de Historial de Abonos</h4>
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Método</th>
+                    <th style="text-align: right;">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in historial %}
+                <tr {% if p.id == payment_id %}style="background-color: #fff9c4; font-weight: bold;"{% endif %}>
+                    <td>{{ p.fecha }}</td>
+                    <td style="text-transform: capitalize;">{{ p.metodo }}</td>
+                    <td style="text-align: right;">${{ "{:,.2f}".format(p.monto) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <table class="signatures">
+        <tr>
+            <td>
+                <div class="signature-line">Entrega LP Mueblería</div>
+                <div style="font-size: 8pt; color: #777;">Atendido por: {{ vendedor }}</div>
+            </td>
+            <td>
+                <div class="signature-line">Firma del Cliente</div>
+                <div style="font-size: 8pt; color: #777;">{{ cliente_nombre }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="legal-notice">
+        <strong>Aviso Legal:</strong> Este recibo es un comprobante de abono a cuenta y no ampara la posesión o entrega de mercancía a menos que el saldo sea cero y se presente la Hoja de Entrega correspondiente firmada por ambas partes. En cancelaciones de pedidos sobre medida o fabricación especial, se aplicará el cargo correspondiente según el contrato de adhesión. Los intereses por morosidad en sistemas de apartado se aplican después de la fecha límite establecida.
+    </div>
+
+    <div style="margin-top: 30px; text-align: center; font-size: 8pt; color: #aaa;">
+        LP Mueblería - Sucursal Victoria - Av. Paseo de la Victoria 503, Torreón, Coah. <br>
+        Documento generado automáticamente el {{ fecha_generacion }}
+    </div>
+</body>
+
+</html>

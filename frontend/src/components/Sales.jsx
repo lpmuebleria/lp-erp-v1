@@ -19,7 +19,8 @@ import {
     MapPin,
     AlertTriangle,
     History,
-    X
+    X,
+    Truck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { calculateRounding } from '../utils/rounding';
@@ -458,7 +459,7 @@ function Sales({ vendedor }) {
         try {
             // Re-using quotes endpoint for now
             const res = await axios.post(`${API_URL}/quotes`, payload);
-            setSuccess({ folio: res.data.folio, id: res.data.id });
+            setSuccess({ folio: res.data.folio, id: res.data.id, order_id: res.data.order_id });
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
             setPayments([{ id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }]);
@@ -515,8 +516,17 @@ function Sales({ vendedor }) {
                         onClick={() => window.open(`${API_URL}/quotes/${success.id}/pdf`, '_blank')}
                         className="bg-premium-gold text-black font-black px-8 py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20"
                     >
-                        Imprimir PDF
+                        Imprimir Nota
                     </button>
+                    {status !== 'COTIZACION' && (
+                        <button
+                            onClick={() => window.open(`${API_URL}/orders/${success.order_id}/delivery-pdf`, '_blank')}
+                            className="bg-slate-800 text-blue-400 font-black px-8 py-3 rounded-xl hover:bg-slate-700 transition-all shadow-lg border border-blue-500/30 flex items-center gap-2"
+                        >
+                            <Truck size={18} />
+                            Hoja de Entrega
+                        </button>
+                    )}
                 </div>
             </div>
         );

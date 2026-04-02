@@ -7,7 +7,7 @@ from logger_config import logger
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "api", "templates")
 
-def generate_receipt_pdf(context: dict) -> bytes:
+def generate_receipt_pdf(context: dict, template_name: str = 'receipt.html') -> bytes:
     """
     Renders receipt.html with context and generates a PDF using WeasyPrint.
     Imports WeasyPrint locally to avoid startup crashes if it fails to load.
@@ -28,7 +28,7 @@ def generate_receipt_pdf(context: dict) -> bytes:
 
         # Setup Jinja2
         env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
-        template = env.get_template('receipt.html')
+        template = env.get_template(template_name)
         html_out = template.render(context)
         
         # Generate PDF
