@@ -8,6 +8,7 @@ import os
 import uuid
 import cloudinary
 import cloudinary.uploader
+import re
 from typing import List, Optional
 from database import db
 from schemas import Product, ProductCreate
@@ -181,8 +182,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment, is_offer)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo.strip(),
             data.modelo.strip(),
@@ -201,7 +202,8 @@ def create_product(data: ProductCreate):
             data.imagen_url,
             data.in_catalog,
             data.is_madre,
-            data.round_adjustment
+            data.round_adjustment,
+            data.is_offer
         ))
         product_id = cur.lastrowid
 
@@ -235,7 +237,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s, is_offer=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -256,6 +258,7 @@ def update_product(product_id: int, data: ProductCreate):
             data.in_catalog,
             data.is_madre,
             data.round_adjustment,
+            data.is_offer,
             product_id
         ))
 
@@ -304,6 +307,18 @@ def update_product(product_id: int, data: ProductCreate):
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 
+def sanitize_filename(filename: str) -> str:
+    """Convierte un nombre de archivo a formato URL-safe (slug)."""
+    name, ext = os.path.splitext(filename)
+    # Convertir a minúsculas y reemplazar caracteres no alfanuméricos por _
+    name = name.lower()
+    name = re.sub(r'[^a-z0-9]', '_', name)
+    # Eliminar guiones bajos duplicados
+    name = re.sub(r'_+', '_', name).strip('_')
+    if not name:
+        name = "archivo_sin_nombre"
+    return f"{name}{ext.lower()}"
+
 @router.post("/upload")
 async def upload_image(request: Request, file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
@@ -314,41 +329,45 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     # CASE 1: Cloudinary is configured
     if cloud_name and cloud_name.strip() and cloud_name != "None":
         try:
-            # Upload directly to Cloudinary
+            # Sanitizar nombre para usar como public_id (útil para sobreescribir/identificar)
+            public_id = os.path.splitext(sanitize_filename(file.filename))[0]
+            
+            # Upload to Cloudinary using filename as part of path to help with organization
             result = cloudinary.uploader.upload(
                 file.file,
                 folder="lp_erp_inventory",
+                public_id=public_id,
+                unique_filename=False, # Si el nombre coincide, intentamos reutilizar o sobreescribir según config
+                overwrite=True,
                 resource_type="image"
             )
             return {"url": result.get("secure_url")}
         except Exception as e:
             logger.error(f"Error uploading to Cloudinary: {e}")
-            # Fallthrough to local if Cloudinary fails? 
-            # For now, let's keep it separate or just proceed to local if it fails.
             pass
 
     # CASE 2: Local Storage Fallback
     try:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
-        file_ext = os.path.splitext(file.filename)[1]
-        if not file_ext:
-            file_ext = ".jpg" # Fallback extension
-            
-        unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        filename = sanitize_filename(file.filename)
+        file_path = os.path.join(UPLOAD_DIR, filename)
         
+        # VERIFICACIÓN DE EXISTENCIA: Si el archivo ya existe (mismo nombre), lo reutilizamos
+        if os.path.exists(file_path):
+            logger.info(f"Reutilizando imagen existente: {filename}")
+            # Devolver la URL del archivo que ya está en el servidor
+            return {"url": f"{request.base_url}static/uploads/{filename}"}
+
+        # Guardar archivo nuevo (solo si NO existe)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # Build local URL. 
-        # We use the request host to make it absolute so frontend can see it.
+        # Construir URL absoluta dinámica y segura
         base_url = str(request.base_url).rstrip("/")
-        # If running behind a proxy (like Render), base_url might be http but we need https
         if request.headers.get("x-forwarded-proto") == "https":
             base_url = base_url.replace("http://", "https://")
             
-        local_url = f"{base_url}/static/uploads/{unique_filename}"
-        return {"url": local_url}
+        return {"url": f"{base_url}/static/uploads/{filename}"}
     except Exception as e:
         logger.error(f"Error saving image locally: {e}")
         raise HTTPException(status_code=500, detail=f"No se pudo guardar la imagen: {str(e)}")

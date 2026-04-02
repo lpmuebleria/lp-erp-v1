@@ -472,6 +472,7 @@ function ProductModal({ onClose, onSave, product }) {
         imagen_url: '',
         in_catalog: 1,
         is_madre: 0,
+        is_offer: 0,
         allowed_fabric_ids: [],
         allowed_color_ids: []
     };
@@ -748,7 +749,7 @@ function ProductModal({ onClose, onSave, product }) {
                             </div>
                         )}
 
-                        <div className="space-y-2">
+                        <div className="space-y-4 pt-4 border-t border-white/10">
                             <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Imagen del Producto</label>
                             <div className="flex items-center space-x-4">
                                 {form.imagen_url && (
@@ -770,21 +771,38 @@ function ProductModal({ onClose, onSave, product }) {
                                     )}
                                 </label>
                             </div>
-                            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+
+                            <div className="flex items-center justify-between pt-4 border-t border-white/5">
                                 <div>
                                     <div className="text-sm font-bold tracking-tight text-white mb-1">Catálogo Público</div>
-                                    <div className="text-[10px] text-slate-500">Determina si este producto aparece en la exportación PDF del catálogo</div>
+                                    <div className="text-[10px] text-slate-500">Determina si este producto aparece en la exportación PDF y web</div>
                                 </div>
 
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        value=""
                                         className="sr-only peer"
                                         checked={form.in_catalog === 1}
                                         onChange={(e) => setForm({ ...form, in_catalog: e.target.checked ? 1 : 0 })}
                                     />
-                                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-premium-gold"></div>
+                                    <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-premium-gold"></div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="text-sm font-bold tracking-tight text-[#eab308] mb-1">Producto en Oferta</div>
+                                    <div className="text-[10px] text-slate-500">Muestra una insignia de oferta y permite filtrado especial</div>
+                                </div>
+
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={form.is_offer === 1}
+                                        onChange={(e) => setForm({ ...form, is_offer: e.target.checked ? 1 : 0 })}
+                                    />
+                                    <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#eab308]"></div>
                                 </label>
                             </div>
                         </div>
