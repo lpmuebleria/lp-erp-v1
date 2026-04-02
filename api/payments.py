@@ -51,6 +51,8 @@ def create_payment(data: PaymentCreate):
             comision_bancaria
         ))
 
+        payment_id = cur.lastrowid
+
         # 3) Update Order
         nuevo_anticipo = round(float(o["anticipo_pagado"] or 0) + monto, 2)
         nuevo_saldo = round(saldo_actual - monto, 2)
@@ -75,7 +77,7 @@ def create_payment(data: PaymentCreate):
             related_order_id=data.order_id
         )
 
-        return {"id": data.order_id, "status": nuevo_estatus, "saldo": nuevo_saldo}
+        return {"id": data.order_id, "payment_id": payment_id, "status": nuevo_estatus, "saldo": nuevo_saldo}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -166,3 +168,84 @@ def cancel_payment(payment_id: int, data: PaymentCancel):
     finally:
         conn.close()
 
+@router.get("/payments/{payment_id}/pdf")
+def generate_payment_pdf(payment_id: int):
+    from services.pdf_service import generate_receipt_pdf
+    from fastapi.responses import Response
+    import datetime
+    from database import db
+
+    conn = db()
+    cur = conn.cursor(dictionary=True, buffered=True)
+    
+    try:
+        # 1) Get current payment
+        cur.execute("SELECT * FROM payments WHERE id=%s", (payment_id,))
+        p = cur.fetchone()
+        if not p:
+            raise HTTPException(status_code=404, detail="Pago no encontrado")
+        
+        order_id = p["order_id"]
+        
+        # 2) Get order info
+        cur.execute("""
+            SELECT o.*, q.cliente_nombre, q.cliente_tel 
+            FROM orders o
+            LEFT JOIN quotes q ON q.id = o.quote_id
+            WHERE o.id=%s
+        """, (order_id,))
+        order = cur.fetchone()
+        
+        # 3) Get history of ALL non-cancelled payments for this order
+        cur.execute("SELECT * FROM payments WHERE order_id=%s AND anulado=0 ORDER BY id ASC", (order_id,))
+        all_payments = cur.fetchall()
+        
+        # 4) Calculate balance at the time of THIS payment
+        pagado_anterior = 0.0
+        for pay in all_payments:
+            if pay["id"] < p["id"]:
+                pagado_anterior += float(pay["monto"])
+        
+        total_venta = float(order["total"])
+        pagado_total_hasta_ahora = pagado_anterior + float(p["monto"])
+        saldo_restante_en_ese_momento = total_venta - pagado_total_hasta_ahora
+        
+        # 5) Build context
+        historial_display = []
+        for pay in all_payments:
+            historial_display.append({
+                "id": pay["id"],
+                "fecha": pay["created_at"].split()[0] if isinstance(pay["created_at"], str) else pay["created_at"].strftime('%d/%m/%Y'),
+                "metodo": pay["metodo"],
+                "monto": float(pay["monto"])
+            })
+
+        context = {
+            "payment_id": p["id"],
+            "order_folio": order["folio"],
+            "cliente_nombre": order["cliente_nombre"] or "Público General",
+            "cliente_tel": order["cliente_tel"] or "N/A",
+            "metodo": p["metodo"],
+            "referencia": p["referencia"],
+            "fecha_pago": p["created_at"].split()[0] if isinstance(p["created_at"], str) else p["created_at"].strftime('%d/%m/%Y'),
+            "monto_recibido": float(p["monto"]),
+            "total_venta": total_venta,
+            "pagado_anterior": pagado_anterior,
+            "saldo_restante": max(0, saldo_restante_en_ese_momento),
+            "vendedor": order["vendedor"],
+            "historial": historial_display,
+            "fecha_generacion": datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+
+        pdf = generate_receipt_pdf(context, template_name='payment_receipt.html')
+        
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=pago_{p['id']}_{order['folio']}.pdf"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

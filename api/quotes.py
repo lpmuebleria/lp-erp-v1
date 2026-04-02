@@ -250,7 +250,7 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             )
 
         conn.commit()
-        return {"id": quote_id, "folio": data.get("folio")}
+        return {"id": quote_id, "order_id": order_id if 'order_id' in locals() else None, "folio": data.get("folio")}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

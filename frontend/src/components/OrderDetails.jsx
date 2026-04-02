@@ -198,12 +198,14 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
         if (payForm.monto <= 0) return;
         setPaying(true);
         try {
-            await axios.post(`${API_URL}/payments`, {
+            const res = await axios.post(`${API_URL}/payments`, {
                 order_id: orderId,
                 ...payForm
             });
-            fetchDetails();
-            alert("Pago registrado correctamente");
+            await fetchDetails();
+            if (window.confirm("¡Pago registrado correctamente! ¿Deseas imprimir el recibo de este abono?")) {
+                window.open(`${API_URL}/payments/${res.data.payment_id}/pdf`, '_blank');
+            }
         } catch (err) {
             alert("Error al procesar pago");
         } finally {
@@ -368,7 +370,15 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                     title="Reimprimir Nota en PDF"
                                 >
                                     <FileText size={16} />
-                                    <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">PDF</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Nota</span>
+                                </button>
+                                <button
+                                    onClick={() => window.open(`${API_URL}/orders/${orderId}/delivery-pdf`, '_blank')}
+                                    className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 p-3 rounded-2xl transition-all border border-blue-500/20 shadow-lg flex items-center space-x-2"
+                                    title="Imprimir Hoja de Entrega"
+                                >
+                                    <Truck size={16} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Entrega</span>
                                 </button>
                                 <div className={`px-6 py-3 rounded-2xl text-xs font-black tracking-[0.2em] uppercase border ${order.estatus === 'ENTREGADO' ? 'border-green-500/30 text-green-400 bg-green-500/5' :
                                     order.estatus === 'LIQUIDADO' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' :
@@ -482,16 +492,25 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                                 <X size={10} className="mr-1" /> Anulado
                                             </div>
                                         ) : (
-                                            <button
-                                                onClick={() => {
-                                                    setCancelPaymentId(p.id);
-                                                    setShowCancelModal(true);
-                                                }}
-                                                className="flex items-center justify-end text-[9px] text-slate-500 hover:text-red-400 font-black uppercase mt-1 transition-colors ml-auto group"
-                                                title="Anular este pago"
-                                            >
-                                                <XCircle size={10} className="mr-1 group-hover:scale-110 transition-transform" /> Anular
-                                            </button>
+                                            <div className="flex items-center justify-end gap-3 mt-1">
+                                                <button
+                                                    onClick={() => window.open(`${API_URL}/payments/${p.id}/pdf`, '_blank')}
+                                                    className="flex items-center text-[9px] text-blue-400 hover:text-blue-300 font-black uppercase transition-colors group/print"
+                                                    title="Imprimir Recibo de este pago"
+                                                >
+                                                    <FileText size={10} className="mr-1 group-hover/print:scale-110 transition-transform" /> Recibo
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setCancelPaymentId(p.id);
+                                                        setShowCancelModal(true);
+                                                    }}
+                                                    className="flex items-center text-[9px] text-slate-500 hover:text-red-400 font-black uppercase transition-colors group/cancel"
+                                                    title="Anular este pago"
+                                                >
+                                                    <XCircle size={10} className="mr-1 group-hover/cancel:scale-110 transition-transform" /> Anular
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

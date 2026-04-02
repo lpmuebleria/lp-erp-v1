@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hoja de Entrega y Conformidad</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 15mm 10mm 20mm 10mm;
+
+            @top-center {
+                content: element(compact_header);
+            }
+
+            @bottom-center {
+                content: element(page_footer);
+            }
+        }
+
+        @page :first {
+            margin-top: 30mm;
+            margin-bottom: 20mm;
+
+            @top-center {
+                content: element(full_header);
+            }
+
+            @bottom-center {
+                content: element(page_footer);
+            }
+        }
+
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #333;
+            background-color: #ffffff;
+            font-size: 11pt;
+        }
+
+        .full-header {
+            position: running(full_header);
+            width: 100%;
+            border-bottom: 2px solid #D4AF37;
+            padding-top: 15px;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            max-width: 150px;
+            margin-bottom: 10px;
+        }
+
+        .gold {
+            color: #D4AF37;
+        }
+
+        .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .info-table td {
+            padding: 5px;
+            vertical-align: top;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        .items-table th,
+        .items-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .items-table th {
+            background-color: #f2f2f2;
+            color: #555;
+            text-transform: uppercase;
+            font-size: 10pt;
+            letter-spacing: 1px;
+        }
+
+        .conformity-box {
+            border: 1px solid #D4AF37;
+            background-color: #fcfcfc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            page-break-inside: avoid;
+        }
+
+        .conformity-text {
+            font-size: 10pt;
+            line-height: 1.5;
+            color: #444;
+            text-align: justify;
+        }
+
+        .signatures {
+            width: 100%;
+            margin-top: 50px;
+            page-break-inside: avoid;
+        }
+
+        .signatures td {
+            width: 50%;
+            text-align: center;
+            vertical-align: bottom;
+            padding-top: 60px;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 80%;
+            margin: 0 auto;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+
+        .footer-running {
+            position: running(page_footer);
+            width: 100%;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+            text-align: center;
+            color: #777;
+            font-size: 9px;
+        }
+
+        .saldo-box {
+            float: right;
+            border: 2px solid #d32f2f;
+            background-color: #ffebee;
+            color: #d32f2f;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 14pt;
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: #eee;
+            font-weight: bold;
+            font-size: 10pt;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="footer-running">
+        LP Mueblería - Orden de Entrega y Acuse de Recibido - Emitido el {{ fecha_actual }}
+    </div>
+
+    <div class="full-header">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 30%; text-align: left; vertical-align: middle;">
+                    {% if logo_b64 %}
+                    <img class="logo" src="{{ logo_b64 }}" style="max-height: 80px; width: auto;" alt="Mueblería LP" />
+                    {% endif %}
+                </td>
+                <td style="width: 40%; text-align: center; vertical-align: middle;">
+                    <h1 class="gold" style="font-size: 20pt; margin: 0;">ORDEN DE ENTREGA</h1>
+                    <p style="margin: 5px 0 0 0; font-size: 10pt; color: #666; font-weight: bold;">LP Mueblería - Folio: {{ folio }}</p>
+                </td>
+                <td style="width: 30%; text-align: right; vertical-align: middle; color: #777; font-size: 10pt;">
+                    Fecha de Entrega: <br>
+                    <span class="gold" style="font-weight: bold; font-size: 12pt;">{{ entrega_estimada or fecha }}</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="info-table">
+        <tr>
+            <td style="width: 60%;">
+                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">DATOS DEL CLIENTE</h3>
+                <strong>Nombre:</strong> {{ cliente_nombre }}<br>
+                <strong>Teléfono:</strong> {{ cliente_tel }}<br>
+                <strong>E-mail:</strong> {{ cliente_email or 'N/A' }}
+            </td>
+            <td style="width: 40%;">
+                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">TIPO DE SERVICIO</h3>
+                <div class="badge" style="margin-bottom: 5px;">{{ tipo_display }}</div><br>
+                <strong>Vendedor:</strong> <span style="text-transform: capitalize;">{{ vendedor }}</span>
+            </td>
+        </tr>
+    </table>
+
+    {% if calle_envio %}
+    <div style="margin-bottom: 25px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fafafa;">
+        <h3 style="margin: 0 0 10px 0; font-size: 11pt; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 5px;">📍 DIRECCIÓN DE ENTREGA</h3>
+        <p style="margin: 0; line-height: 1.4;">
+            <strong>Calle:</strong> {{ calle_envio }} #{{ numero_envio }}<br>
+            <strong>Colonia:</strong> {{ colonia_envio }} {% if cp_envio %}(CP: {{ cp_envio }}){% endif %}<br>
+            <strong>Referencia:</strong> {{ referencia_envio }}<br>
+            {% if nota_envio %}
+            <strong>Notas del Chofer:</strong> <span style="color: #b8860b;">{{ nota_envio }}</span>
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    <h3 style="font-size: 12pt; margin-bottom: 10px; color: #444;">DETALLE DE PRODUCTOS A ENTREGRAR</h3>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Código</th>
+                <th style="width: 65%;">Descripción del Mueble</th>
+                <th style="width: 20%; text-align: center;">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in lineas %}
+            <tr>
+                <td style="font-family: monospace;">{{ item.codigo }}</td>
+                <td>
+                    <div style="font-weight: bold; font-size: 11pt;">{{ item.modelo }}</div>
+                    {% if item.tela or item.color %}
+                    <div style="font-size: 9pt; color: #555; text-transform: uppercase; margin-top: 5px;">
+                        {% if item.tela %}<strong>Tela:</strong> {{ item.tela }}{% endif %}
+                        {% if item.color %}<span style="margin-left: 15px;"><strong>Color:</strong> {{ item.color }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td style="text-align: center; font-weight: bold; font-size: 12pt;">{{ item.cantidad }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if saldo and saldo > 0 %}
+    <div class="saldo-box">
+        SALDO PENDIENTE A LIQUIDAR: ${{ "{:,.2f}".format(saldo) }}
+        <div style="font-size: 8pt; font-weight: normal; margin-top: 3px; color: #666;">
+            (Favor de liquidar en efectivo al recibir su mercancía)
+        </div>
+    </div>
+    <div style="clear: both;"></div>
+    {% endif %}
+
+    <div class="conformity-box">
+        <h4 style="margin: 0 0 10px 0; color: #D4AF37; font-size: 11pt;">📜 RECIBÍ DE CONFORMIDAD</h4>
+        <div class="conformity-text">
+            Por medio de la presente, confirmo que he recibido los muebles arriba descritos en <strong>perfectas condiciones físicas</strong>, sin rayaduras, golpes o defectos visibles de fabricación. He verificado que las medidas, colores y texturas corresponden a lo solicitado en mi nota de venta.
+            <br><br>
+            Una vez firmado este documento, LP Mueblería no se hace responsable por daños físicos ocasionados por el uso, manipulación o movimientos posteriores a la entrega (incluyendo volados o maniobras internas solicitadas). Cualquier reclamación por defecto de fábrica oculto deberá notificarse en los próximos 15 días naturales comunicándose a nuestra sucursal.
+        </div>
+    </div>
+
+    <table class="signatures">
+        <tr>
+            <td>
+                <div class="signature-line">Firma de Conformidad (Cliente)</div>
+                <div style="font-size: 9pt; color: #777; margin-top: 5px;">{{ cliente_nombre }}</div>
+            </td>
+            <td>
+                <div class="signature-line">Firma de Entrega (LP Mueblería)</div>
+                <div style="font-size: 9pt; color: #777; margin-top: 5px;">Nombre del Chofer / Repartidor</div>
+            </td>
+        </tr>
+    </table>
+
+    <div style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 15px;">
+        <p style="font-size: 9pt; color: #999; margin: 0;">
+            Plaza Victoria Int. 7, Av. Paseo de la Victoria 503, Residencial Victoria, Torreón, Coah. <br>
+            Tel: (871) 776 2242 | WhatsApp: 8718784462
+        </p>
+    </div>
+</body>
+
+</html>

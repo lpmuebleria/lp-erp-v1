@@ -19,7 +19,8 @@ import {
     MapPin,
     AlertTriangle,
     History,
-    X
+    X,
+    Truck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { calculateRounding } from '../utils/rounding';
@@ -136,6 +137,8 @@ function Sales({ vendedor }) {
                             ...item,
                             tipo_precio: 'contado',
                             precio_unit: originalPrice,
+                            precio_base: originalPrice,
+                            descuento_pct: 0,
                             cartId: `${item.product_id}-contado`,
                             total_linea: item.cantidad * (originalPrice - (item.descuento_manual || 0))
                         };
@@ -191,7 +194,7 @@ function Sales({ vendedor }) {
                 codigo: product.codigo,
                 cantidad: 1,
                 precio_unit: precioUnit,
-                precio_original: product.precio_lista,
+                precio_base: precioUnit,
                 precio_original: product.precio_lista,
                 total_linea: precioUnit,
                 descuento_manual: 0,
@@ -221,6 +224,9 @@ function Sales({ vendedor }) {
             ...product, 
             cantidad: 1, 
             descuento_manual: 0, 
+            descuento_pct: 0,
+            precio_unit: finalPrice,
+            precio_base: finalPrice,
             total_linea: finalPrice, 
             cartId, 
             tipo_precio,
@@ -248,7 +254,7 @@ function Sales({ vendedor }) {
         ));
     };
 
-    const updateDiscount = (cartId, val, unitPrice) => {
+    const updateDiscount = (cartId, val, basePrice) => {
         let pct = parseFloat(val) || 0;
         
         // Enforce 10% cap
@@ -258,7 +264,8 @@ function Sales({ vendedor }) {
 
         setCart(cart.map(item => {
             if (item.cartId === cartId) {
-                const discountedPriceRaw = unitPrice * (1 - pct / 100);
+                // Correct calculation: always from basePrice
+                const discountedPriceRaw = basePrice * (1 - pct / 100);
                 const roundedPrice = calculateRounding(discountedPriceRaw);
                 const adj = roundedPrice - discountedPriceRaw;
                 
@@ -267,7 +274,7 @@ function Sales({ vendedor }) {
                     descuento_pct: pct, 
                     precio_unit: roundedPrice,
                     total_linea: item.cantidad * roundedPrice,
-                    round_adjustment: (item.round_adjustment || 0) + adj
+                    round_adjustment: adj // Re-calculate adjustment from base
                 };
             }
             return item;
@@ -452,7 +459,7 @@ function Sales({ vendedor }) {
         try {
             // Re-using quotes endpoint for now
             const res = await axios.post(`${API_URL}/quotes`, payload);
-            setSuccess({ folio: res.data.folio, id: res.data.id });
+            setSuccess({ folio: res.data.folio, id: res.data.id, order_id: res.data.order_id });
             setCart([]);
             setCustomer({ nombre: '', tel: '', email: '' });
             setPayments([{ id: Date.now(), monto: 0, metodo: 'efectivo', referencia: '' }]);
@@ -509,8 +516,17 @@ function Sales({ vendedor }) {
                         onClick={() => window.open(`${API_URL}/quotes/${success.id}/pdf`, '_blank')}
                         className="bg-premium-gold text-black font-black px-8 py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20"
                     >
-                        Imprimir PDF
+                        Imprimir Nota
                     </button>
+                    {status !== 'COTIZACION' && (
+                        <button
+                            onClick={() => window.open(`${API_URL}/orders/${success.order_id}/delivery-pdf`, '_blank')}
+                            className="bg-slate-800 text-blue-400 font-black px-8 py-3 rounded-xl hover:bg-slate-700 transition-all shadow-lg border border-blue-500/30 flex items-center gap-2"
+                        >
+                            <Truck size={18} />
+                            Hoja de Entrega
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -795,7 +811,7 @@ function Sales({ vendedor }) {
                                                             step="1"
                                                             title="Máximo 10% de descuento"
                                                             value={item.descuento_pct || 0}
-                                                            onChange={(e) => updateDiscount(item.cartId, e.target.value, item.precio_unit)}
+                                                            onChange={(e) => updateDiscount(item.cartId, e.target.value, item.precio_base)}
                                                             className="bg-red-500/10 border border-red-500/30 rounded-lg w-16 p-2 pr-6 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
                                                         />
                                                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-red-400 opacity-70">%</span>
