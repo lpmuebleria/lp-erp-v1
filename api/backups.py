@@ -1,5 +1,6 @@
 import os
 import asyncio
+import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from scripts.backup_db import create_backup, BACKUP_DIR
@@ -15,6 +16,7 @@ def list_backups(request: Request):
     """Returns a list of available database backups."""
     require_superadmin(request)
     if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR, exist_ok=True)
         return []
     
     files = []
@@ -53,32 +55,29 @@ def download_backup(filename: str, request: Request):
 def trigger_manual_backup(background_tasks: BackgroundTasks, request: Request):
     """Triggers a backup manually as a background task."""
     require_superadmin(request)
+    logger.info("🖱️ Manual backup triggered by user.")
     background_tasks.add_task(create_backup)
     return {"message": "Proceso de respaldo iniciado en segundo plano."}
 
 async def backup_scheduler():
     """
     Background loop that runs the backup every 12 hours.
-    Only active if DB_MODE is REMOTE (Demo/Production).
+    Now active in both LOCAL and REMOTE modes.
     """
-    if DB_MODE != 'REMOTE':
-        logger.info("ℹ️ Backup Scheduler disabled (Local Mode).")
-        return
-
-    logger.info("🚀 Backup Scheduler started (12h cycle).")
+    logger.info(f"🚀 Backup Scheduler started (Cycle: 12h, Mode: {DB_MODE}).")
     
     while True:
         try:
-            # Initial wait? Or run immediately?
-            # Let's wait 1 hour after startup to avoid overloading during initialization
-            await asyncio.sleep(60 * 60) 
+            # Initial wait to avoid running exactly at startup if multiple restarts happen
+            # Wait 30 minutes after startup
+            await asyncio.sleep(30 * 60) 
             
             logger.info("⏰ Scheduled backup task starting...")
             filename = create_backup()
             if filename:
                 logger.info(f"✅ Scheduled backup completed: {filename}")
             else:
-                logger.error("❌ Scheduled backup failed.")
+                logger.error("❌ Scheduled backup failed. Check logs for details.")
             
             # Wait 12 hours for the next one
             await asyncio.sleep(12 * 60 * 60)
@@ -89,5 +88,3 @@ async def backup_scheduler():
         except Exception as e:
             logger.error(f"❌ Error in backup scheduler: {e}")
             await asyncio.sleep(60 * 5) # Retry after 5 mins if error
-
-import datetime
