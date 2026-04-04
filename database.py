@@ -485,6 +485,8 @@ def _migrate(cur):
         cur.execute("ALTER TABLE products ADD COLUMN is_madre INT NOT NULL DEFAULT 0")
     if not col_exists(cur, "products", "is_offer"):
         cur.execute("ALTER TABLE products ADD COLUMN is_offer INT NOT NULL DEFAULT 0")
+    if not col_exists(cur, "products", "precio_etiqueta"):
+        cur.execute("ALTER TABLE products ADD COLUMN precio_etiqueta DECIMAL(15,2) NOT NULL DEFAULT 0")
 
     # users
     if not col_exists(cur, "users", "password"):
