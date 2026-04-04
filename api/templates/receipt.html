@@ -422,44 +422,48 @@
     </div>
     {% endif %}
 
-    {# Billing and Signature moved here to second page #}
-    <div style="page-break-inside: avoid;">
-        {% if factura_rfc %}
-        <div style="margin-top: 40px; padding: 20px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 8px; margin-bottom: 60px;">
-            <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #004085; text-transform: uppercase; border-bottom: 1px solid #dee2e6; padding-bottom: 5px;">📄 Datos de Facturación Requerida</p>
-            <table style="width: 100%; border: none; font-size: 11px; color: #555;">
-                <tr>
-                    <td style="width: 50%; padding: 4px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
-                    <td style="width: 50%; padding: 4px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 4px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 4px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
-                    <td style="padding: 4px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 4px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
-                    <td style="padding: 4px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
-                </tr>
-            </table>
-        </div>
-        {% endif %}
+    {# Billing #}
+    {% if factura_rfc %}
+    <div style="page-break-inside: avoid; margin-top: 40px; padding: 20px; background-color: #f0f7ff; border: 1px solid #cce5ff; text-align: left; font-size: 11px; border-radius: 8px; margin-bottom: 60px;">
+        <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #004085; text-transform: uppercase; border-bottom: 1px solid #dee2e6; padding-bottom: 5px;">📄 Datos de Facturación Requerida</p>
+        <table style="width: 100%; border: none; font-size: 11px; color: #555;">
+            <tr>
+                <td style="width: 50%; padding: 4px 0;"><strong>RFC:</strong> {{ factura_rfc }}</td>
+                <td style="width: 50%; padding: 4px 0;"><strong>Código Postal:</strong> {{ factura_cp }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 4px 0;" colspan="2"><strong>Razón Social:</strong> {{ factura_razon }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 4px 0;"><strong>Régimen Fiscal:</strong> {{ factura_regimen }}</td>
+                <td style="padding: 4px 0;"><strong>Uso de CFDI:</strong> {{ factura_uso_cfdi }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 4px 0;"><strong>Forma de Pago:</strong> {{ factura_forma_pago }}</td>
+                <td style="padding: 4px 0;"><strong>Método de Pago:</strong> {{ factura_metodo_pago }}</td>
+            </tr>
+        </table>
+    </div>
+    {% endif %}
 
+    {# Signature moved here #}
+    {# Block to keep signature and legal terms together at the bottom #}
+    <div style="page-break-inside: avoid; padding-top: 20px;">
         {% if status != 'COTIZACION' %}
-        <div style="margin-top: 30px; text-align: center; margin-bottom: 120px;">
+        <div style="text-align: center; margin-bottom: 40px;">
+            <div style="font-size: 9px; color: #aaa; margin-bottom: 30px; border-bottom: 1px dashed #eee; display: inline-block; padding-bottom: 5px;">
+                Este espacio de firmas corresponde al comprobante con folio: <strong style="color: #666;">{{ folio }}</strong>
+            </div>
+            <br>
             <div style="display: inline-block; width: 250px; border-top: 1px solid #000; padding-top: 5px;">
                 <p style="margin: 0; font-size: 12px; font-weight: bold;">Recibí de Conformidad</p>
                 <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">{{ cliente_nombre }}</p>
             </div>
         </div>
         {% endif %}
-    </div>
 
-
-    <!-- Static Footer (Appears only at the end, at the bottom) -->
-    <div class="legal-footer">
+        <!-- Static Footer (Appears only at the end, at the bottom) -->
+        <div class="legal-footer" style="margin-top: 0;">
         <p style="font-weight: bold; color: #d00; font-size: 10px; margin-bottom: 5px;">ESTE DOCUMENTO ES DE CARÁCTER INTERNO Y NO REPRESENTA UN COMPROBANTE FISCAL.</p>
         <div style="padding: 6px; border: 1px solid #eee; border-radius: 5px; background-color: #fcfcfc; margin-bottom: 8px;">
             <p style="margin: 0 0 3px 0; font-size: 9px; font-weight: bold; text-transform: uppercase; color: #444; border-bottom: 1px solid #eee; padding-bottom: 2px;">📜 Términos y Condiciones</p>
@@ -497,6 +501,7 @@
                 </td>
             </tr>
         </table>
+    </div>
     </div>
 </body>
 
