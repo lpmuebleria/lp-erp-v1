@@ -99,7 +99,7 @@ function Inventory({ role, isSuperadmin }) {
                                 </button>
                                 <button
                                     onClick={() => {
-                                        setEditingProduct({ is_madre: 1, codigo: 'M-' });
+                                        setEditingProduct({ is_madre: 1, codigo: '' });
                                         setShowModal(true);
                                     }}
                                     className="bg-premium-gold text-black font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
@@ -604,7 +604,7 @@ function ProductModal({ onClose, onSave, product }) {
                 setSaving(false);
                 return;
             }
-            if (product) {
+            if (product?.id) {
                 await axios.put(`${API_URL}/products/${product.id}`, form);
             } else {
                 await axios.post(`${API_URL}/products`, form);
@@ -690,13 +690,13 @@ function ProductModal({ onClose, onSave, product }) {
                         </div>
 
                         {form.is_madre === 1 && (
-                            <div className="grid grid-cols-2 gap-4 py-4 border-y border-white/5 bg-white/5 px-4 rounded-2xl">
+                            <div className="py-4 border-y border-white/5 bg-white/5 px-4 rounded-2xl">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] text-premium-gold uppercase font-black mb-1 block">Telas Disponibles</label>
-                                    <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar text-[11px]">
+                                    <label className="text-[10px] text-premium-gold uppercase font-black mb-1 block">Telas Disponibles (Colores se asignan automáticamente)</label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 overflow-y-auto max-h-48 pr-2 custom-scrollbar text-[11px]">
                                         {configs.fabrics.length === 0 && <p className="text-slate-600 italic">No hay telas configuradas</p>}
                                         {configs.fabrics.map(f => (
-                                            <label key={f.id} className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
+                                            <label key={f.id} className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors bg-black/20 p-2 rounded-lg border border-white/5">
                                                 <input
                                                     type="checkbox"
                                                     checked={form.allowed_fabric_ids?.includes(f.id)}
@@ -705,45 +705,23 @@ function ProductModal({ onClose, onSave, product }) {
                                                         const newFabrics = e.target.checked 
                                                             ? [...current, f.id]
                                                             : current.filter(id => id !== f.id);
-                                                        setForm({...form, allowed_fabric_ids: newFabrics});
+                                                            
+                                                        // Auto-enlace de colores: encontrar todos los colores de las telas seleccionadas
+                                                        const inheritedColors = configs.colors
+                                                            .filter(c => newFabrics.includes(c.fabric_id))
+                                                            .map(c => c.id);
+
+                                                        setForm({
+                                                            ...form, 
+                                                            allowed_fabric_ids: newFabrics,
+                                                            allowed_color_ids: inheritedColors
+                                                        });
                                                     }}
                                                     className="w-4 h-4 rounded border-white/10 accent-premium-gold"
                                                 />
-                                                <span className="uppercase">{f.name}</span>
+                                                <span className="uppercase font-bold">{f.name}</span>
                                             </label>
                                         ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] text-premium-gold uppercase font-black mb-1 block">Colores Disponibles</label>
-                                    <div className="max-h-32 overflow-y-auto space-y-3 pr-2 custom-scrollbar text-[11px]">
-                                        {configs.colors.length === 0 && <p className="text-slate-600 italic">No hay colores configurados</p>}
-                                        {configs.fabrics.map(f => {
-                                            const fabricColors = configs.colors.filter(c => c.fabric_id === f.id);
-                                            if (fabricColors.length === 0) return null;
-                                            return (
-                                                <div key={f.id} className="space-y-1">
-                                                    <div className="text-[8px] text-slate-500 font-black uppercase tracking-widest mb-1 pb-0.5 border-b border-white/5">{f.name}</div>
-                                                    {fabricColors.map(c => (
-                                                        <label key={c.id} className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors pl-1">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={form.allowed_color_ids?.includes(c.id)}
-                                                                onChange={(e) => {
-                                                                    const current = form.allowed_color_ids || [];
-                                                                    const newColors = e.target.checked 
-                                                                        ? [...current, c.id]
-                                                                        : current.filter(id => id !== c.id);
-                                                                    setForm({...form, allowed_color_ids: newColors});
-                                                                }}
-                                                                className="w-3 h-3 rounded border-white/10 accent-premium-gold"
-                                                            />
-                                                            <span className="uppercase text-[9px]">{c.name}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            );
-                                        })}
                                     </div>
                                 </div>
                             </div>

@@ -151,7 +151,8 @@ function Settings({ isSuperadmin }) {
         if (!name?.trim()) return;
         try {
             const res = await axios.post(`${API_URL}/config/fabrics`, { name }, { withCredentials: true });
-            setFabrics([...fabrics, res.data]);
+            setFabrics([...fabrics, { id: res.data.id, name }]);
+            fetchConfigs(); // Also fetch config directly again to sync safely
             e.target.reset();
         } catch (err) { console.error(err); }
     };
@@ -168,8 +169,8 @@ function Settings({ isSuperadmin }) {
         if (!name?.trim()) return;
         try {
             const res = await axios.post(`${API_URL}/config/colors`, { name, fabric_id: fabricId }, { withCredentials: true });
-            // Refresh to get full list or optimistic update
-            setColors([...colors, { ...res.data, name, fabric_id: fabricId }]);
+            // Refresh to get full list or optimistic update with ID
+            setColors([...colors, { id: res.data.id, name, fabric_id: fabricId }]);
             fetchConfigs(); // To be safe with lists
         } catch (err) { console.error(err); }
     };

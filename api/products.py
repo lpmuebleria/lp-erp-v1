@@ -11,7 +11,7 @@ import cloudinary.uploader
 import re
 from typing import List, Optional
 from database import db
-from schemas import Product, ProductCreate
+from schemas import Product, ProductCreate, ProductDetail
 from utils import money, get_image_b64, calculate_rounding
 from api.notifications import trigger_notification
 from jinja2 import Environment, FileSystemLoader
@@ -129,7 +129,7 @@ def get_next_code(is_madre: int = 0):
     finally:
         conn.close()
 
-@router.get("/products/{product_id}", response_model=Product)
+@router.get("/products/{product_id}", response_model=ProductDetail)
 def get_product(product_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
