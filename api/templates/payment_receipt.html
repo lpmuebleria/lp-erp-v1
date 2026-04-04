@@ -8,6 +8,11 @@
         @page {
             size: letter;
             margin: 15mm 10mm 20mm 10mm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 9pt;
+                color: #aaa;
+            }
         }
 
         body {
@@ -118,7 +123,8 @@
 
         .signatures {
             width: 100%;
-            margin-top: 60px;
+            margin-top: 10px;
+            page-break-inside: avoid;
         }
 
         .signatures td {
@@ -239,21 +245,28 @@
     </div>
     {% endif %}
 
-    <table class="signatures">
-        <tr>
-            <td>
-                <div class="signature-line">Entrega LP Mueblería</div>
-                <div style="font-size: 8pt; color: #777;">Atendido por: {{ vendedor }}</div>
-            </td>
-            <td>
-                <div class="signature-line">Firma del Cliente</div>
-                <div style="font-size: 8pt; color: #777;">{{ cliente_nombre }}</div>
-            </td>
-        </tr>
-    </table>
+    <div style="page-break-inside: avoid; padding-top: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="font-size: 9px; color: #aaa; margin-bottom: 20px; border-bottom: 1px dashed #eee; display: inline-block; padding-bottom: 5px;">
+                Este espacio de firmas corresponde al recibo de pago <strong style="color: #666;">#PAY-{{ payment_id }}</strong> del pedido <strong style="color: #666;">{{ order_folio }}</strong>
+            </div>
+            <table class="signatures">
+                <tr>
+                    <td>
+                        <div class="signature-line">Entrega LP Mueblería</div>
+                        <div style="font-size: 8pt; color: #777;">Atendido por: {{ vendedor }}</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">Firma del Cliente</div>
+                        <div style="font-size: 8pt; color: #777;">{{ cliente_nombre }}</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
 
-    <div class="legal-notice">
-        <strong>Aviso Legal:</strong> Este recibo es un comprobante de abono a cuenta y no ampara la posesión o entrega de mercancía a menos que el saldo sea cero y se presente la Hoja de Entrega correspondiente firmada por ambas partes. En cancelaciones de pedidos sobre medida o fabricación especial, se aplicará el cargo correspondiente según el contrato de adhesión. Los intereses por morosidad en sistemas de apartado se aplican después de la fecha límite establecida.
+        <div class="legal-notice">
+            <strong>Aviso Legal:</strong> Este recibo es un comprobante de abono a cuenta y no ampara la posesión o entrega de mercancía a menos que el saldo sea cero y se presente la Hoja de Entrega correspondiente firmada por ambas partes. En cancelaciones de pedidos sobre medida o fabricación especial, se aplicará el cargo correspondiente según el contrato de adhesión. Los intereses por morosidad en sistemas de apartado se aplican después de la fecha límite establecida.
+        </div>
     </div>
 
     <div style="margin-top: 30px; text-align: center; font-size: 8pt; color: #aaa;">

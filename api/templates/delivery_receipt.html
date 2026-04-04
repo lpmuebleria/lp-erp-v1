@@ -156,12 +156,19 @@
             font-size: 10pt;
             text-transform: uppercase;
         }
+
+        .page-number::after {
+            content: " - Página " counter(page) " de " counter(pages);
+            font-size: 9px;
+            color: #777;
+        }
     </style>
 </head>
 
 <body>
     <div class="footer-running">
-        LP Mueblería - Orden de Entrega y Acuse de Recibido - Emitido el {{ fecha_actual }}
+        LP Mueblería - Orden de Entrega y Acuse de Recibido - Emitido el {{ fecha_actual }} <span
+            class="page-number"></span>
     </div>
 
     <div class="full-header">
@@ -174,11 +181,13 @@
                 </td>
                 <td style="width: 40%; text-align: center; vertical-align: middle;">
                     <h1 class="gold" style="font-size: 20pt; margin: 0;">ORDEN DE ENTREGA</h1>
-                    <p style="margin: 5px 0 0 0; font-size: 10pt; color: #666; font-weight: bold;">LP Mueblería - Folio: {{ folio }}</p>
+                    <p style="margin: 5px 0 0 0; font-size: 10pt; color: #666; font-weight: bold;">LP Mueblería - Folio:
+                        {{ folio }}</p>
                 </td>
                 <td style="width: 30%; text-align: right; vertical-align: middle; color: #777; font-size: 10pt;">
                     Fecha de Entrega: <br>
-                    <span class="gold" style="font-weight: bold; font-size: 12pt;">{{ entrega_estimada or fecha }}</span>
+                    <span class="gold" style="font-weight: bold; font-size: 12pt;">{{ entrega_estimada or fecha
+                        }}</span>
                 </td>
             </tr>
         </table>
@@ -187,13 +196,15 @@
     <table class="info-table">
         <tr>
             <td style="width: 60%;">
-                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">DATOS DEL CLIENTE</h3>
+                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">
+                    DATOS DEL CLIENTE</h3>
                 <strong>Nombre:</strong> {{ cliente_nombre }}<br>
                 <strong>Teléfono:</strong> {{ cliente_tel }}<br>
                 <strong>E-mail:</strong> {{ cliente_email or 'N/A' }}
             </td>
             <td style="width: 40%;">
-                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">TIPO DE SERVICIO</h3>
+                <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 12pt;">
+                    TIPO DE SERVICIO</h3>
                 <div class="badge" style="margin-bottom: 5px;">{{ tipo_display }}</div><br>
                 <strong>Vendedor:</strong> <span style="text-transform: capitalize;">{{ vendedor }}</span>
             </td>
@@ -201,8 +212,11 @@
     </table>
 
     {% if calle_envio %}
-    <div style="margin-bottom: 25px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fafafa;">
-        <h3 style="margin: 0 0 10px 0; font-size: 11pt; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 5px;">📍 DIRECCIÓN DE ENTREGA</h3>
+    <div
+        style="margin-bottom: 25px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fafafa;">
+        <h3
+            style="margin: 0 0 10px 0; font-size: 11pt; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 5px;">
+            📍 DIRECCIÓN DE ENTREGA</h3>
         <p style="margin: 0; line-height: 1.4;">
             <strong>Calle:</strong> {{ calle_envio }} #{{ numero_envio }}<br>
             <strong>Colonia:</strong> {{ colonia_envio }} {% if cp_envio %}(CP: {{ cp_envio }}){% endif %}<br>
@@ -232,7 +246,8 @@
                     {% if item.tela or item.color %}
                     <div style="font-size: 9pt; color: #555; text-transform: uppercase; margin-top: 5px;">
                         {% if item.tela %}<strong>Tela:</strong> {{ item.tela }}{% endif %}
-                        {% if item.color %}<span style="margin-left: 15px;"><strong>Color:</strong> {{ item.color }}</span>{% endif %}
+                        {% if item.color %}<span style="margin-left: 15px;"><strong>Color:</strong> {{ item.color
+                            }}</span>{% endif %}
                     </div>
                     {% endif %}
                 </td>
@@ -252,27 +267,40 @@
     <div style="clear: both;"></div>
     {% endif %}
 
-    <div class="conformity-box">
-        <h4 style="margin: 0 0 10px 0; color: #D4AF37; font-size: 11pt;">📜 RECIBÍ DE CONFORMIDAD</h4>
-        <div class="conformity-text">
-            Por medio de la presente, confirmo que he recibido los muebles arriba descritos en <strong>perfectas condiciones físicas</strong>, sin rayaduras, golpes o defectos visibles de fabricación. He verificado que las medidas, colores y texturas corresponden a lo solicitado en mi nota de venta.
-            <br><br>
-            Una vez firmado este documento, LP Mueblería no se hace responsable por daños físicos ocasionados por el uso, manipulación o movimientos posteriores a la entrega (incluyendo volados o maniobras internas solicitadas). Cualquier reclamación por defecto de fábrica oculto deberá notificarse en los próximos 15 días naturales comunicándose a nuestra sucursal.
+    <div style="page-break-inside: avoid; padding-top: 20px;">
+        <div class="conformity-box">
+            <h4 style="margin: 0 0 10px 0; color: #D4AF37; font-size: 11pt;">📜 RECIBÍ DE CONFORMIDAD</h4>
+            <div class="conformity-text">
+                Por medio de la presente, confirmo que he recibido los muebles arriba descritos en <strong>perfectas
+                    condiciones físicas</strong>, sin rayaduras, golpes o defectos visibles de fabricación. He verificado
+                que las medidas, colores y texturas corresponden a lo solicitado en mi nota de venta.
+                <br><br>
+                Una vez firmado este documento, LP Mueblería no se hace responsable por daños físicos ocasionados por el
+                uso, manipulación o movimientos posteriores a la entrega (incluyendo volados o maniobras internas
+                solicitadas). Cualquier reclamación por defecto de fábrica oculto deberá notificarse en los próximos 15 días
+                naturales comunicándose a nuestra sucursal.
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div
+                style="font-size: 9px; color: #aaa; margin-bottom: 20px; border-bottom: 1px dashed #eee; display: inline-block; padding-bottom: 5px;">
+                Este espacio de firmas corresponde a la orden con folio: <strong style="color: #666;">{{ folio }}</strong>
+            </div>
+            <table class="signatures" style="margin-top: 10px; page-break-inside: avoid;">
+                <tr>
+                    <td>
+                        <div class="signature-line">Firma de Conformidad (Cliente)</div>
+                        <div style="font-size: 9pt; color: #777; margin-top: 5px;">{{ cliente_nombre }}</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">Firma de Entrega (LP Mueblería)</div>
+                        <div style="font-size: 9pt; color: #777; margin-top: 5px;">Nombre del Chofer / Repartidor</div>
+                    </td>
+                </tr>
+            </table>
         </div>
     </div>
-
-    <table class="signatures">
-        <tr>
-            <td>
-                <div class="signature-line">Firma de Conformidad (Cliente)</div>
-                <div style="font-size: 9pt; color: #777; margin-top: 5px;">{{ cliente_nombre }}</div>
-            </td>
-            <td>
-                <div class="signature-line">Firma de Entrega (LP Mueblería)</div>
-                <div style="font-size: 9pt; color: #777; margin-top: 5px;">Nombre del Chofer / Repartidor</div>
-            </td>
-        </tr>
-    </table>
 
     <div style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 15px;">
         <p style="font-size: 9pt; color: #999; margin: 0;">
