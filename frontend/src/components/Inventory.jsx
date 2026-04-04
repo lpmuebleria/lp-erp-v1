@@ -299,14 +299,18 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
                     </div>
                 </div>
 
-                <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
+                <div className="pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Contado</span>
-                        <span className="text-lg font-bold text-white">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">Etiqueta</span>
+                        <span className="text-[13px] font-bold text-slate-400 line-through decoration-slate-500/50">${product.precio_etiqueta > 0 ? product.precio_etiqueta.toLocaleString('es-MX', { minimumFractionDigits: 0 }) : '-'}</span>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-premium-gold/70 uppercase tracking-widest text-right">Crédito MSI</span>
-                        <span className="text-lg font-bold text-premium-gold text-right">${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">Contado</span>
+                        <span className="text-[13px] font-bold text-white">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <span className="text-[9px] text-premium-gold/70 uppercase tracking-widest text-right">Crédito MSI</span>
+                        <span className="text-[13px] font-bold text-premium-gold text-right">${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
                     </div>
                 </div>
             </div>
@@ -473,6 +477,7 @@ function ProductModal({ onClose, onSave, product }) {
         in_catalog: 1,
         is_madre: 0,
         is_offer: 0,
+        precio_etiqueta: 0,
         allowed_fabric_ids: [],
         allowed_color_ids: []
     };
@@ -678,14 +683,27 @@ function ProductModal({ onClose, onSave, product }) {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-2 pb-2">
+                        <div className="grid grid-cols-3 gap-4 pt-2 pb-2">
                             <div className="bg-black/20 p-3 rounded-xl border border-white/5">
                                 <label className="text-[9px] text-slate-500 uppercase font-bold block">Costo Total Final</label>
                                 <span className="text-lg font-black text-white">${form.costo_total.toLocaleString()}</span>
                             </div>
                             <div className="bg-premium-gold/10 p-3 rounded-xl border border-premium-gold/20">
-                                <label className="text-[9px] text-premium-gold/70 uppercase font-bold block">Precio de Lista Sugerido</label>
+                                <label className="text-[9px] text-premium-gold/70 uppercase font-bold block">Precio Venta Sugerido</label>
                                 <span className="text-lg font-black text-premium-gold">${form.precio_lista.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20">
+                                <label className="text-[9px] text-blue-400 uppercase font-bold block">Precio de Lista (Etiqueta)</label>
+                                <div className="flex items-center text-lg font-black text-blue-400 mt-0.5">
+                                    <span className="mr-1">$</span>
+                                    <input 
+                                        type="number" 
+                                        value={form.precio_etiqueta || ''} 
+                                        onChange={(e) => setForm({...form, precio_etiqueta: parseFloat(e.target.value) || 0})}
+                                        className="bg-transparent w-full focus:outline-none focus:border-b border-blue-500/50" 
+                                        placeholder="0"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -825,7 +843,7 @@ function InputField({ label, value, onChange, type = "text", placeholder, requir
 }
 
 function PriceTagModal({ product, onClose, onGenerate }) {
-    const [basePrice, setBasePrice] = useState(product?.precio_lista ? Math.round(product.precio_lista * 1.3) : 0);
+    const [basePrice, setBasePrice] = useState(product?.precio_etiqueta || (product?.precio_lista ? Math.round(product.precio_lista * 1.3) : 0));
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">

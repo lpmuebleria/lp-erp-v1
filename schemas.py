@@ -22,6 +22,7 @@ class ProductBase(BaseModel):
     is_madre: int = 0
     round_adjustment: float = 0
     is_offer: int = 0
+    precio_etiqueta: float = 0
 
 class ProductCreate(ProductBase):
     allowed_fabric_ids: List[int] = [] 
