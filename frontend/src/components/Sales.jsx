@@ -165,8 +165,13 @@ function Sales({ vendedor }) {
         const docTipo = isApartadoQuote ? 'contado' : tipo_precio;
 
         if (product.is_madre === 1) {
-            setPersonalizingProduct(product);
-            setPersonalizationForm({ tela: '', color: '', tipo_precio: docTipo });
+            axios.get(`${API_URL}/products/${product.id}`).then(res => {
+                setPersonalizingProduct(res.data);
+                setPersonalizationForm({ tela: '', color: '', tipo_precio: docTipo });
+            }).catch(err => {
+                console.error(err);
+                toast.error("Error al obtener opciones del producto");
+            });
             return;
         }
 
@@ -222,6 +227,7 @@ function Sales({ vendedor }) {
         
         setCart([...cart, { 
             ...product, 
+            product_id: product.id,
             cantidad: 1, 
             descuento_manual: 0, 
             descuento_pct: 0,
