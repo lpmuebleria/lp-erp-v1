@@ -381,8 +381,9 @@ def create_fabric(data: FabricBase):
     cur = conn.cursor()
     try:
         cur.execute("INSERT INTO fabrics (name) VALUES (%s)", (data.name,))
+        fabric_id = cur.lastrowid
         conn.commit()
-        return {"message": "Fabric created"}
+        return {"id": fabric_id, "message": "Fabric created"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -394,6 +395,17 @@ def delete_fabric(fabric_id: int):
     conn = db()
     cur = conn.cursor()
     try:
+        # 1. Delete associated product_colors for colors of this fabric
+        cur.execute("""
+            DELETE pc FROM product_colors pc
+            JOIN colors c ON pc.color_id = c.id
+            WHERE c.fabric_id = %s
+        """, (fabric_id,))
+        # 2. Delete colors associated with this fabric
+        cur.execute("DELETE FROM colors WHERE fabric_id = %s", (fabric_id,))
+        # 3. Delete product_fabrics relationships
+        cur.execute("DELETE FROM product_fabrics WHERE fabric_id = %s", (fabric_id,))
+        # 4. Delete the fabric itself
         cur.execute("DELETE FROM fabrics WHERE id = %s", (fabric_id,))
         conn.commit()
         return {"message": "Fabric deleted"}
@@ -423,8 +435,9 @@ def create_color(data: ColorBase):
     cur = conn.cursor()
     try:
         cur.execute("INSERT INTO colors (name, fabric_id) VALUES (%s, %s)", (data.name, data.fabric_id))
+        color_id = cur.lastrowid
         conn.commit()
-        return {"message": "Color created"}
+        return {"id": color_id, "message": "Color created"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -436,6 +449,9 @@ def delete_color(color_id: int):
     conn = db()
     cur = conn.cursor()
     try:
+        # Delete associations first
+        cur.execute("DELETE FROM product_colors WHERE color_id = %s", (color_id,))
+        # Delete the color
         cur.execute("DELETE FROM colors WHERE id = %s", (color_id,))
         conn.commit()
         return {"message": "Color deleted"}
