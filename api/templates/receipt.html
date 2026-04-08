@@ -254,6 +254,12 @@
                         {% if item.color %}<span style="margin-left: 10px;"><strong>COLOR:</strong> {{ item.color }}</span>{% endif %}
                     </div>
                     {% endif %}
+                    {% if item.promo_name %}
+                    <div style="font-size: 9pt; color: #d4af37; font-weight: bold; margin-top: 2px;">
+                        PROMO: {{ item.promo_name }} 
+                        {% if item.applied_promo_pct > 0 %}({{ "{:.0f}".format(item.applied_promo_pct) }}% Desc.){% endif %}
+                    </div>
+                    {% endif %}
                     <div style="font-size: 8pt; color: #666; margin-top: 2px;">
                         {% if item.tipo_precio == 'msi' %}
                             Precio a MSI con tarjetas de crédito Visa y Mastercard

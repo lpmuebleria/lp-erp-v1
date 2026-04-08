@@ -237,6 +237,9 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
                                 </div>
                             </div>
                             <h4 className="text-lg font-bold text-white group-hover:text-premium-gold transition-colors line-clamp-1">{product.modelo}</h4>
+                            {product.categoria_name && (
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{product.categoria_name}</p>
+                            )}
                         </div>
                         <div className="flex items-center space-x-2">
                             {hasEditAccess && (
@@ -302,15 +305,31 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
                 <div className="pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
                     <div className="flex flex-col">
                         <span className="text-[9px] text-slate-500 uppercase tracking-widest">Etiqueta</span>
-                        <span className="text-[13px] font-bold text-slate-400 line-through decoration-slate-500/50">${product.precio_etiqueta > 0 ? product.precio_etiqueta.toLocaleString('es-MX', { minimumFractionDigits: 0 }) : '-'}</span>
+                        <span className={`text-[13px] font-bold ${product.descuento_automatico > 0 ? 'text-red-400/50 line-through' : 'text-slate-400 line-through decoration-slate-500/50'}`}>
+                            ${product.precio_etiqueta > 0 ? product.precio_etiqueta.toLocaleString('es-MX', { minimumFractionDigits: 0 }) : '-'}
+                        </span>
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[9px] text-slate-500 uppercase tracking-widest">Contado</span>
-                        <span className="text-[13px] font-bold text-white">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                        <div className="flex flex-col">
+                            {product.descuento_automatico > 0 ? (
+                                <>
+                                    <span className="text-[10px] font-bold text-slate-500 line-through">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                                    <span className="text-[13px] font-black text-green-400 flex items-center gap-1">
+                                        ${product.precio_con_descuento?.toLocaleString('es-MX', { minimumFractionDigits: 0 })}
+                                        <span className="text-[8px] bg-green-500/20 px-1 rounded">-{product.descuento_automatico}%</span>
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-[13px] font-bold text-white">${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                            )}
+                        </div>
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="text-[9px] text-premium-gold/70 uppercase tracking-widest text-right">Crédito MSI</span>
-                        <span className="text-[13px] font-bold text-premium-gold text-right">${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                        <span className="text-[13px] font-bold text-premium-gold text-right">
+                            ${calculateRounding((product.precio_con_descuento || product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -410,8 +429,8 @@ function ProductQuickView({ product, onClose, interestPct }) {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Categoría</span>
-                                        <span className="text-sm font-bold text-white">Muebles de Interior</span>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Familia</span>
+                                        <span className="text-sm font-bold text-white">{product.categoria_name || 'Sin Categoría'}</span>
                                     </div>
                                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Estado</span>
@@ -425,9 +444,23 @@ function ProductQuickView({ product, onClose, interestPct }) {
                             <div className="flex flex-col">
                                 <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 text-center md:text-left">Precio Contado</span>
                                 <div className="flex items-baseline justify-center md:justify-start space-x-1">
-                                    <span className="text-4xl md:text-5xl font-black text-white tracking-tighter">
-                                        ${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                    </span>
+                                    {product.descuento_automatico > 0 ? (
+                                        <div className="flex flex-col">
+                                            <span className="text-lg font-bold text-slate-500 line-through tracking-tighter decoration-red-400/30">
+                                                ${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            <div className="flex items-baseline space-x-2">
+                                                <span className="text-4xl md:text-5xl font-black text-green-400 tracking-tighter">
+                                                    ${product.precio_con_descuento?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                </span>
+                                                <span className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">-{product.descuento_automatico}%</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <span className="text-4xl md:text-5xl font-black text-white tracking-tighter">
+                                            ${product.precio_lista?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    )}
                                     <span className="text-xs font-bold text-slate-500">MXN</span>
                                 </div>
                             </div>
@@ -435,7 +468,7 @@ function ProductQuickView({ product, onClose, interestPct }) {
                                 <span className="text-[11px] font-black text-premium-gold/70 uppercase tracking-[0.2em] mb-1 text-center md:text-left">Precio Crédito MSI</span>
                                 <div className="flex items-baseline justify-center md:justify-start space-x-1">
                                     <span className="text-4xl md:text-5xl font-black text-premium-gold tracking-tighter">
-                                        ${calculateRounding((product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
+                                        ${calculateRounding((product.precio_con_descuento || product.precio_lista || 0) * (1 + interestPct / 100)).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
                                     </span>
                                     <span className="text-xs font-bold text-premium-gold/50">MXN</span>
                                 </div>
@@ -478,6 +511,7 @@ function ProductModal({ onClose, onSave, product }) {
         is_madre: 0,
         is_offer: 0,
         precio_etiqueta: 0,
+        categoria_id: null,
         allowed_fabric_ids: [],
         allowed_color_ids: []
     };
@@ -485,7 +519,7 @@ function ProductModal({ onClose, onSave, product }) {
     const [form, setForm] = useState({ ...initialValues, ...product });
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [configs, setConfigs] = useState({ utilities: [], costs: [], fabrics: [], colors: [] });
+    const [configs, setConfigs] = useState({ utilities: [], costs: [], fabrics: [], colors: [], categories: [] });
 
     useEffect(() => {
         const loadDetails = async () => {
@@ -504,13 +538,14 @@ function ProductModal({ onClose, onSave, product }) {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, fRes, ivaRes, fabRes, colRes] = await Promise.all([
+            const [uRes, cRes, fRes, ivaRes, fabRes, colRes, catRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`),
                 axios.get(`${API_URL}/config/costs`),
                 axios.get(`${API_URL}/config/flete`),
                 axios.get(`${API_URL}/config/iva`),
                 axios.get(`${API_URL}/config/fabrics`),
-                axios.get(`${API_URL}/config/colors`)
+                axios.get(`${API_URL}/config/colors`),
+                axios.get(`${API_URL}/config/categories`)
             ]);
             setConfigs({ 
                 utilities: uRes.data, 
@@ -518,7 +553,8 @@ function ProductModal({ onClose, onSave, product }) {
                 globalFlete: fRes.data.costo, 
                 ivaAutomatico: ivaRes.data.iva_automatico,
                 fabrics: fabRes.data,
-                colors: colRes.data
+                colors: colRes.data,
+                categories: catRes.data
             });
         } catch (err) {
             console.error("Error fetching configs for modal:", err);
@@ -635,6 +671,20 @@ function ProductModal({ onClose, onSave, product }) {
                         <div className="grid grid-cols-2 gap-4">
                             <InputField label="Código" value={form.codigo} onChange={(v) => setForm({ ...form, codigo: v })} placeholder="C-001" required />
                             <InputField label="Modelo" value={form.modelo} onChange={(v) => setForm({ ...form, modelo: v })} placeholder="Sofa Chesterfield" required />
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Familia (Categoría)</label>
+                            <select
+                                value={form.categoria_id || ''}
+                                onChange={(e) => setForm({ ...form, categoria_id: e.target.value ? parseInt(e.target.value) : null })}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold"
+                            >
+                                <option value="">Sin Categoría</option>
+                                {configs.categories?.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="grid grid-cols-3 gap-4">

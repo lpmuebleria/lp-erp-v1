@@ -461,6 +461,19 @@ def _migrate(cur):
 
     if not col_exists(cur, "quotes", "is_apartado_quote"):
         cur.execute("ALTER TABLE quotes ADD COLUMN is_apartado_quote BOOLEAN DEFAULT FALSE")
+    if not col_exists(cur, "quotes", "promo_id"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN promo_id INT NULL DEFAULT NULL")
+    if not col_exists(cur, "quotes", "applied_coupon_id"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN applied_coupon_id INT NULL DEFAULT NULL")
+    if not col_exists(cur, "quotes", "descuento_global_val"):
+        cur.execute("ALTER TABLE quotes ADD COLUMN descuento_global_val DECIMAL(15,2) DEFAULT 0")
+
+    if not col_exists(cur, "orders", "promo_id"):
+        cur.execute("ALTER TABLE orders ADD COLUMN promo_id INT NULL DEFAULT NULL")
+    if not col_exists(cur, "orders", "applied_coupon_id"):
+        cur.execute("ALTER TABLE orders ADD COLUMN applied_coupon_id INT NULL DEFAULT NULL")
+    if not col_exists(cur, "orders", "descuento_global_val"):
+        cur.execute("ALTER TABLE orders ADD COLUMN descuento_global_val DECIMAL(15,2) DEFAULT 0")
     
     # payments
     if not col_exists(cur, "payments", "anulado"):
@@ -479,6 +492,15 @@ def _migrate(cur):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN color TEXT")
     if not col_exists(cur, "quote_lines", "round_adjustment"):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN round_adjustment DECIMAL(15,2) DEFAULT 0")
+    if not col_exists(cur, "quote_lines", "applied_promo_pct"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN applied_promo_pct DECIMAL(15,2) DEFAULT 0")
+    if not col_exists(cur, "quote_lines", "promo_name"):
+        cur.execute("ALTER TABLE quote_lines ADD COLUMN promo_name VARCHAR(255) NULL DEFAULT NULL")
+
+    if not col_exists(cur, "order_lines", "applied_promo_pct"):
+        cur.execute("ALTER TABLE order_lines ADD COLUMN applied_promo_pct DECIMAL(15,2) DEFAULT 0")
+    if not col_exists(cur, "order_lines", "promo_name"):
+        cur.execute("ALTER TABLE order_lines ADD COLUMN promo_name VARCHAR(255) NULL DEFAULT NULL")
 
     # products
     if not col_exists(cur, "products", "is_madre"):
@@ -487,6 +509,32 @@ def _migrate(cur):
         cur.execute("ALTER TABLE products ADD COLUMN is_offer INT NOT NULL DEFAULT 0")
     if not col_exists(cur, "products", "precio_etiqueta"):
         cur.execute("ALTER TABLE products ADD COLUMN precio_etiqueta DECIMAL(15,2) NOT NULL DEFAULT 0")
+
+    # Categories & Promotions Upgrade
+    cur.execute("""CREATE TABLE IF NOT EXISTS categories(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE
+    )""")
+    
+    if not col_exists(cur, "products", "categoria_id"):
+        cur.execute("ALTER TABLE products ADD COLUMN categoria_id INT NULL DEFAULT NULL")
+        try:
+            cur.execute("ALTER TABLE products ADD FOREIGN KEY (categoria_id) REFERENCES categories(id) ON DELETE SET NULL")
+        except:
+            pass
+
+    if not col_exists(cur, "promotions", "type"):
+        cur.execute("ALTER TABLE promotions ADD COLUMN type VARCHAR(50) NOT NULL DEFAULT 'global'")
+    if not col_exists(cur, "promotions", "code"):
+        cur.execute("ALTER TABLE promotions ADD COLUMN code VARCHAR(255) NULL DEFAULT NULL")
+        
+    cur.execute("""CREATE TABLE IF NOT EXISTS promotion_categories(
+        promo_id INT NOT NULL,
+        category_id INT NOT NULL,
+        PRIMARY KEY(promo_id, category_id),
+        FOREIGN KEY(promo_id) REFERENCES promotions(id) ON DELETE CASCADE,
+        FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
+    )""")
 
     # users
     if not col_exists(cur, "users", "password"):

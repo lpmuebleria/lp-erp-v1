@@ -22,6 +22,7 @@ function Settings({ isSuperadmin }) {
     });
     const [fabrics, setFabrics] = useState([]);
     const [colors, setColors] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [backups, setBackups] = useState([]);
 
     const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ function Settings({ isSuperadmin }) {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, pRes, fRes, ivaRes, intRes, fabRes, colRes] = await Promise.all([
+            const [uRes, cRes, pRes, fRes, ivaRes, intRes, fabRes, colRes, catRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/costs`, { withCredentials: true }),
                 axios.get(`${API_URL}/promotions`, { withCredentials: true }),
@@ -43,7 +44,8 @@ function Settings({ isSuperadmin }) {
                 axios.get(`${API_URL}/config/iva`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/interests`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/fabrics`, { withCredentials: true }),
-                axios.get(`${API_URL}/config/colors`, { withCredentials: true })
+                axios.get(`${API_URL}/config/colors`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/categories`, { withCredentials: true })
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
@@ -53,6 +55,7 @@ function Settings({ isSuperadmin }) {
             setInterests(intRes.data);
             setFabrics(fabRes.data);
             setColors(colRes.data);
+            setCategories(catRes.data);
         } catch (err) {
             console.error("Error fetching configs:", err);
         } finally {
@@ -131,17 +134,30 @@ function Settings({ isSuperadmin }) {
         const form = e.target;
         const name = form.name.value;
         const discount_pct = parseFloat(form.discount_pct.value);
+        const type = form.type.value;
+        const code = form.code.value;
+        const selectedCategories = Array.from(form.categories.selectedOptions).map(o => parseInt(o.value));
+
         if (!name?.trim() || isNaN(discount_pct)) {
             toast.error("Nombre y porcentaje son obligatorios");
             return;
         }
 
         try {
-            const res = await axios.post(`${API_URL}/promotions`, { name, discount_pct, is_active: 1 }, { withCredentials: true });
+            const res = await axios.post(`${API_URL}/promotions`, {
+                name,
+                discount_pct,
+                is_active: 1,
+                type,
+                code,
+                category_ids: selectedCategories
+            }, { withCredentials: true });
             setPromotions([...promotions, res.data]);
             form.reset();
+            toast.success("Promoción creada");
         } catch (err) {
             console.error(err);
+            toast.error("Error al crear promoción");
         }
     };
 
@@ -181,6 +197,27 @@ function Settings({ isSuperadmin }) {
             await axios.delete(`${API_URL}/config/colors/${id}`, { withCredentials: true });
             setColors(colors.filter(c => c.id !== id));
         } catch (err) { console.error(err); }
+    };
+
+    const handleAddCategory = async (e) => {
+        e.preventDefault();
+        const name = e.target.catName.value;
+        if (!name?.trim()) return;
+        try {
+            const res = await axios.post(`${API_URL}/config/categories`, { name }, { withCredentials: true });
+            setCategories([...categories, { id: res.data.id, name }]);
+            e.target.reset();
+            toast.success("Categoría añadida");
+        } catch (err) { console.error(err); toast.error("Error al añadir categoría"); }
+    };
+
+    const handleDeleteCategory = async (id) => {
+        if (!confirm("¿Eliminar categoría? Esto quitará la categoría a los productos asociados.")) return;
+        try {
+            await axios.delete(`${API_URL}/config/categories/${id}`, { withCredentials: true });
+            setCategories(categories.filter(c => c.id !== id));
+            toast.success("Categoría eliminada");
+        } catch (err) { console.error(err); toast.error("Error al eliminar categoría"); }
     };
 
     const updateUtility = (nivel, value) => {
@@ -268,7 +305,14 @@ function Settings({ isSuperadmin }) {
                     className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'catalogos' ? 'bg-white/10 text-white shadow-xl' : 'text-slate-500 hover:text-white'
                         }`}
                 >
-                    Catálogos
+                    Telas/Colores
+                </button>
+                <button
+                    onClick={() => setActiveTab('categorias')}
+                    className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'categorias' ? 'bg-white/10 text-white shadow-xl' : 'text-slate-500 hover:text-white'
+                        }`}
+                >
+                    Categorías
                 </button>
                 {isSuperadmin && (
                     <button
@@ -514,15 +558,37 @@ function Settings({ isSuperadmin }) {
                                 <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4">Nueva Promoción</h3>
                                 <form onSubmit={handlePromoAdd} className="space-y-4">
                                     <div>
-                                        <label className="text-xs text-slate-400 block mb-1">Nombre Corto</label>
-                                        <input name="name" type="text" placeholder="Ej: Buen Fin" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-premium-gold" required />
+                                        <label className="text-xs text-slate-400 block mb-1">Nombre Descriptivo</label>
+                                        <input name="name" type="text" placeholder="Ej: Rebaja de Verano" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required />
                                     </div>
                                     <div>
-                                        <label className="text-xs text-slate-400 block mb-1">Porcentaje de Descuento (%)</label>
-                                        <input name="discount_pct" type="number" step="0.1" max="100" min="0" placeholder="Ej: 15" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-premium-gold" required />
+                                        <label className="text-xs text-slate-400 block mb-1">Tipo de Descuento</label>
+                                        <select name="type" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold">
+                                            <option value="global" className="bg-premium-slate">Global (Todo el carrito)</option>
+                                            <option value="automatic" className="bg-premium-slate">Automático por Familia (Visible en Catálogo)</option>
+                                            <option value="coupon" className="bg-premium-slate">Por Código/Cupón (Sabado Loco)</option>
+                                        </select>
                                     </div>
+                                    <div>
+                                        <label className="text-xs text-slate-400 block mb-1">Código (Opcional - para cupones)</label>
+                                        <input name="code" type="text" placeholder="SABADOLOCO" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-slate-400 block mb-1">Porcentaje (%)</label>
+                                        <input name="discount_pct" type="number" step="0.1" max="100" min="0" placeholder="15" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-slate-400 block mb-1">Aplicar a Familias (Multiselect)</label>
+                                        <select name="categories" multiple className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold h-32 custom-scrollbar">
+                                            {categories.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-slate-500 mt-1">Usa Ctrl/Cmd + click para seleccionar varios</p>
+                                    </div>
+                                    
                                     <button type="submit" className="w-full py-3 bg-premium-gold/20 text-premium-gold font-black uppercase rounded-xl hover:bg-premium-gold hover:text-black transition-colors flex justify-center items-center gap-2">
-                                        <Plus size={16} /> Agregar
+                                        <Plus size={16} /> Crear Promoción
                                     </button>
                                 </form>
                             </div>
@@ -532,12 +598,33 @@ function Settings({ isSuperadmin }) {
                                 {promotions.map(p => (
                                     <div key={p.id} className={`p-5 rounded-2xl border transition-all ${p.is_active ? 'bg-white/5 border-premium-gold/30' : 'bg-black/30 border-white/5 opacity-60'}`}>
                                         <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-bold text-white text-lg">{p.name}</h4>
+                                            <div>
+                                                <h4 className="font-bold text-white text-lg">{p.name}</h4>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    <span className="text-[10px] bg-white/10 text-slate-300 px-2 py-0.5 rounded uppercase font-bold tracking-wider">
+                                                        {p.type === 'global' ? 'Global' : p.type === 'automatic' ? 'Auto por Familia' : 'Código'}
+                                                    </span>
+                                                    {p.code && <span className="text-[10px] bg-premium-gold/20 text-premium-gold px-2 py-0.5 rounded font-mono font-bold tracking-wider underline">#{p.code}</span>}
+                                                </div>
+                                            </div>
                                             <button onClick={() => handlePromoDelete(p.id)} className="text-slate-500 hover:text-red-400 transition-colors">
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
-                                        <div className="text-2xl font-black text-premium-gold mb-4">{p.discount_pct}% OFF</div>
+                                        <div className="text-2xl font-black text-premium-gold mb-2">{p.discount_pct}% OFF</div>
+                                        
+                                        {p.category_ids && p.category_ids.length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-[9px] text-slate-500 uppercase font-black mb-1">Familias:</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {p.category_ids.map(catId => {
+                                                        const cat = categories.find(c => c.id === catId);
+                                                        return cat ? <span key={catId} className="text-[9px] bg-white/5 text-slate-400 px-1.5 py-0.5 rounded">{cat.name}</span> : null;
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <button
                                             onClick={() => handlePromoToggle(p)}
                                             className={`text-xs font-black uppercase tracking-widest px-4 py-2 rounded-lg w-full transition-colors ${p.is_active ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white hover:bg-white/20'}`}
@@ -548,6 +635,49 @@ function Settings({ isSuperadmin }) {
                                 ))}
                                 {promotions.length === 0 && (
                                     <div className="col-span-2 text-center p-8 text-slate-500 italic">No hay promociones registradas</div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Categories Tab Content */}
+                {activeTab === 'categorias' && (
+                    <section className="bg-premium-slate/50 border border-white/5 rounded-3xl p-6 backdrop-blur-sm lg:col-span-2">
+                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                            <Tag className="text-premium-gold" size={24} />
+                            Familias de Productos (Categorías)
+                        </h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="md:col-span-1">
+                                <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                                    Define las categorías principales de tus muebles. Esto te permitirá aplicar descuentos masivos por tipo de producto y filtrar tu inventario.
+                                </p>
+                                <form onSubmit={handleAddCategory} className="flex gap-2">
+                                    <input 
+                                        name="catName" 
+                                        placeholder="Ej: Sofacamas" 
+                                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-premium-gold outline-none"
+                                        required 
+                                    />
+                                    <button type="submit" className="bg-premium-gold text-black px-6 rounded-xl font-bold hover:scale-105 transition-all active:scale-95">
+                                        <Plus size={20} />
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {categories.map(c => (
+                                    <div key={c.id} className="bg-black/20 border border-white/5 rounded-2xl p-4 flex justify-between items-center group hover:border-premium-gold/30 transition-all">
+                                        <span className="text-white font-black uppercase tracking-widest text-sm">{c.name}</span>
+                                        <button onClick={() => handleDeleteCategory(c.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {categories.length === 0 && (
+                                    <div className="col-span-full text-center p-8 text-slate-500 italic">No has creado ninguna categoría aún</div>
                                 )}
                             </div>
                         </div>

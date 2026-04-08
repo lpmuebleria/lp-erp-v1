@@ -23,6 +23,10 @@ class ProductBase(BaseModel):
     round_adjustment: float = 0
     is_offer: int = 0
     precio_etiqueta: float = 0
+    categoria_id: Optional[int] = None
+    categoria_name: Optional[str] = None
+    descuento_automatico: float = 0
+    precio_con_descuento: Optional[float] = None
 
 class ProductCreate(ProductBase):
     allowed_fabric_ids: List[int] = [] 
@@ -59,6 +63,23 @@ class ColorBase(BaseModel):
 class Color(ColorBase):
     id: int
 
+class CategoryBase(BaseModel):
+    name: str
+
+class Category(CategoryBase):
+    id: int
+
+class PromotionBase(BaseModel):
+    name: str
+    discount_pct: float
+    is_active: int = 1
+    type: str = "global"  # 'global', 'automatic', 'coupon'
+    code: Optional[str] = None
+    category_ids: List[int] = []
+
+class Promotion(PromotionBase):
+    id: int
+
 class UserBase(BaseModel):
     username: str
     rol: str
@@ -82,9 +103,10 @@ class QuoteLineBase(BaseModel):
     descuento_val: Optional[float] = None
     total_linea: float
     tipo_precio: Optional[str] = "contado"
-    tela: Optional[str] = None
     color: Optional[str] = None
     round_adjustment: float = 0
+    applied_promo_pct: Optional[float] = 0
+    promo_name: Optional[str] = None
 
 class QuoteBase(BaseModel):
     folio: str
@@ -105,6 +127,9 @@ class QuoteBase(BaseModel):
     metodo_pago: Optional[str] = 'efectivo'
     referencia: Optional[str] = ''
     round_adjustment: Optional[float] = 0
+    promo_id: Optional[int] = None
+    applied_coupon_id: Optional[int] = None
+    descuento_global_val: Optional[float] = 0
 
 class QuoteCreate(QuoteBase):
     lines: List[QuoteLineBase]
