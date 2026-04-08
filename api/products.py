@@ -77,23 +77,43 @@ def get_products(q: Optional[str] = None):
     cur = conn.cursor(dictionary=True)
     try:
         q_clean = (q or "").strip()
+        query_base = """
+            SELECT p.*, c.name as categoria_name
+            FROM products p
+            LEFT JOIN categories c ON p.categoria_id = c.id
+        """
         if q_clean:
             like = f"%{q_clean}%"
-            cur.execute("""
-                SELECT * FROM products
-                WHERE (codigo LIKE %s OR modelo LIKE %s)
-                ORDER BY activo DESC, codigo
+            cur.execute(query_base + """
+                WHERE (p.codigo LIKE %s OR p.modelo LIKE %s)
+                ORDER BY p.activo DESC, p.codigo
                 LIMIT 200
             """, (like, like))
         else:
-            cur.execute("""
-                SELECT * FROM products
-                ORDER BY activo DESC, codigo
+            cur.execute(query_base + """
+                ORDER BY p.activo DESC, p.codigo
                 LIMIT 200
             """)
         
-        rows = cur.fetchall()
-        return rows
+        products = cur.fetchall()
+        
+        # Calculate automatic discounts
+        for p in products:
+            p["descuento_automatico"] = 0
+            p["precio_con_descuento"] = p["precio_lista"]
+            if p["categoria_id"]:
+                cur.execute("""
+                    SELECT MAX(promotions.discount_pct) as max_discount
+                    FROM promotions
+                    JOIN promotion_categories pc ON promotions.id = pc.promo_id
+                    WHERE pc.category_id = %s AND promotions.type = 'automatic' AND promotions.is_active = 1
+                """, (p["categoria_id"],))
+                res = cur.fetchone()
+                if res and res["max_discount"]:
+                    p["descuento_automatico"] = float(res["max_discount"])
+                    p["precio_con_descuento"] = p["precio_lista"] * (1 - p["descuento_automatico"] / 100)
+        
+        return products
     finally:
         conn.close()
 
@@ -134,37 +154,52 @@ def get_product(product_id: int):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT * FROM products WHERE id=%s", (product_id,))
-        row = cur.fetchone()
-        if not row:
+        cur.execute("""
+            SELECT p.*, c.name as categoria_name
+            FROM products p
+            LEFT JOIN categories c ON p.categoria_id = c.id
+            WHERE p.id=%s
+        """, (product_id,))
+        p = cur.fetchone()
+        if not p:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
-        # If is_madre, fetch allowed fabrics and colors (Both IDs and Names)
-        if row.get("is_madre"):
+        # Calculate automatic discounts
+        p["descuento_automatico"] = 0
+        p["precio_con_descuento"] = p["precio_lista"]
+        if p["categoria_id"]:
             cur.execute("""
-                SELECT f.id, f.name FROM fabrics f 
-                JOIN product_fabrics pf ON f.id = pf.fabric_id 
-                WHERE pf.product_id = %s
-            """, (product_id,))
-            fabrics = cur.fetchall()
-            row["allowed_fabric_names"] = [f["name"] for f in fabrics]
-            row["allowed_fabric_ids"] = [f["id"] for f in fabrics]
-            
-            cur.execute("""
-                SELECT c.id, c.name FROM colors c 
-                JOIN product_colors pc ON c.id = pc.color_id 
-                WHERE pc.product_id = %s
-            """, (product_id,))
-            colors = cur.fetchall()
-            row["allowed_color_names"] = [c["name"] for c in colors]
-            row["allowed_color_ids"] = [c["id"] for c in colors]
-        else:
-            row["allowed_fabric_names"] = []
-            row["allowed_fabric_ids"] = []
-            row["allowed_color_names"] = []
-            row["allowed_color_ids"] = []
+                SELECT MAX(promotions.discount_pct) as max_discount
+                FROM promotions
+                JOIN promotion_categories pc ON promotions.id = pc.promo_id
+                WHERE pc.category_id = %s AND promotions.type = 'automatic' AND promotions.is_active = 1
+            """, (p["categoria_id"],))
+            res = cur.fetchone()
+            if res and res["max_discount"]:
+                p["descuento_automatico"] = float(res["max_discount"])
+                p["precio_con_descuento"] = p["precio_lista"] * (1 - p["descuento_automatico"] / 100)
+        
+        # Load fabrics/colors names for ProductDetail compatibility if needed
+        # (Assuming frontend needs names too)
+        cur.execute("""
+            SELECT f.id, f.name FROM fabrics f
+            JOIN product_fabrics pf ON f.id = pf.fabric_id
+            WHERE pf.product_id = %s
+        """, (product_id,))
+        fabrics = cur.fetchall()
+        p["allowed_fabric_ids"] = [f["id"] for f in fabrics]
+        p["allowed_fabric_names"] = [f["name"] for f in fabrics]
 
-        return row
+        cur.execute("""
+            SELECT c.id, c.name FROM colors c
+            JOIN product_colors pc ON c.id = pc.color_id
+            WHERE pc.product_id = %s
+        """, (product_id,))
+        colors = cur.fetchall()
+        p["allowed_color_ids"] = [c["id"] for c in colors]
+        p["allowed_color_names"] = [c["name"] for c in colors]
+
+        return p
     finally:
         conn.close()
 
@@ -182,8 +217,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment, is_offer, precio_etiqueta)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment, is_offer, precio_etiqueta, categoria_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo.strip(),
             data.modelo.strip(),
@@ -204,7 +239,8 @@ def create_product(data: ProductCreate):
             data.is_madre,
             data.round_adjustment,
             data.is_offer,
-            data.precio_etiqueta
+            data.precio_etiqueta,
+            data.categoria_id
         ))
         product_id = cur.lastrowid
 
@@ -238,7 +274,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s, is_offer=%s, precio_etiqueta=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s, is_offer=%s, precio_etiqueta=%s, categoria_id=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -261,6 +297,7 @@ def update_product(product_id: int, data: ProductCreate):
             data.round_adjustment,
             data.is_offer,
             data.precio_etiqueta,
+            data.categoria_id,
             product_id
         ))
 

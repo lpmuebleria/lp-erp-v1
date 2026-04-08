@@ -71,9 +71,10 @@ function Sales({ vendedor }) {
     // Delivery State
     const [delivery, setDelivery] = useState({ fecha: '', turno: 'MANANA' });
 
-    // Promos
     const [promotions, setPromotions] = useState([]);
     const [selectedPromoId, setSelectedPromoId] = useState('');
+    const [promoCode, setPromoCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState(null);
 
     const [isApartadoQuote, setIsApartadoQuote] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -175,15 +176,16 @@ function Sales({ vendedor }) {
             return;
         }
 
+        // Automatic discount from category (pre-injected by backend in get_products)
+        const autoDescPct = product.descuento_automatico || 0;
+
         const rawMsiPrice = product.precio_lista * (1 + (interestMSI / 100));
-        const precioUnit = docTipo === 'msi' 
+        const precioUnitBase = docTipo === 'msi' 
             ? calculateRounding(rawMsiPrice)
             : product.precio_lista;
         
-        const round_adjustment = docTipo === 'msi' ? (precioUnit - rawMsiPrice) : 0;
-        
-        const cartId = Date.now(); // Unique per price type
-        const existing = cart.find(item => item.product_id === product.id && item.tipo_precio === docTipo && !item.tela); // Check for non-personalized existing item
+        const cartId = Date.now();
+        const existing = cart.find(item => item.product_id === product.id && item.tipo_precio === docTipo && !item.tela);
         
         if (existing) {
             setCart(cart.map(item =>
@@ -198,14 +200,17 @@ function Sales({ vendedor }) {
                 modelo: product.modelo,
                 codigo: product.codigo,
                 cantidad: 1,
-                precio_unit: precioUnit,
-                precio_base: precioUnit,
+                precio_unit: precioUnitBase, // We'll apply promos in the render/total calculation or here? 
+                                            // Better to store base and calculate final in a helper.
+                precio_base: precioUnitBase,
                 precio_original: product.precio_lista,
-                total_linea: precioUnit,
+                categoria_id: product.categoria_id,
+                auto_discount_pct: autoDescPct,
+                total_linea: precioUnitBase,
                 descuento_manual: 0,
                 descuento_pct: 0,
                 tipo_precio: docTipo,
-                round_adjustment: round_adjustment
+                round_adjustment: docTipo === 'msi' ? (precioUnitBase - rawMsiPrice) : 0
             }]);
         }
         setSearchTerm('');
@@ -249,6 +254,18 @@ function Sales({ vendedor }) {
 
     const removeFromCart = (cartId) => {
         setCart(cart.filter(item => item.cartId !== cartId));
+    };
+
+    const handleApplyCoupon = async () => {
+        if (!promoCode.trim()) return;
+        try {
+            const res = await axios.get(`${API_URL}/promotions/validate/${promoCode.trim()}`);
+            setAppliedCoupon(res.data);
+            toast.success(`Cupón "${res.data.name}" aplicado (${res.data.discount_pct}%)`);
+            setPromoCode('');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || "Cupón inválido o vencido");
+        }
     };
 
     const updateQty = (cartId, val) => {
@@ -316,17 +333,59 @@ function Sales({ vendedor }) {
         }
     }, [hasMsiItem, status]);
 
-    const subtotal = cart.reduce((acc, item) => acc + item.total_linea, 0);
-    const sumDescuentosManuales = cart.reduce((acc, item) => acc + (item.descuento_manual * item.cantidad), 0);
+    // Calculate promotions per item (Highest among: Auto, Coupon, Selected Promo)
+    const selectedPromo = promotions.find(p => p.id === parseInt(selectedPromoId));
+    
+    const cartWithPromos = cart.map(item => {
+        let applied_pct = 0;
+        let promo_name = '';
 
-    let activePromo = null;
-    let descGlobalVal = 0;
-    if (status === 'COTIZACION' && selectedPromoId) {
-        activePromo = promotions.find(p => p.id === parseInt(selectedPromoId));
-        if (activePromo) {
-            descGlobalVal = subtotal * (activePromo.discount_pct / 100);
+        // 1. Automatic Discount (if applies)
+        if (item.auto_discount_pct > applied_pct) {
+            applied_pct = item.auto_discount_pct;
+            promo_name = 'Automática';
         }
-    }
+
+        // 2. Selected Promo (from dropdown)
+        if (selectedPromo) {
+            // Check if global or applies to this category
+            const appliesGlobal = selectedPromo.type === 'global';
+            const appliesCat = selectedPromo.category_ids?.includes(item.categoria_id);
+            if ((appliesGlobal || appliesCat) && selectedPromo.discount_pct > applied_pct) {
+                applied_pct = selectedPromo.discount_pct;
+                promo_name = selectedPromo.name;
+            }
+        }
+
+        // 3. Applied Coupon (from code)
+        if (appliedCoupon) {
+            const appliesGlobal = appliedCoupon.type === 'global';
+            const appliesCat = appliedCoupon.category_ids?.includes(item.categoria_id);
+            if ((appliesGlobal || appliesCat) && appliedCoupon.discount_pct > applied_pct) {
+                applied_pct = appliedCoupon.discount_pct;
+                promo_name = `Cupón: ${appliedCoupon.name}`;
+            }
+        }
+
+        const precioConPromo = item.precio_base * (1 - applied_pct / 100);
+        const manualDiscountVal = item.descuento_pct > 0 ? (item.precio_base * (item.descuento_pct / 100)) : 0;
+        
+        const finalUnitPriceRaw = precioConPromo - manualDiscountVal;
+        const finalUnitPrice = calculateRounding(finalUnitPriceRaw);
+        
+        return {
+            ...item,
+            applied_promo_pct: applied_pct,
+            promo_name,
+            precio_final: finalUnitPrice,
+            total_linea: item.cantidad * finalUnitPrice,
+            round_adjustment: finalUnitPrice - finalUnitPriceRaw
+        };
+    });
+
+    const subtotal = cartWithPromos.reduce((acc, item) => acc + item.total_linea, 0);
+    const sumDescuentosManuales = 0; // Already included in total_linea logic above
+    const descGlobalVal = 0; // Handled per item now for non-cumulative logic
 
     const baseTotal = Math.max(0, subtotal - sumDescuentosManuales - descGlobalVal);
     const shippingAmount = parseFloat(shipping.costo) || 0;
@@ -436,9 +495,10 @@ function Sales({ vendedor }) {
             monto_pago: status !== 'COTIZACION' ? totalPaid : 0,
             cambio: cambio,
             payments: status !== 'COTIZACION' ? payments : [],
-            lines: cart,
+            lines: cartWithPromos.map(item => ({...item, precio_unit: item.precio_final})),
             promo_id: selectedPromoId || null,
-            descuento_global_val: descGlobalVal,
+            applied_coupon_id: appliedCoupon?.id || null,
+            descuento_global_val: cartWithPromos.reduce((acc, item) => acc + (item.precio_base - item.precio_final) * item.cantidad, 0),
             // Delivery & Shipping
             entrega_fecha: status === 'VENTA_STOCK' ? delivery.fecha : null,
             entrega_turno: status === 'VENTA_STOCK' ? delivery.turno : null,
@@ -495,6 +555,8 @@ function Sales({ vendedor }) {
             setDelivery({ fecha: '', turno: 'MANANA' });
             setStatus('COTIZACION');
             setSelectedPromoId('');
+            setAppliedCoupon(null);
+            setPromoCode('');
             localStorage.removeItem('lp_erp_cart');
             localStorage.removeItem('lp_erp_customer');
             localStorage.removeItem('lp_erp_shipping');
@@ -769,13 +831,13 @@ function Sales({ vendedor }) {
                                         <th className="pb-3 px-2">Descripción</th>
                                         <th className="pb-3 px-2 w-20">Cant.</th>
                                         <th className="pb-3 px-2 text-right">Unitario</th>
-                                        <th className="pb-3 px-2 text-right w-24">Desc. ($)</th>
+                                        <th className="pb-3 px-2 text-right w-24">Desc. (%)</th>
                                         <th className="pb-3 px-2 text-right">Subtotal</th>
                                         <th className="pb-3 px-2 w-10"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {cart.map(item => (
+                                    {cartWithPromos.map(item => (
                                         <tr key={item.cartId} className="group hover:bg-white/[0.02] transition-colors">
                                             <td className="py-4 px-2">
                                                 <div className="flex flex-col">
@@ -786,6 +848,11 @@ function Sales({ vendedor }) {
                                                             : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
                                                             {item.tipo_precio}
                                                         </span>
+                                                        {item.applied_promo_pct > 0 && (
+                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20" title={item.promo_name}>
+                                                                PROMO -{item.applied_promo_pct}%
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     {item.tela && (
                                                         <div className="text-[9px] text-slate-400 uppercase mt-0.5 flex gap-2">
@@ -802,29 +869,36 @@ function Sales({ vendedor }) {
                                                     min="1"
                                                     value={item.cantidad}
                                                     onChange={(e) => updateQty(item.cartId, e.target.value)}
-                                                    className="bg-white/5 border border-white/10 rounded-lg w-16 p-2 text-center text-white focus:outline-none focus:border-premium-gold transition-all"
+                                                    className="bg-white/5 border border-white/10 rounded-lg w-12 p-2 text-center text-white focus:outline-none focus:border-premium-gold transition-all font-mono"
                                                 />
                                             </td>
-                                            <td className="py-4 px-2 text-right text-slate-400 font-mono">
-                                                ${item.precio_unit.toLocaleString()}
+                                            <td className="py-4 px-2">
+                                                <div className="flex flex-col text-right">
+                                                    {item.applied_promo_pct > 0 && (
+                                                        <span className="text-[10px] text-slate-500 line-through opacity-70">${item.precio_base.toLocaleString()}</span>
+                                                    )}
+                                                    <span className={`font-mono font-black ${item.applied_promo_pct > 0 ? 'text-green-400' : 'text-white'}`}>
+                                                        ${item.precio_final.toLocaleString()}
+                                                    </span>
+                                                </div>
                                             </td>
-                                                <td className="py-4 px-2 text-right">
-                                                    <div className="relative">
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="10"
-                                                            step="1"
-                                                            title="Máximo 10% de descuento"
-                                                            value={item.descuento_pct || 0}
-                                                            onChange={(e) => updateDiscount(item.cartId, e.target.value, item.precio_base)}
-                                                            className="bg-red-500/10 border border-red-500/30 rounded-lg w-16 p-2 pr-6 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
-                                                        />
-                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-red-400 opacity-70">%</span>
-                                                    </div>
-                                                </td>
-                                            <td className="py-4 px-2 text-right font-black text-premium-gold font-mono">
-                                                ${(item.total_linea - (item.descuento_manual * item.cantidad)).toLocaleString()}
+                                            <td className="py-4 px-2 text-right">
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="10"
+                                                        step="1"
+                                                        title="Máximo 10% de descuento"
+                                                        value={item.descuento_pct || 0}
+                                                        onChange={(e) => updateDiscount(item.cartId, e.target.value, item.precio_base)}
+                                                        className="bg-red-500/10 border border-red-500/30 rounded-lg w-16 p-2 pr-6 text-right text-red-400 focus:outline-none focus:border-red-500 transition-all text-xs font-mono"
+                                                    />
+                                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-red-400 opacity-70">%</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-2 text-right font-black text-white font-mono">
+                                                ${item.total_linea.toLocaleString()}
                                             </td>
                                             <td className="py-4 px-2 text-right">
                                                 <button
@@ -838,7 +912,7 @@ function Sales({ vendedor }) {
                                     ))}
                                     {cart.length === 0 && (
                                         <tr>
-                                            <td colSpan="5" className="py-16 text-center text-slate-500 italic opacity-50">
+                                            <td colSpan="6" className="py-16 text-center text-slate-500 italic opacity-50">
                                                 <ShoppingCart size={32} className="mx-auto mb-2 opacity-20" />
                                                 No hay productos agregados al carrito
                                             </td>
@@ -1071,23 +1145,56 @@ function Sales({ vendedor }) {
                     {/* Totals & Billing Switch Organically Inside */}
                     <section className="bg-premium-slate group p-6 rounded-[30px] border border-white/10 shadow-2xl ring-1 ring-white/5 space-y-4">
 
-                        {/* Promos */}
-                        {status === 'COTIZACION' && promotions.length > 0 && (
-                            <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                                <div className="flex items-center space-x-2 text-premium-gold">
-                                    <Tag size={16} />
-                                    <span className="text-xs font-bold uppercase tracking-wider">Promo Global</span>
+                        {/* Promos & Cupones */}
+                        {(status === 'COTIZACION' || status === 'VENTA_STOCK' || status === 'PEDIDO_FABRICACION') && (
+                            <div className="space-y-3 pb-4 border-b border-white/5">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center space-x-2 text-premium-gold">
+                                        <Tag size={16} />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Promoción</span>
+                                    </div>
+                                    <select
+                                        value={selectedPromoId}
+                                        onChange={e => setSelectedPromoId(e.target.value)}
+                                        className="bg-white/5 border border-white/10 text-white text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:border-premium-gold w-48"
+                                    >
+                                        <option value="">(Ninguna seleccionada)</option>
+                                        {promotions.filter(p => p.type !== 'coupon').map(p => (
+                                            <option key={p.id} value={p.id}>{p.name} (-{p.discount_pct}%)</option>
+                                        ))}
+                                    </select>
                                 </div>
-                                <select
-                                    value={selectedPromoId}
-                                    onChange={e => setSelectedPromoId(e.target.value)}
-                                    className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-premium-gold"
-                                >
-                                    <option value="">Ninguna</option>
-                                    {promotions.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name} (-{p.discount_pct}%)</option>
-                                    ))}
-                                </select>
+
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center space-x-2 text-blue-400">
+                                        <ShoppingCart size={16} />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Cupón</span>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        {appliedCoupon ? (
+                                            <div className="flex items-center bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1 text-[10px] text-blue-400 font-black">
+                                                <span className="mr-2 uppercase">{appliedCoupon.code}: -{appliedCoupon.discount_pct}%</span>
+                                                <button onClick={() => setAppliedCoupon(null)} className="hover:text-white"><X size={12} /></button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="CÓDIGO..." 
+                                                    value={promoCode}
+                                                    onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                                                    className="bg-white/5 border border-white/10 text-white text-[11px] rounded-lg px-2 py-1.5 focus:border-blue-400 w-32 uppercase"
+                                                />
+                                                <button 
+                                                    onClick={handleApplyCoupon}
+                                                    className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-blue-500 transition-all"
+                                                >
+                                                    APLICAR
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -1102,21 +1209,24 @@ function Sales({ vendedor }) {
 
                             <div className="bg-black/20 p-4 rounded-xl border border-white/5">
                                 <div className="flex justify-between text-sm mb-2 text-slate-300">
-                                    <span>Subtotal</span>
+                                    <span>Subtotal Original</span>
+                                    <span className="font-mono">${cartWithPromos.reduce((acc, i) => acc + (i.precio_base * i.cantidad), 0).toLocaleString()}</span>
+                                </div>
+                                
+                                {cartWithPromos.some(i => (i.precio_base > i.precio_final)) && (
+                                    <div className="flex justify-between text-sm mb-2 text-green-400">
+                                        <div className="flex flex-col">
+                                            <span>Descuentos Aplicados</span>
+                                            {appliedCoupon && <span className="text-[9px] uppercase font-black opacity-70">Cupón: {appliedCoupon.name}</span>}
+                                        </div>
+                                        <span className="font-mono">- ${cartWithPromos.reduce((acc, i) => acc + (i.precio_base - i.precio_final) * i.cantidad, 0).toLocaleString()}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between text-[11px] mb-2 text-slate-400 uppercase font-black border-t border-white/5 pt-2">
+                                    <span>Subtotal con Descuento</span>
                                     <span className="font-mono">${subtotal.toLocaleString()}</span>
                                 </div>
-                                {sumDescuentosManuales > 0 && (
-                                    <div className="flex justify-between text-sm mb-2 text-red-400">
-                                        <span>Desc. Productos</span>
-                                        <span className="font-mono">- ${sumDescuentosManuales.toLocaleString()}</span>
-                                    </div>
-                                )}
-                                {descGlobalVal > 0 && (
-                                    <div className="flex justify-between text-sm mb-2 text-green-400 border-b border-white/5 pb-2">
-                                        <span>Desc. Promoción</span>
-                                        <span className="font-mono">- ${descGlobalVal.toLocaleString()}</span>
-                                    </div>
-                                )}
 
                                 {shippingAmount > 0 && (
                                     <>

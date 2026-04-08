@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from typing import List
 from database import db
-from schemas import UserCreate, UserUpdate, FabricBase, ColorBase
+from schemas import UserCreate, UserUpdate, FabricBase, ColorBase, CategoryBase
 from security import hash_password
 from pydantic import BaseModel
 from api.notifications import trigger_notification
@@ -455,6 +455,50 @@ def delete_color(color_id: int):
         cur.execute("DELETE FROM colors WHERE id = %s", (color_id,))
         conn.commit()
         return {"message": "Color deleted"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/config/categories")
+def get_categories():
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT * FROM categories ORDER BY name ASC")
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+@router.post("/config/categories")
+def create_category(data: CategoryBase):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO categories (name) VALUES (%s)", (data.name,))
+        cat_id = cur.lastrowid
+        conn.commit()
+        return {"id": cat_id, "message": "Categoría creada correctamente"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.delete("/config/categories/{cat_id}")
+def delete_category(cat_id: int):
+    conn = db()
+    cur = conn.cursor()
+    try:
+        # Set products in this category to NULL
+        cur.execute("UPDATE products SET categoria_id = NULL WHERE categoria_id = %s", (cat_id,))
+        # Delete associated promotion relationships
+        cur.execute("DELETE FROM promotion_categories WHERE category_id = %s", (cat_id,))
+        # Delete category
+        cur.execute("DELETE FROM categories WHERE id = %s", (cat_id,))
+        conn.commit()
+        return {"message": "Categoría eliminada"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

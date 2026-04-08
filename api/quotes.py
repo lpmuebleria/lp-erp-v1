@@ -73,8 +73,8 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
 
         # 1) Insert Quote
         cur.execute("""
-            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, is_apartado_quote, round_adjustment)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO quotes(folio, created_at, vendedor, total, status, cliente_nombre, cliente_tel, cliente_email, descuento_global_val, cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, is_apartado_quote, round_adjustment, promo_id, applied_coupon_id)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             data.get("folio", f"COT-{int(datetime.datetime.now().timestamp())}"),
             today_iso(),
@@ -93,7 +93,9 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
             data.get("referencia_envio"),
             data.get("nota_envio"),
             data.get("is_apartado_quote", False),
-            data.get("round_adjustment", 0)
+            data.get("round_adjustment", 0),
+            data.get("promo_id"),
+            data.get("applied_coupon_id")
         ))
         quote_id = cur.lastrowid
 
@@ -101,19 +103,21 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
         lines = data.get("lines", [])
         for ln in lines:
             cur.execute("""
-                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio, tela, color, round_adjustment)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                INSERT INTO quote_lines(quote_id, product_id, cantidad, precio_unit, descuento_val, total_linea, tipo_precio, tela, color, round_adjustment, applied_promo_pct, promo_name)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 quote_id,
                 ln.get("product_id"),
                 ln.get("cantidad"),
                 ln.get("precio_unit"),
-                ln.get("descuento_manual", 0),
+                ln.get("descuento_pct", 0), # Store percentage for manual
                 ln.get("total_linea", 0),
                 ln.get("tipo_precio", "contado"),
                 ln.get("tela"),
                 ln.get("color"),
-                ln.get("round_adjustment", 0)
+                ln.get("round_adjustment", 0),
+                ln.get("applied_promo_pct", 0),
+                ln.get("promo_name")
             ))
 
         # 3) If it's a direct Order creation (not just quote saving)
@@ -168,9 +172,10 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                     folio, created_at, quote_id, vendedor, total, anticipo_req, anticipo_pagado, saldo, 
                     estatus, entrega_estimada, tipo, nota, iva, 
                     factura_rfc, factura_razon, factura_cp, factura_regimen, factura_uso_cfdi, factura_metodo_pago, factura_forma_pago,
-                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, round_adjustment
+                    cp_envio, costo_envio, calle_envio, numero_envio, colonia_envio, referencia_envio, nota_envio, round_adjustment,
+                    promo_id, applied_coupon_id, descuento_global_val
                 )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 folio_o,
                 today_iso(),
@@ -199,7 +204,10 @@ def create_quote(data: dict): # Using dict to accept dynamic payload for all typ
                 data.get("colonia_envio"),
                 data.get("referencia_envio"),
                 data.get("nota_envio"),
-                data.get("round_adjustment", 0)
+                data.get("round_adjustment", 0),
+                data.get("promo_id"),
+                data.get("applied_coupon_id"),
+                data.get("descuento_global_val", 0)
             ))
             
             order_id = cur.lastrowid
