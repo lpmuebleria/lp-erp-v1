@@ -111,7 +111,7 @@ def get_products(q: Optional[str] = None):
                 res = cur.fetchone()
                 if res and res["max_discount"]:
                     p["descuento_automatico"] = float(res["max_discount"])
-                    p["precio_con_descuento"] = p["precio_lista"] * (1 - p["descuento_automatico"] / 100)
+                    p["precio_con_descuento"] = float(p["precio_lista"]) * (1 - p["descuento_automatico"] / 100)
         
         return products
     finally:
@@ -177,7 +177,7 @@ def get_product(product_id: int):
             res = cur.fetchone()
             if res and res["max_discount"]:
                 p["descuento_automatico"] = float(res["max_discount"])
-                p["precio_con_descuento"] = p["precio_lista"] * (1 - p["descuento_automatico"] / 100)
+                p["precio_con_descuento"] = float(p["precio_lista"]) * (1 - p["descuento_automatico"] / 100)
         
         # Load fabrics/colors names for ProductDetail compatibility if needed
         # (Assuming frontend needs names too)
