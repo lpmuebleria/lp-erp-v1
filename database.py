@@ -497,10 +497,7 @@ def _migrate(cur):
     if not col_exists(cur, "quote_lines", "promo_name"):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN promo_name VARCHAR(255) NULL DEFAULT NULL")
 
-    if not col_exists(cur, "order_lines", "applied_promo_pct"):
-        cur.execute("ALTER TABLE order_lines ADD COLUMN applied_promo_pct DECIMAL(15,2) DEFAULT 0")
-    if not col_exists(cur, "order_lines", "promo_name"):
-        cur.execute("ALTER TABLE order_lines ADD COLUMN promo_name VARCHAR(255) NULL DEFAULT NULL")
+
 
     # products
     if not col_exists(cur, "products", "is_madre"):
