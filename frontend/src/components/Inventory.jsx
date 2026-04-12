@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff, MessageCircle, Star, Trash2, X, Check, AlertTriangle, Sparkles, Zap, Save, Pencil, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { calculateRounding, getRoundingAdjustment } from '../utils/rounding';
 
@@ -18,6 +18,7 @@ function Inventory({ role, isSuperadmin }) {
     const [productForTag, setProductForTag] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [interestPct, setInterestPct] = useState(15.0);
+    const [showReviewModerationModal, setShowReviewModerationModal] = useState(false);
 
     const checkEditAccess = () => {
         if (isSuperadmin) return true;
@@ -88,6 +89,13 @@ function Inventory({ role, isSuperadmin }) {
                         {hasEditAccess && (
                             <div className="flex gap-2">
                                 <button
+                                    onClick={() => setShowReviewModerationModal(true)}
+                                    className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-2 hover:bg-white/20 transition-all border border-white/10"
+                                >
+                                    <MessageCircle size={16} />
+                                    <span>Reseñas</span>
+                                </button>
+                                <button
                                     onClick={() => {
                                         setEditingProduct(null);
                                         setShowModal(true);
@@ -153,6 +161,12 @@ function Inventory({ role, isSuperadmin }) {
                             setShowCatalogModal(false);
                         }
                     }}
+                />
+            )}
+
+            {showReviewModerationModal && (
+                <ReviewModerationModal 
+                    onClose={() => setShowReviewModerationModal(false)} 
                 />
             )}
 
@@ -490,6 +504,304 @@ function ProductQuickView({ product, onClose, interestPct }) {
     );
 }
 
+function ModernConfirmModal({ isOpen, onClose, onConfirm, title, message, color = "red" }) {
+    if (!isOpen) return null;
+    
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-200 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-premium-slate w-full max-w-sm rounded-4xl border border-white/10 shadow-2xl p-8 text-center animate-in zoom-in-95 duration-200">
+                <div className={`mx-auto w-16 h-16 ${color === 'red' ? 'bg-red-500/20 text-red-400' : 'bg-premium-gold/20 text-premium-gold'} rounded-2xl flex items-center justify-center mb-6`}>
+                    {color === 'red' ? <Trash2 size={32} /> : <CheckCircle2 size={32} />}
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+                <p className="text-slate-400 text-sm mb-8 leading-relaxed">{message}</p>
+                <div className="flex space-x-3">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 px-6 py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-all border border-white/5"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={() => { onConfirm(); onClose(); }}
+                        className={`flex-1 px-6 py-3 ${color === 'red' ? 'bg-red-500 hover:bg-red-600' : 'bg-premium-gold hover:bg-premium-gold/80'} text-black font-bold rounded-xl transition-all shadow-lg active:scale-95`}
+                    >
+                        Aceptar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ReviewModerationModal({ onClose }) {
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
+    const [editingId, setEditingId] = useState(null);
+    const [editingText, setEditingText] = useState("");
+
+    useEffect(() => {
+        fetchReviews();
+    }, []);
+
+    const fetchReviews = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get(`${API_URL}/admin/reviews`);
+            setReviews(res.data);
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al cargar reseñas");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleApprove = async (id) => {
+        try {
+            await axios.put(`${API_URL}/admin/reviews/${id}/approve`);
+            toast.success("Reseña aprobada");
+            fetchReviews();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al aprobar");
+        }
+    };
+
+    const handleUpdateText = async (id) => {
+        try {
+            await axios.put(`${API_URL}/admin/reviews/${id}/text`, { comentario: editingText });
+            toast.success("Comentario actualizado");
+            setEditingId(null);
+            fetchReviews();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al actualizar");
+        }
+    };
+
+    const handleOptimizeText = async (id) => {
+        try {
+            await axios.put(`${API_URL}/admin/reviews/${id}/optimize`);
+            toast.success("Texto optimizado correctamente. Ahora puedes revisarlo.");
+            fetchReviews();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al optimizar");
+        }
+    };
+
+    const handleApproveAllGreen = async () => {
+        try {
+            const res = await axios.post(`${API_URL}/admin/reviews/approve-all-green`);
+            toast.success(res.data.message);
+            fetchReviews();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al aprobar masivamente");
+        }
+    };
+
+    const handleDelete = async () => {
+        const id = confirmDelete.id;
+        try {
+            await axios.delete(`${API_URL}/admin/reviews/${id}`);
+            toast.success("Reseña eliminada");
+            fetchReviews();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al eliminar");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-100 flex items-center justify-center p-4">
+            <div className="bg-premium-slate w-full max-w-4xl max-h-[85vh] rounded-3xl border border-white/10 shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-white/10 flex justify-between items-center">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-premium-gold/20 rounded-2xl text-premium-gold">
+                                <MessageCircle size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white uppercase tracking-tight">Moderación de Reseñas</h3>
+                                <p className="text-xs text-slate-500">Gestiona los comentarios de tus clientes en el catálogo.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                            {!loading && reviews.filter(r => !r.is_approved && r.gravedad === 'green').length > 0 && (
+                                <button 
+                                    onClick={handleApproveAllGreen}
+                                    className="flex items-center space-x-2 px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 rounded-xl hover:bg-green-500/20 transition-all text-xs font-bold uppercase"
+                                >
+                                    <CheckCircle2 size={16} />
+                                    <span>Aprobar Verdes</span>
+                                </button>
+                            )}
+                            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-slate-400">
+                                <X size={24} />
+                            </button>
+                        </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                            <Loader2 className="animate-spin text-premium-gold mb-4" size={40} />
+                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando reseñas...</p>
+                        </div>
+                    ) : reviews.length === 0 ? (
+                        <div className="text-center py-20 opacity-30">
+                            <MessageCircle size={60} className="mx-auto mb-4" />
+                            <p className="text-xl font-bold uppercase">No hay reseñas por el momento</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {reviews.map((rev) => (
+                                <div 
+                                    key={rev.id} 
+                                    className={`bg-white/5 border ${rev.gravedad === 'red' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : rev.gravedad === 'yellow' ? 'border-amber-500/40' : 'border-white/10'} rounded-2xl p-6 group hover:border-premium-gold/30 transition-all flex flex-col relative overflow-hidden`}
+                                >
+                                    {/* Indicador de gravedad */}
+                                    <div className={`absolute top-0 left-0 w-1 h-full ${rev.gravedad === 'red' ? 'bg-red-500' : rev.gravedad === 'yellow' ? 'bg-amber-500' : 'bg-green-500'}`} />
+                                    
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-xs font-black text-premium-gold uppercase tracking-widest mb-1">{rev.product_modelo}</p>
+                                            <div className="flex items-center space-x-2">
+                                                <p className="text-sm font-bold text-white">{rev.cliente_nombre}</p>
+                                                {rev.gravedad !== 'green' && (
+                                                    <div className={`flex items-center space-x-1 ${rev.gravedad === 'red' ? 'text-red-400' : 'text-amber-400'} text-[10px] font-bold uppercase`}>
+                                                        <AlertTriangle size={10} />
+                                                        <span>{rev.gravedad_razon}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex text-premium-gold mb-1">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star key={i} size={12} fill={i < rev.calificacion ? "currentColor" : "none"} />
+                                                ))}
+                                            </div>
+                                            {!rev.is_approved && (
+                                                <span className={`text-[9px] font-black text-white ${rev.gravedad === 'red' ? 'bg-red-500' : rev.gravedad === 'yellow' ? 'bg-amber-500' : 'bg-green-500/80'} px-2 py-0.5 rounded-full uppercase tracking-tighter`}>
+                                                    Pendiente
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col mb-4">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-black text-slate-500 uppercase">Calidad del mensaje</span>
+                                            <span className={`text-[10px] font-black ${rev.calidad_score > 80 ? 'text-green-400' : rev.calidad_score > 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                                                {rev.calidad_score}%
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full transition-all duration-500 ${rev.calidad_score > 80 ? 'bg-green-500' : rev.calidad_score > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                style={{ width: `${rev.calidad_score}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex-1 flex flex-col mb-4">
+                                        {editingId === rev.id ? (
+                                            <div className="animate-in fade-in duration-300">
+                                                <textarea
+                                                    value={editingText}
+                                                    onChange={(e) => setEditingText(e.target.value)}
+                                                    className="w-full bg-black/40 border border-premium-gold/50 rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-premium-gold min-h-[100px] mb-2"
+                                                    autoFocus
+                                                />
+                                                <div className="flex space-x-2">
+                                                    <button 
+                                                        onClick={() => handleUpdateText(rev.id)}
+                                                        className="flex-1 bg-premium-gold text-black text-[10px] font-black uppercase py-2 rounded-lg hover:bg-yellow-400 transition-colors flex items-center justify-center space-x-1"
+                                                    >
+                                                        <Save size={12} />
+                                                        <span>Guardar Cambios</span>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setEditingId(null)}
+                                                        className="px-3 bg-white/10 text-white text-[10px] font-black uppercase py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                                    >
+                                                        <RotateCcw size={12} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-slate-400 text-sm leading-relaxed italic group-hover:text-slate-200 transition-colors">
+                                                "{rev.comentario}"
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                                        <span className="text-[10px] text-slate-500 uppercase font-bold">
+                                            {rev.fecha ? new Date(rev.fecha).toLocaleDateString('es-MX') : '-'}
+                                        </span>
+                                        <div className="flex space-x-2">
+                                            {!rev.is_approved && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setEditingId(rev.id);
+                                                            setEditingText(rev.comentario);
+                                                        }}
+                                                        className="p-2 text-slate-400 hover:bg-white/10 rounded-lg transition-colors"
+                                                        title="Editar Comentario"
+                                                    >
+                                                        <Pencil size={18} />
+                                                    </button>
+                                                    {!rev.is_approved && rev.calidad_score >= 40 && (
+                                                        <button 
+                                                            onClick={() => handleOptimizeText(rev.id)}
+                                                            className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors group/btn"
+                                                            title="Optimizar Formato (Sin Aprobar)"
+                                                        >
+                                                            <Sparkles size={18} className="group-hover/btn:animate-pulse" />
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => handleApprove(rev.id)}
+                                                        className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-colors"
+                                                        title="Aprobar Reseña"
+                                                    >
+                                                        <Check size={18} />
+                                                    </button>
+                                                </>
+                                            )}
+                                            <button 
+                                                onClick={() => setConfirmDelete({ isOpen: true, id: rev.id })}
+                                                className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                                title="Eliminar Reseña"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <ModernConfirmModal 
+                    isOpen={confirmDelete.isOpen}
+                    onClose={() => setConfirmDelete({ isOpen: false, id: null })}
+                    onConfirm={handleDelete}
+                    title="¿Eliminar Reseña?"
+                    message="Se borrará permanentemente y dejará de ser visible en el catálogo."
+                    color="red"
+                />
+            </div>
+        </div>
+    );
+}
+
 function ProductModal({ onClose, onSave, product }) {
     const initialValues = {
         codigo: '',
@@ -795,6 +1107,31 @@ function ProductModal({ onClose, onSave, product }) {
                             </div>
                         )}
 
+                        <div className="pt-4 border-t border-white/10 space-y-4">
+                            <TextareaField 
+                                label="Descripción Detallada" 
+                                value={form.descripcion} 
+                                onChange={(v) => setForm({ ...form, descripcion: v })} 
+                                placeholder="Escribe aquí la descripción del producto (estilo Blueroom)..." 
+                            />
+                            <div className="grid grid-cols-2 gap-4">
+                                <TextareaField 
+                                    label="Dimensiones" 
+                                    value={form.dimensiones} 
+                                    onChange={(v) => setForm({ ...form, dimensiones: v })} 
+                                    placeholder="Ej: Largo 2.20m x Ancho 2.10m..." 
+                                    rows={2}
+                                />
+                                <TextareaField 
+                                    label="Características / Incluye" 
+                                    value={form.caracteristicas} 
+                                    onChange={(v) => setForm({ ...form, caracteristicas: v })} 
+                                    placeholder="Ej: 2 Burós, 1 Cabecera..." 
+                                    rows={2}
+                                />
+                            </div>
+                        </div>
+
                         <div className="space-y-4 pt-4 border-t border-white/10">
                             <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Imagen del Producto</label>
                             <div className="flex items-center space-x-4">
@@ -887,6 +1224,21 @@ function InputField({ label, value, onChange, type = "text", placeholder, requir
                 placeholder={placeholder}
                 required={required}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold placeholder:text-slate-600 transition-all"
+            />
+        </div>
+    );
+}
+
+function TextareaField({ label, value, onChange, placeholder, rows = 3 }) {
+    return (
+        <div>
+            <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">{label}</label>
+            <textarea
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                rows={rows}
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-premium-gold placeholder:text-slate-600 transition-all resize-none"
             />
         </div>
     );
