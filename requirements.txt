@@ -11,3 +11,4 @@ weasyprint
 python-dotenv
 passlib[bcrypt]
 cloudinary
+better-profanity==0.7.0
