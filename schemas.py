@@ -24,6 +24,9 @@ class ProductBase(BaseModel):
     is_offer: int = 0
     precio_etiqueta: float = 0
     categoria_id: Optional[int] = None
+    descripcion: Optional[str] = None
+    dimensiones: Optional[str] = None
+    caracteristicas: Optional[str] = None
     categoria_name: Optional[str] = None
     descuento_automatico: float = 0
     precio_con_descuento: Optional[float] = None
@@ -49,6 +52,22 @@ class ProductWithDetails(Product):
     allowed_color_ids: List[int] = []
     allowed_fabric_names: List[str] = []
     allowed_color_names: List[str] = []
+
+class ReviewBase(BaseModel):
+    cliente_nombre: str = Field(..., min_length=1)
+    calificacion: int = Field(..., ge=1, le=5)
+    comentario: str = Field(..., min_length=1)
+
+class ReviewCreate(ReviewBase):
+    product_id: int
+
+class Review(ReviewBase):
+    id: int
+    product_id: int
+    fecha: datetime
+
+    class Config:
+        from_attributes = True
 
 class FabricBase(BaseModel):
     name: str

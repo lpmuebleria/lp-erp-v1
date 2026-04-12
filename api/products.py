@@ -217,8 +217,8 @@ def create_product(data: ProductCreate):
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment, is_offer, precio_etiqueta, categoria_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO products (codigo, modelo, tamano, precio_lista, costo_total, costo_fabrica, flete, maniobras, empaque, comision, garantias, utilidad_nivel, activo, stock, imagen_url, in_catalog, is_madre, round_adjustment, is_offer, precio_etiqueta, categoria_id, descripcion, dimensiones, caracteristicas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.codigo.strip(),
             data.modelo.strip(),
@@ -240,7 +240,10 @@ def create_product(data: ProductCreate):
             data.round_adjustment,
             data.is_offer,
             data.precio_etiqueta,
-            data.categoria_id
+            data.categoria_id,
+            data.descripcion,
+            data.dimensiones,
+            data.caracteristicas
         ))
         product_id = cur.lastrowid
 
@@ -274,7 +277,7 @@ def update_product(product_id: int, data: ProductCreate):
     try:
         cur.execute("""
             UPDATE products 
-            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s, is_offer=%s, precio_etiqueta=%s, categoria_id=%s
+            SET codigo=%s, modelo=%s, tamano=%s, precio_lista=%s, costo_total=%s, costo_fabrica=%s, flete=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s, utilidad_nivel=%s, activo=%s, stock=%s, imagen_url=%s, in_catalog=%s, is_madre=%s, round_adjustment=%s, is_offer=%s, precio_etiqueta=%s, categoria_id=%s, descripcion=%s, dimensiones=%s, caracteristicas=%s
             WHERE id=%s
         """, (
             data.codigo,
@@ -298,6 +301,9 @@ def update_product(product_id: int, data: ProductCreate):
             data.is_offer,
             data.precio_etiqueta,
             data.categoria_id,
+            data.descripcion,
+            data.dimensiones,
+            data.caracteristicas,
             product_id
         ))
 

@@ -619,6 +619,30 @@ def _migrate(cur):
     if col_exists(cur, "products", "utilidad_nivel"):
         cur.execute("UPDATE products SET utilidad_nivel = 'media' WHERE utilidad_nivel IS NULL")
 
+    # Detailed descriptions migration
+    if not col_exists(cur, "products", "descripcion"):
+        cur.execute("ALTER TABLE products ADD COLUMN descripcion TEXT NULL")
+    if not col_exists(cur, "products", "dimensiones"):
+        cur.execute("ALTER TABLE products ADD COLUMN dimensiones TEXT NULL")
+    if not col_exists(cur, "products", "caracteristicas"):
+        cur.execute("ALTER TABLE products ADD COLUMN caracteristicas TEXT NULL")
+
+    # Product reviews migration
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS product_reviews (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT NOT NULL,
+            cliente_nombre VARCHAR(255) NOT NULL,
+            calificacion INT NOT NULL,
+            comentario TEXT NOT NULL,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_approved TINYINT(1) DEFAULT 0,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+    """)
+    if not col_exists(cur, "product_reviews", "is_approved"):
+        cur.execute("ALTER TABLE product_reviews ADD COLUMN is_approved TINYINT(1) DEFAULT 0")
+
     # Migrate old statuses
     cur.execute("UPDATE orders SET estatus='EN FABRICACIÓN' WHERE estatus='PROCESO'")
     cur.execute("UPDATE orders SET estatus='LISTO ENTREGA' WHERE estatus='LISTO'")

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 class PublicProduct(BaseModel):
+    id: int
     codigo: str
     modelo: str
     tamano: str
@@ -23,6 +24,10 @@ class PublicProduct(BaseModel):
     stock: int
     imagen_url: Optional[str]
     is_offer: int
+    precio_etiqueta: float = 0
+    descripcion: Optional[str] = None
+    dimensiones: Optional[str] = None
+    caracteristicas: Optional[str] = None
 
 @router.get("/catalog/products", response_model=List[PublicProduct])
 def get_public_catalog():
@@ -38,7 +43,7 @@ def get_public_catalog():
             interes_msi_pct = 15.0
 
         cur.execute("""
-            SELECT codigo, modelo, tamano, precio_lista, stock, imagen_url, is_offer
+            SELECT id, codigo, modelo, tamano, precio_lista, stock, imagen_url, is_offer, precio_etiqueta, descripcion, dimensiones, caracteristicas
             FROM products 
             WHERE in_catalog = 1 AND activo = 1
             ORDER BY modelo ASC
@@ -46,6 +51,7 @@ def get_public_catalog():
         products = cur.fetchall()
         for p in products:
             p['precio_lista'] = float(p['precio_lista'] or 0)
+            p['precio_etiqueta'] = float(p['precio_etiqueta'] or 0)
             raw_msi = p['precio_lista'] * (1 + interes_msi_pct / 100)
             p['precio_msi'] = calculate_rounding(raw_msi)
         
