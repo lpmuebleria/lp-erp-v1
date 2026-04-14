@@ -30,6 +30,8 @@ class ProductBase(BaseModel):
     categoria_name: Optional[str] = None
     descuento_automatico: float = 0
     precio_con_descuento: Optional[float] = None
+    fabric_names: Optional[str] = None
+    color_names: Optional[str] = None
 
 class ProductCreate(ProductBase):
     allowed_fabric_ids: List[int] = [] 

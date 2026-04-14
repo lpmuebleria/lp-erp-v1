@@ -72,29 +72,55 @@ def download_template():
 
 
 @router.get("/products", response_model=List[Product])
-def get_products(q: Optional[str] = None):
+def get_products(
+    q: Optional[str] = None, 
+    category_id: Optional[int] = None, 
+    stock_status: Optional[str] = None, 
+    is_offer: Optional[int] = None,
+    active: Optional[int] = None
+):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
         q_clean = (q or "").strip()
         query_base = """
-            SELECT p.*, c.name as categoria_name
+            SELECT p.*, c.name as categoria_name,
+            (SELECT GROUP_CONCAT(f.name SEPARATOR ', ') FROM fabrics f JOIN product_fabrics pf ON f.id = pf.fabric_id WHERE pf.product_id = p.id) as fabric_names,
+            (SELECT GROUP_CONCAT(cl.name SEPARATOR ', ') FROM colors cl JOIN product_colors pc ON cl.id = pc.color_id WHERE pc.product_id = p.id) as color_names
             FROM products p
             LEFT JOIN categories c ON p.categoria_id = c.id
+            WHERE 1=1
         """
+        params = []
+        
         if q_clean:
             like = f"%{q_clean}%"
-            cur.execute(query_base + """
-                WHERE (p.codigo LIKE %s OR p.modelo LIKE %s)
-                ORDER BY p.activo DESC, p.codigo
-                LIMIT 200
-            """, (like, like))
-        else:
-            cur.execute(query_base + """
-                ORDER BY p.activo DESC, p.codigo
-                LIMIT 200
-            """)
+            query_base += " AND (p.codigo LIKE %s OR p.modelo LIKE %s)"
+            params.extend([like, like])
+            
+        if category_id:
+            query_base += " AND p.categoria_id = %s"
+            params.append(category_id)
+            
+        if is_offer is not None:
+            query_base += " AND p.is_offer = %s"
+            params.append(is_offer)
+            
+        if active is not None:
+            query_base += " AND p.activo = %s"
+            params.append(active)
+            
+        if stock_status:
+            if stock_status == 'in_stock':
+                query_base += " AND p.stock > 0"
+            elif stock_status == 'low_stock':
+                query_base += " AND p.stock > 0 AND p.stock <= 2"
+            elif stock_status == 'out_of_stock':
+                query_base += " AND p.stock = 0"
+
+        query_base += " ORDER BY p.activo DESC, p.codigo LIMIT 200"
         
+        cur.execute(query_base, tuple(params))
         products = cur.fetchall()
         
         # Calculate automatic discounts
@@ -116,6 +142,7 @@ def get_products(q: Optional[str] = None):
         return products
     finally:
         conn.close()
+
 
 @router.get("/products/next-code")
 def get_next_code(is_madre: int = 0):
