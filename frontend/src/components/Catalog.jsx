@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   ShoppingBag,
@@ -13,7 +13,9 @@ import {
   Facebook,
   Phone,
   X,
-  Menu
+  Menu,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -58,6 +60,131 @@ function Catalog() {
         <span className="relative font-black text-black text-center leading-none uppercase tracking-tighter">
           {percentage}%<br />OFF
         </span>
+      </div>
+    );
+  };
+
+  const InteractiveProductImage = ({ src, alt, discountPercentage }) => {
+    const [zoom, setZoom] = useState(1);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const containerRef = useRef(null);
+
+    const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.5, 4));
+    const handleZoomOut = () => {
+      setZoom(prev => {
+        const next = Math.max(prev - 0.5, 1);
+        if (next === 1) setOffset({ x: 0, y: 0 });
+        return next;
+      });
+    };
+    const handleReset = () => {
+      setZoom(1);
+      setOffset({ x: 0, y: 0 });
+    };
+
+    useEffect(() => {
+      if (containerRef.current && zoom > 1) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        const maxX = (width * zoom - width) / 2;
+        const maxY = (height * zoom - height) / 2;
+
+        setOffset(prev => ({
+          x: Math.min(Math.max(prev.x, -maxX), maxX),
+          y: Math.min(Math.max(prev.y, -maxY), maxY)
+        }));
+      }
+    }, [zoom]);
+
+    const onMouseDown = (e) => {
+      if (zoom <= 1) return;
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    };
+
+    const stopDragging = () => setIsDragging(false);
+
+    const onMouseMove = (e) => {
+      if (!isDragging || zoom <= 1 || !containerRef.current) return;
+      e.preventDefault();
+
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+
+      const maxX = (width * zoom - width) / 2;
+      const maxY = (height * zoom - height) / 2;
+
+      setOffset({
+        x: Math.min(Math.max(newX, -maxX), maxX),
+        y: Math.min(Math.max(newY, -maxY), maxY)
+      });
+    };
+
+    return (
+      <div
+        ref={containerRef}
+        className={`w-full h-full relative overflow-hidden select-none transition-all duration-300 ${zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'}`}
+        onMouseDown={onMouseDown}
+        onMouseUp={stopDragging}
+        onMouseLeave={stopDragging}
+        onMouseMove={onMouseMove}
+        onClick={() => zoom === 1 && setZoom(2)}
+        onDoubleClick={() => zoom === 1 ? setZoom(2) : handleReset()}
+      >
+        {/* Blur Background to fill empty spaces - High Contrast & Vibrancy */}
+        <div className="absolute inset-0 z-0 bg-black/20 overflow-hidden">
+          <img
+            src={src}
+            alt=""
+            className="w-full h-full object-cover blur-xl opacity-70 scale-150 saturate-200 contrast-125 transition-opacity duration-700"
+          />
+        </div>
+
+        <div
+          className="w-full h-full flex items-center justify-center transition-transform duration-200 ease-out relative z-10"
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+          }}
+        >
+          <img
+            src={src}
+            alt={alt}
+            draggable="false"
+            className="w-full h-full object-contain"
+          />
+        </div>
+
+        {/* Zoom Controls Overlay */}
+        <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-white/90 backdrop-blur-md p-2 rounded-2xl border border-black/5 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
+            className="p-2.5 text-black hover:bg-black/5 rounded-xl transition-all"
+            title="Alejar"
+          >
+            <Minus size={16} />
+          </button>
+          <div className="w-px h-4 bg-black/10 mx-1"></div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleReset(); }}
+            className="px-3 py-1.5 text-[10px] font-black text-[#eab308] uppercase tracking-widest hover:bg-black/5 rounded-lg transition-all"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <div className="w-px h-4 bg-black/10 mx-1"></div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
+            className="p-2.5 text-black hover:bg-black/5 rounded-xl transition-all"
+            title="Acercar"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+
+        <div className="absolute bottom-10 left-10 pointer-events-none z-20">
+          <DiscountBadge percentage={discountPercentage} size="lg" />
+        </div>
       </div>
     );
   };
@@ -210,7 +337,7 @@ function Catalog() {
             <span className="text-[#eab308]">DEFINE TU CLASE.</span>
           </h1>
           <p className="text-lg md:text-xl text-[#d6d3d1] mb-12 max-w-2xl mx-auto font-medium leading-relaxed animate-in fade-in slide-in-from-bottom duration-1000 delay-200">
-            Descubre nuestra exclusiva selección de salas y recámaras diseñadas para los gustos más exigentes.
+            Descubre nuestra exclusiva selección de salas y comedores diseñados para los gustos más exigentes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom duration-1000 delay-300">
             <a href="#catalogo" className="w-full sm:w-auto px-10 py-5 bg-[#eab308] text-black font-black uppercase tracking-widest text-sm rounded-2xl hover:bg-white hover:scale-105 transition-all shadow-2xl shadow-[#eab308]/20 group">
@@ -489,7 +616,7 @@ function Catalog() {
                 En **LP Mueblería de Jalisco**, abrimos nuestras puertas para traerte lo último en tendencias de diseño de interiores. Nuestra pasión es transformar espacios cotidianos en santuarios de confort.
               </p>
               <p>
-                Iniciamos este camino con una misión simple: ofrecer piezas con diseños vanguardistas y calidad insuperable. Cada sala, recámara y comedor de nuestra colección inaugural ha sido seleccionada cuidadosamente.
+                Iniciamos este camino con una misión simple: ofrecer piezas con diseños vanguardistas y calidad insuperable. Cada sala y comedor de nuestra colección inaugural ha sido seleccionada cuidadosamente.
               </p>
               <ul className="grid grid-cols-2 gap-6 pt-8 text-white font-black uppercase tracking-widest text-[10px]">
                 <li className="flex items-center gap-3"><div className="w-2 h-2 bg-[#eab308] rounded-full" /> Calidad de Exportación</li>
@@ -576,17 +703,18 @@ function Catalog() {
             </button>
 
             {/* Image Side */}
-            <div className="w-full md:w-1/2 bg-[#f5f5f4] overflow-hidden">
+            <div className="w-full md:w-1/2 bg-[#f5f5f4] overflow-hidden group">
               {selectedProduct.imagen_url ? (
-                <img src={selectedProduct.imagen_url} className="w-full h-full object-cover" alt={selectedProduct.modelo} />
+                <InteractiveProductImage 
+                  src={selectedProduct.imagen_url} 
+                  alt={selectedProduct.modelo} 
+                  discountPercentage={calculateDiscount(selectedProduct.precio_etiqueta, selectedProduct.precio_lista)}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center opacity-10">
                   <ShoppingBag size={120} />
                 </div>
               )}
-              <div className="absolute bottom-10 left-10">
-                <DiscountBadge percentage={calculateDiscount(selectedProduct.precio_etiqueta, selectedProduct.precio_lista)} size="lg" />
-              </div>
             </div>
 
             {/* Content Side */}
@@ -876,7 +1004,7 @@ function Catalog() {
             <ul className="space-y-4 text-sm font-bold text-[#a8a29e] uppercase tracking-widest">
               <li><a href="#" className="hover:text-white transition-colors">Inicio</a></li>
               <li><a href="#catalogo" className="hover:text-white transition-colors">Nuestro Catálogo</a></li>
-              <li><button onClick={() => { setActiveCategory('Recamara'); window.location.href = '#catalogo' }} className="hover:text-white transition-colors">Recámaras</button></li>
+              <li><button onClick={() => { setActiveCategory('Comedor'); window.location.href = '#catalogo' }} className="hover:text-white transition-colors">Comedores</button></li>
               <li><button onClick={() => { setActiveCategory('Sala'); window.location.href = '#catalogo' }} className="hover:text-white transition-colors">Salas Luxury</button></li>
             </ul>
           </div>
