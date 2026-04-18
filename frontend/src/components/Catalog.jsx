@@ -782,7 +782,7 @@ function Catalog() {
                     )}
 
                     {activeTab === 'dimensiones' && (
-                      <div className="bg-[#f5f5f4] p-8 rounded-[2rem] border border-black/5">
+                      <div className="bg-[#f5f5f4] p-8 rounded-4xl border border-black/5">
                         <h5 className="text-xs font-black uppercase tracking-[3px] mb-4 text-[#a8a29e]">Medidas Detalladas</h5>
                         <p className="text-2xl font-black uppercase tracking-tighter">
                           {selectedProduct.dimensiones || "Consulte dimensiones específicas con un asesor."}
