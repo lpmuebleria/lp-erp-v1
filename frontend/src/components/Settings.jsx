@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign, Database, Download, RefreshCcw } from 'lucide-react';
+import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign, Database, Download, RefreshCcw, Shield, AlertCircle } from 'lucide-react';
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
@@ -24,6 +24,7 @@ function Settings({ isSuperadmin }) {
     const [colors, setColors] = useState([]);
     const [categories, setCategories] = useState([]);
     const [backups, setBackups] = useState([]);
+    const [deleteOrderPassword, setDeleteOrderPassword] = useState("Secreto123*");
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -56,6 +57,15 @@ function Settings({ isSuperadmin }) {
             setFabrics(fabRes.data);
             setColors(colRes.data);
             setCategories(catRes.data);
+
+            if (isSuperadmin) {
+                try {
+                    const secRes = await axios.get(`${API_URL}/config/security`, { withCredentials: true });
+                    setDeleteOrderPassword(secRes.data.delete_order_password);
+                } catch (secErr) {
+                    console.error("Error fetching security config:", secErr);
+                }
+            }
         } catch (err) {
             console.error("Error fetching configs:", err);
         } finally {
@@ -99,6 +109,8 @@ function Settings({ isSuperadmin }) {
                 ]);
             } else if (activeTab === 'costos') {
                 await axios.put(`${API_URL}/config/costs`, costs, { withCredentials: true });
+            } else if (activeTab === 'personal' && isSuperadmin) {
+                await axios.put(`${API_URL}/config/security`, { delete_order_password: deleteOrderPassword }, { withCredentials: true });
             }
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
@@ -328,7 +340,35 @@ function Settings({ isSuperadmin }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Users and Roles Management Section */}
                 {activeTab === 'personal' && (
-                    <UsersAdmin />
+                    <>
+                        <UsersAdmin />
+                        {isSuperadmin && (
+                            <div className="lg:col-span-2 mt-8">
+                                <section className="bg-premium-slate/50 border border-red-500/10 rounded-3xl p-6 backdrop-blur-sm">
+                                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                        <Shield className="text-red-400" size={24} />
+                                        Seguridad Operativa
+                                    </h2>
+                                    <div className="max-w-md">
+                                        <label className="text-xs text-slate-400 block mb-2 font-black uppercase tracking-widest">Contraseña Maestra para Eliminación</label>
+                                        <div className="flex gap-4">
+                                            <input 
+                                                type="password" 
+                                                value={deleteOrderPassword} 
+                                                onChange={(e) => setDeleteOrderPassword(e.target.value)}
+                                                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-red-400 outline-none tracking-widest"
+                                                placeholder="••••••••"
+                                            />
+                                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2 flex items-center gap-2">
+                                                <AlertCircle size={16} className="text-red-400 shrink-0" />
+                                                <span className="text-[10px] text-red-300 font-bold leading-tight">Clave crítica para borrar registros físicos.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        )}
+                    </>
                 )}
                 {/* Shipping Costs Section */}
                 {activeTab === 'envios' && (

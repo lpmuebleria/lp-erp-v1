@@ -587,3 +587,87 @@ def generate_delivery_pdf(order_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+from pydantic import BaseModel
+import json
+
+class DeleteOrderRequest(BaseModel):
+    password: str
+
+@router.delete("/orders/{order_id}")
+def delete_order(request: Request, order_id: int, data: DeleteOrderRequest):
+    # Retrieve user and check permissions
+    user_id = request.headers.get("x-user-id") or request.session.get("user")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="No autenticado")
+        
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        # 1. Verify User has 'delete_orders' sub-permission or is superadmin
+        cur.execute("""
+            SELECT r.is_superadmin, rp.sub_permissions
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN role_permissions rp ON r.id = rp.role_id AND rp.modulo = 'orders'
+            WHERE u.username = %s
+        """, (user_id,))
+        perms = cur.fetchone()
+        
+        if not perms:
+            raise HTTPException(status_code=403, detail="Usuario no encontrado")
+            
+        is_super = perms["is_superadmin"]
+        can_delete = False
+        
+        if is_super:
+            can_delete = True
+        elif perms["sub_permissions"]:
+            try:
+                sub_perms = json.loads(perms["sub_permissions"])
+                can_delete = sub_perms.get("delete_orders", False)
+            except:
+                pass
+                
+        if not can_delete:
+            raise HTTPException(status_code=403, detail="No tienes permisos para eliminar pedidos")
+            
+        # 2. Verify Password matches 'delete_order_password' in settings
+        cur.execute("SELECT v FROM settings WHERE k='delete_order_password'")
+        row = cur.fetchone()
+        correct_password = row['v'] if row else "Secreto123*"
+        
+        if data.password != correct_password:
+            raise HTTPException(status_code=403, detail="Contraseña de seguridad incorrecta")
+            
+        # 3. Proceed with Hard Delete
+        # Verify order exists
+        cur.execute("SELECT folio FROM orders WHERE id=%s", (order_id,))
+        o = cur.fetchone()
+        if not o:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+            
+        folio = o["folio"]
+        
+        cur.execute("DELETE FROM order_notes WHERE order_id=%s", (order_id,))
+        cur.execute("DELETE FROM payments WHERE order_id=%s", (order_id,))
+        # Checking if 'deliveries' exists or if we should just safely catch
+        try:
+            cur.execute("DELETE FROM deliveries WHERE order_id=%s", (order_id,))
+        except:
+            pass # deliveries table might not exist in some MVP versions, but it's safe to try
+            
+        cur.execute("DELETE FROM orders WHERE id=%s", (order_id,))
+        
+        conn.commit()
+        
+        # Log definitively to file system as it's a sensitive hard-delete
+        from logger_config import logger
+        logger.warning(f"CRITICAL: User '{user_id}' hard-deleted order '{folio}' (ID: {order_id})")
+        
+        return {"status": "success", "message": "Pedido eliminado exitosamente"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

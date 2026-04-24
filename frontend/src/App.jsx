@@ -278,14 +278,14 @@ function ERPContainer() {
           {activeTab === 'sales' && canAccess('sales') && <Sales vendedor={auth.user} />}
           {activeTab === 'orders' && canAccess('orders') && (
             selectedOrderId
-              ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} onBack={() => setSelectedOrderId(null)} />
+              ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} permissions={auth.permissions} onBack={() => setSelectedOrderId(null)} />
               : <Orders role={auth.role} onSelectOrder={(id) => setSelectedOrderId(id)} />
           )}
           {activeTab === 'agenda' && canAccess('agenda') && <Agenda />}
           {activeTab === 'quotes' && canAccess('quotes') && <Quotes />}
           {activeTab === 'apartados' && canAccess('apartados') && (
             selectedOrderId
-              ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} onBack={() => setSelectedOrderId(null)} />
+              ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} permissions={auth.permissions} onBack={() => setSelectedOrderId(null)} />
               : <Layaways onSelectOrder={(id) => setSelectedOrderId(id)} />
           )}
           {activeTab === 'payments' && canAccess('payments') && <Payments />}

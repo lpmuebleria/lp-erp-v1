@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 import {
     ArrowLeft,
     CreditCard,
@@ -24,7 +25,8 @@ import {
     ChevronUp,
     AlertTriangle,
     XCircle,
-    Calculator
+    Calculator,
+    Trash2
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
@@ -76,7 +78,7 @@ const CollapsibleCard = ({ id, title, icon: Icon, children, preview, expandedSec
     );
 };
 
-function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
+function OrderDetails({ orderId, role, isSuperadmin, permissions, onBack }) {
     const [order, setOrder] = useState(null);
     const [payments, setPayments] = useState([]);
     const [lines, setLines] = useState([]);
@@ -85,6 +87,11 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
     const [updating, setUpdating] = useState(false);
     const [showNotesModal, setShowNotesModal] = useState(false);
     const [noteInput, setNoteInput] = useState('');
+
+    // Delete Order States
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deletePass, setDeletePass] = useState('');
+    const [deleting, setDeleting] = useState(false);
 
     // Cancel Payment States
     const [showCancelModal, setShowCancelModal] = useState(false);
@@ -146,7 +153,7 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
 
     const handleUpdate = async () => {
         if (editForm.estatus === 'ENTREGADO' && order.saldo > 0) {
-            alert("No se puede marcar como ENTREGADO porque el pedido aún no está liquidado.");
+            toast.error("No se puede marcar como ENTREGADO porque el pedido aún no está liquidado.");
             return;
         }
         setUpdating(true);
@@ -155,9 +162,9 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                 headers: { 'X-Role': role }
             });
             fetchDetails();
-            alert(isAdmin ? "Configuración actualizada" : "Solicitud enviada");
+            toast.success(isAdmin ? "Configuración actualizada" : "Solicitud enviada");
         } catch (err) {
-            alert("Error al actualizar");
+            toast.error("Error al actualizar");
         } finally {
             setUpdating(false);
         }
@@ -173,9 +180,9 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
             });
             setNoteInput('');
             await fetchDetails();
-            alert("¡Nota guardada en el historial!");
+            toast.success("¡Nota guardada en el historial!");
         } catch (err) {
-            alert("Error al guardar nota");
+            toast.error("Error al guardar nota");
         } finally {
             setUpdating(false);
         }
@@ -186,9 +193,9 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
         try {
             await axios.post(`${API_URL}/orders/${orderId}/authorize`);
             fetchDetails();
-            alert("Cambio de estatus autorizado");
+            toast.success("Cambio de estatus autorizado");
         } catch (err) {
-            alert("Error al autorizar");
+            toast.error("Error al autorizar");
         } finally {
             setUpdating(false);
         }
@@ -207,7 +214,7 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                 window.open(`${API_URL}/payments/${res.data.payment_id}/pdf`, '_blank');
             }
         } catch (err) {
-            alert("Error al procesar pago");
+            toast.error("Error al procesar pago");
         } finally {
             setPaying(false);
         }
@@ -215,7 +222,7 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
 
     const handleCancelPayment = async () => {
         if (!cancelReason.trim()) {
-            alert("El motivo de cancelación es obligatorio.");
+            toast.error("El motivo de cancelación es obligatorio.");
             return;
         }
         setIsCancelling(true);
@@ -227,13 +234,31 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
             setCancelReason('');
             setCancelPaymentId(null);
             fetchDetails();
-            alert("Pago anulado exitosamente.");
+            toast.success("Pago anulado exitosamente.");
         } catch (err) {
-            alert(err.response?.data?.detail || "Error al anular pago");
+            toast.error(err.response?.data?.detail || "Error al anular pago");
         } finally {
             setIsCancelling(false);
         }
     };
+
+    const handleDeleteOrder = async () => {
+        if (!deletePass) return;
+        setDeleting(true);
+        try {
+            await axios.delete(`${API_URL}/orders/${orderId}`, {
+                data: { password: deletePass }
+            });
+            toast.success("Pedido eliminado permanentemente.");
+            onBack();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || "Error al eliminar pedido. Verifica la contraseña.");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const canDelete = isSuperadmin || permissions?.orders?.sub_permissions?.delete_orders === true;
 
     if (loading) return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-premium-gold" size={40} /></div>;
 
@@ -380,6 +405,16 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                     <Truck size={16} />
                                     <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Entrega</span>
                                 </button>
+                                {canDelete && (
+                                    <button
+                                        onClick={() => setShowDeleteModal(true)}
+                                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 p-3 rounded-2xl transition-all border border-red-500/20 shadow-lg flex items-center space-x-2"
+                                        title="Eliminar Pedido (Físico)"
+                                    >
+                                        <Trash2 size={16} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Eliminar</span>
+                                    </button>
+                                )}
                                 <div className={`px-6 py-3 rounded-2xl text-xs font-black tracking-[0.2em] uppercase border ${order.estatus === 'ENTREGADO' ? 'border-green-500/30 text-green-400 bg-green-500/5' :
                                     order.estatus === 'LIQUIDADO' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' :
                                         'border-premium-gold/30 text-premium-gold bg-premium-gold/5 shadow-[0_0_20px_rgba(234,179,8,0.1)]'
@@ -552,9 +587,9 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                                                     setUpdating(true);
                                                     await axios.post(`${API_URL}/orders/${orderId}/penalty`);
                                                     await fetchDetails();
-                                                    alert("Multa aplicada correctamente.");
+                                                    toast.success("Multa aplicada correctamente.");
                                                 } catch (err) {
-                                                    alert(err.response?.data?.detail || "Error al aplicar multa.");
+                                                    toast.error(err.response?.data?.detail || "Error al aplicar multa.");
                                                 } finally {
                                                     setUpdating(false);
                                                 }
@@ -840,10 +875,60 @@ function OrderDetails({ orderId, role, isSuperadmin, onBack }) {
                     </div>
                 </div>
             )}
+
+            {/* DELETE ORDER MODAL */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={() => !deleting && setShowDeleteModal(false)} />
+                    <div className="bg-premium-slate w-full max-w-md rounded-[3rem] border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.2)] relative z-10 p-10 flex flex-col animate-in zoom-in-95 duration-300">
+                        <div className="flex flex-col items-center text-center mb-8">
+                            <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center border border-red-500/20 mb-6 shadow-2xl shadow-red-500/5">
+                                <Trash2 className="text-red-500" size={40} />
+                            </div>
+                            <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Eliminar Pedido</h3>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest bg-red-500/5 px-4 py-1 rounded-full border border-red-500/10">Acción Irreversible</p>
+                        </div>
+
+                        <p className="text-sm text-slate-400 text-center mb-8 leading-relaxed">
+                            Estás a punto de borrar físicamente el pedido <strong className="text-white">{order.folio}</strong> y todos sus abonos del sistema. Ingresa la contraseña maestra para confirmar.
+                        </p>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] text-slate-500 uppercase font-black tracking-widest block pl-2">Contraseña de Seguridad</label>
+                                <input
+                                    type="password"
+                                    value={deletePass}
+                                    onChange={(e) => setDeletePass(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-center text-lg text-white font-black tracking-[0.5em] focus:outline-none focus:border-red-500 transition-all placeholder:text-slate-800 placeholder:tracking-normal"
+                                    placeholder="••••••••"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    disabled={deleting}
+                                    className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 font-black py-4 rounded-2xl transition-all"
+                                >
+                                    CANCELAR
+                                </button>
+                                <button
+                                    onClick={handleDeleteOrder}
+                                    disabled={deleting || !deletePass}
+                                    className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-red-600/20 active:scale-95 transition-all disabled:opacity-20 flex items-center justify-center gap-2"
+                                >
+                                    {deleting ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
+                                    CONFIRMAR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-
 export default OrderDetails;
-
