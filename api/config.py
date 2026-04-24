@@ -504,3 +504,37 @@ def delete_category(cat_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+class SecurityConfig(BaseModel):
+    delete_order_password: str
+
+@router.get("/config/security", response_model=SecurityConfig)
+def get_security_config(request: Request):
+    require_superadmin(request)
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT v FROM settings WHERE k='delete_order_password'")
+        row = cur.fetchone()
+        val = row['v'] if row else "Secreto123*"
+        return {"delete_order_password": val}
+    finally:
+        conn.close()
+
+@router.put("/config/security")
+def update_security_config(request: Request, data: SecurityConfig):
+    require_superadmin(request)
+    conn = db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO settings (k, v) VALUES ('delete_order_password', %s)
+            ON DUPLICATE KEY UPDATE v=%s
+        """, (data.delete_order_password, data.delete_order_password))
+        conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

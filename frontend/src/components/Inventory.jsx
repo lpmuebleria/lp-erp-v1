@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, FileText, CheckCircle2, Eye, EyeOff, MessageCircle, Star, Trash2, X, Check, AlertTriangle, Sparkles, Zap, Save, Pencil, RotateCcw, Filter, Grid, List, ChevronDown, Rocket } from 'lucide-react';
+import { Search, Loader2, PackageOpen, Tag, Box, DollarSign, Image as ImageIcon, Upload, Edit2, Plus, Minus, FileText, CheckCircle2, Eye, EyeOff, MessageCircle, Star, Trash2, X, Check, AlertTriangle, Sparkles, Zap, Save, Pencil, RotateCcw, Filter, Grid, List, ChevronDown, Rocket } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { calculateRounding, getRoundingAdjustment } from '../utils/rounding';
 
@@ -753,7 +753,7 @@ function ProductQuickView({ product, onClose, interestPct }) {
                                 className="p-2.5 text-white hover:bg-white/10 rounded-xl transition-all"
                                 title="Alejar"
                             >
-                                <X size={16} className="rotate-45" />
+                                <Minus size={16} />
                             </button>
                             <div className="w-px h-4 bg-white/10 mx-1"></div>
                             <button

@@ -43,7 +43,13 @@ function UsersAdmin() {
             ]
         },
         { id: 'sales', label: 'Ventas de Mostrador' },
-        { id: 'orders', label: 'Gestión de Pedidos' },
+        { 
+            id: 'orders', 
+            label: 'Gestión de Pedidos',
+            sub: [
+                { id: 'delete_orders', label: 'Eliminar Pedidos (Requiere Pass)' }
+            ]
+        },
         { id: 'quotes', label: 'Cotizaciones' },
         { id: 'apartados', label: 'Apartados' },
         { id: 'payments', label: 'Caja y Pagos' },
