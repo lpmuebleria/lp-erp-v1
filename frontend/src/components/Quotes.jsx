@@ -286,6 +286,7 @@ function ConvertModal({ quote, onClose, onConverted }) {
                                     <option value="transferencia">Transferencia</option>
                                     <option value="debito">Débito</option>
                                     <option value="credito">Crédito</option>
+                                    <option value="vale todo">Vale Todo</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
