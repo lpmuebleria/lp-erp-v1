@@ -301,6 +301,7 @@ function ConceptDetails({ concepto, onBack }) {
                                     <option value="transferencia" className="text-black">Transferencia</option>
                                     <option value="tarjeta_credito" className="text-black">Tarjeta de Crédito</option>
                                     <option value="tarjeta_debito" className="text-black">Tarjeta de Débito</option>
+                                    <option value="vale todo" className="text-black">Vale Todo</option>
                                 </select>
                             </div>
 

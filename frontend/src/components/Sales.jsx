@@ -1025,6 +1025,7 @@ function Sales({ vendedor }) {
                                                                 <option value="transferencia">TRANSFERENCIA</option>
                                                                 <option value="tarjeta de debito">T. DÉBITO</option>
                                                                 <option value="tarjeta de crédito">T. CRÉDITO (BÁSICA)</option>
+                                                                <option value="vale todo">VALE TODO</option>
                                                             </>
                                                         )}
                                                         {hasMsiItem && status !== 'APARTADO' && (
