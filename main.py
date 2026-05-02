@@ -92,7 +92,7 @@ def startup_event():
 
 
 from fastapi.staticfiles import StaticFiles
-from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping, catalog, reviews, reports, backups
+from api import auth, products, orders, quotes, dashboard, payments, agenda, config, notifications, promotions, expenses, roles, shipping, catalog, reviews, reports, backups, hr
 
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(products.router, prefix="/api", tags=["Products"])
@@ -111,6 +111,7 @@ app.include_router(catalog.router, prefix="/api", tags=["Catalog"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
 app.include_router(backups.router, prefix="/api", tags=["Backups"])
+app.include_router(hr.router, prefix="/api", tags=["HR"])
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
