@@ -54,6 +54,7 @@ function UsersAdmin() {
         { id: 'apartados', label: 'Apartados' },
         { id: 'payments', label: 'Caja y Pagos' },
         { id: 'agenda', label: 'Agenda y Logística' },
+        { id: 'hr', label: 'Recursos Humanos' },
         { id: 'settings', label: 'Configuración Avanzada' }
     ];
 
