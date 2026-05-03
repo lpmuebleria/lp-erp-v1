@@ -225,6 +225,10 @@ class UserCreate(BaseModel):
     edad: Optional[int] = None
     cumpleanos: Optional[str] = None
     rfc: Optional[str] = None
+    photo_url: Optional[str] = None
+    sueldo_base: Optional[float] = 0.0
+    fecha_ingreso: Optional[str] = None
+    puesto: Optional[str] = None
     
 class UserUpdate(BaseModel):
     password: Optional[str] = None
@@ -233,6 +237,10 @@ class UserUpdate(BaseModel):
     edad: Optional[int] = None
     cumpleanos: Optional[str] = None
     rfc: Optional[str] = None
+    photo_url: Optional[str] = None
+    sueldo_base: Optional[float] = None
+    fecha_ingreso: Optional[str] = None
+    puesto: Optional[str] = None
 
 class ShippingCostCreate(BaseModel):
     cp: str
@@ -244,3 +252,39 @@ class ShippingCostUpdate(BaseModel):
     colonia: Optional[str] = None
     municipio: Optional[str] = None
     zona: Optional[str] = None
+
+# --- HR Schemas ---
+class HRAsistenciaCreate(BaseModel):
+    user_id: str
+    semana: str
+    lunes: str = 'ASISTENCIA'
+    martes: str = 'ASISTENCIA'
+    miercoles: str = 'ASISTENCIA'
+    jueves: str = 'ASISTENCIA'
+    viernes: str = 'ASISTENCIA'
+    sabado: str = 'DESCANSO'
+    domingo: str = 'DESCANSO'
+    horas_extras: float = 0.0
+
+class HRPrestamoCreate(BaseModel):
+    user_id: str
+    monto: float
+    motivo: Optional[str] = None
+    fecha: str
+
+class HRNominaCreate(BaseModel):
+    user_id: str
+    semana: str
+    sueldo_base: float
+    pago_horas_extras: float = 0.0
+    deduccion_prestamos: float = 0.0
+    deduccion_faltas: float = 0.0
+    total_pagado: float
+    fecha_pago: str
+
+class HRComisionCreate(BaseModel):
+    user_id: str
+    mes: str
+    monto_bono: float = 0.0
+    monto_comision: float = 0.0
+    fecha_pago: str

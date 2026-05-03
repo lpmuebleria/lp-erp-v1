@@ -282,6 +282,55 @@ def init_db():
                 municipio VARCHAR(100) NOT NULL,
                 zona_name VARCHAR(100) NOT NULL,
                 FOREIGN KEY (zona_name) REFERENCES shipping_zones(name) ON UPDATE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS hr_asistencia(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                semana VARCHAR(50) NOT NULL,
+                lunes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                martes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                miercoles VARCHAR(20) DEFAULT 'ASISTENCIA',
+                jueves VARCHAR(20) DEFAULT 'ASISTENCIA',
+                viernes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                sabado VARCHAR(20) DEFAULT 'DESCANSO',
+                domingo VARCHAR(20) DEFAULT 'DESCANSO',
+                horas_extras DECIMAL(10,2) DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS hr_prestamos(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                monto DECIMAL(15,2) NOT NULL,
+                motivo TEXT,
+                fecha DATE NOT NULL,
+                descontado INT DEFAULT 0,
+                nomina_id INT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS hr_nomina(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                semana VARCHAR(50) NOT NULL,
+                sueldo_base DECIMAL(15,2) NOT NULL,
+                pago_horas_extras DECIMAL(15,2) DEFAULT 0,
+                deduccion_prestamos DECIMAL(15,2) DEFAULT 0,
+                deduccion_faltas DECIMAL(15,2) DEFAULT 0,
+                total_pagado DECIMAL(15,2) NOT NULL,
+                fecha_pago DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS hr_comisiones(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                mes VARCHAR(50) NOT NULL,
+                monto_bono DECIMAL(15,2) DEFAULT 0,
+                monto_comision DECIMAL(15,2) DEFAULT 0,
+                fecha_pago DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
             )"""
         ]
         for sql in tables:
@@ -352,7 +401,7 @@ def init_db():
 
         conn.commit()
     except Exception as e:
-        print(f"❌ Error during database initialization: {e}")
+        logger.error(f"Error during database initialization: {e}")
         if conn:
             conn.rollback()
         raise
@@ -497,8 +546,6 @@ def _migrate(cur):
     if not col_exists(cur, "quote_lines", "promo_name"):
         cur.execute("ALTER TABLE quote_lines ADD COLUMN promo_name VARCHAR(255) NULL DEFAULT NULL")
 
-
-
     # products
     if not col_exists(cur, "products", "is_madre"):
         cur.execute("ALTER TABLE products ADD COLUMN is_madre INT NOT NULL DEFAULT 0")
@@ -546,6 +593,16 @@ def _migrate(cur):
         cur.execute("ALTER TABLE users ADD COLUMN cumpleanos DATE")
     if not col_exists(cur, "users", "rfc"):
         cur.execute("ALTER TABLE users ADD COLUMN rfc VARCHAR(20)")
+    
+    # RH fields on users
+    if not col_exists(cur, "users", "photo_url"):
+        cur.execute("ALTER TABLE users ADD COLUMN photo_url VARCHAR(1000)")
+    if not col_exists(cur, "users", "sueldo_base"):
+        cur.execute("ALTER TABLE users ADD COLUMN sueldo_base DECIMAL(15,2) DEFAULT 0")
+    if not col_exists(cur, "users", "fecha_ingreso"):
+        cur.execute("ALTER TABLE users ADD COLUMN fecha_ingreso DATE")
+    if not col_exists(cur, "users", "puesto"):
+        cur.execute("ALTER TABLE users ADD COLUMN puesto VARCHAR(255)")
 
     # new tables
     cur.execute("SHOW TABLES LIKE 'order_notes'")
@@ -584,6 +641,76 @@ def _migrate(cur):
                 name VARCHAR(255) NOT NULL,
                 discount_pct DECIMAL(5,2) NOT NULL,
                 is_active INT NOT NULL DEFAULT 1
+            )
+        """)
+
+    # HR Tables migration check
+    cur.execute("SHOW TABLES LIKE 'hr_asistencia'")
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE hr_asistencia(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                semana VARCHAR(50) NOT NULL,
+                lunes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                martes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                miercoles VARCHAR(20) DEFAULT 'ASISTENCIA',
+                jueves VARCHAR(20) DEFAULT 'ASISTENCIA',
+                viernes VARCHAR(20) DEFAULT 'ASISTENCIA',
+                sabado VARCHAR(20) DEFAULT 'DESCANSO',
+                domingo VARCHAR(20) DEFAULT 'DESCANSO',
+                horas_extras DECIMAL(10,2) DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )
+        """)
+        
+    cur.execute("SHOW TABLES LIKE 'hr_prestamos'")
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE hr_prestamos(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                monto DECIMAL(15,2) NOT NULL,
+                motivo TEXT,
+                fecha DATE NOT NULL,
+                descontado INT DEFAULT 0,
+                nomina_id INT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )
+        """)
+
+    cur.execute("SHOW TABLES LIKE 'hr_nomina'")
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE hr_nomina(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                semana VARCHAR(50) NOT NULL,
+                sueldo_base DECIMAL(15,2) NOT NULL,
+                pago_horas_extras DECIMAL(15,2) DEFAULT 0,
+                deduccion_prestamos DECIMAL(15,2) DEFAULT 0,
+                deduccion_faltas DECIMAL(15,2) DEFAULT 0,
+                total_pagado DECIMAL(15,2) NOT NULL,
+                fecha_pago DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )
+        """)
+
+    cur.execute("SHOW TABLES LIKE 'hr_comisiones'")
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE hr_comisiones(
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                mes VARCHAR(50) NOT NULL,
+                monto_bono DECIMAL(15,2) DEFAULT 0,
+                monto_comision DECIMAL(15,2) DEFAULT 0,
+                fecha_pago DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
             )
         """)
 
