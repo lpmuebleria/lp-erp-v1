@@ -540,6 +540,17 @@ def generate_quote_pdf(quote_id: int, is_order: str = "false"):
                 "factura_forma_pago": order_info.get("factura_forma_pago") or ""
             }
 
+            subtotal_after = sum((float(l.get("precio_unit") or 0) * float(l.get("cantidad") or 1)) for l in lines)
+            desc_val = float(parent_quote.get("descuento_global_val") or 0)
+            subtotal_before = subtotal_after + desc_val
+            
+            # Use line-level applied_promo_pct if available (to match UI exactly), otherwise fallback to math
+            max_promo_pct = max((float(l.get("applied_promo_pct") or 0) for l in lines), default=0)
+            if max_promo_pct > 0:
+                context["descuento_global_pct"] = round(max_promo_pct)
+            else:
+                context["descuento_global_pct"] = round((desc_val / subtotal_before) * 100) if subtotal_before > 0 else 0
+
             if tipo == "APARTADO":
                 try:
                     # Handle string dates (e.g. from DB) or datetime objects

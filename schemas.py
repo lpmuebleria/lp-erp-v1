@@ -97,6 +97,7 @@ class PromotionBase(BaseModel):
     type: str = "global"  # 'global', 'automatic', 'coupon'
     code: Optional[str] = None
     category_ids: List[int] = []
+    target_margin: Optional[str] = None
 
 class Promotion(PromotionBase):
     id: int
