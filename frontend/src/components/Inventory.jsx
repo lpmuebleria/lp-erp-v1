@@ -1218,14 +1218,15 @@ function ProductModal({ onClose, onSave, product }) {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, fRes, ivaRes, fabRes, colRes, catRes] = await Promise.all([
+            const [uRes, cRes, fRes, ivaRes, fabRes, colRes, catRes, psRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`),
                 axios.get(`${API_URL}/config/costs`),
                 axios.get(`${API_URL}/config/flete`),
                 axios.get(`${API_URL}/config/iva`),
                 axios.get(`${API_URL}/config/fabrics`),
                 axios.get(`${API_URL}/config/colors`),
-                axios.get(`${API_URL}/config/categories`)
+                axios.get(`${API_URL}/config/categories`),
+                axios.get(`${API_URL}/config/pricing-strategy`)
             ]);
             setConfigs({
                 utilities: uRes.data,
@@ -1234,7 +1235,8 @@ function ProductModal({ onClose, onSave, product }) {
                 ivaAutomatico: ivaRes.data.iva_automatico,
                 fabrics: fabRes.data,
                 colors: colRes.data,
-                categories: catRes.data
+                categories: catRes.data,
+                pricingStrategy: psRes.data
             });
         } catch (err) {
             console.error("Error fetching configs for modal:", err);
@@ -1251,8 +1253,29 @@ function ProductModal({ onClose, onSave, product }) {
             const sumFixed = costConfig.maniobras + costConfig.empaque + costConfig.comision + costConfig.garantias;
             const subtotal = form.costo_fabrica + fleteGlobal;
 
-            // Requerimiento Muebleria: (Costo + Flete) * Margen + Fijos
-            let rawPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+            let useNewFormula = false;
+            if (configs.pricingStrategy?.enabled && form.categoria_id) {
+                if (configs.pricingStrategy.categories.includes(parseInt(form.categoria_id))) {
+                    useNewFormula = true;
+                }
+            }
+
+            let rawPrice = 0;
+            if (useNewFormula) {
+                // New formula: (Costo + Flete) / (1 - Margen) + Fijos
+                // where Margen = Multiplicador - 1
+                const margen = utilityConfig.multiplicador - 1.0;
+                const divisor = 1.0 - margen;
+                if (divisor <= 0) {
+                    rawPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+                } else {
+                    rawPrice = (subtotal / divisor) + sumFixed;
+                }
+            } else {
+                // Old formula: (Costo + Flete) * Multiplicador + Fijos
+                rawPrice = (subtotal * utilityConfig.multiplicador) + sumFixed;
+            }
+
             if (configs.ivaAutomatico) {
                 rawPrice = rawPrice * 1.16;
             }
@@ -1265,7 +1288,7 @@ function ProductModal({ onClose, onSave, product }) {
 
             setForm(prev => ({
                 ...prev,
-                flete: fleteGlobal, // Almacenar silenciosamente para historial
+                flete: fleteGlobal,
                 maniobras: costConfig.maniobras,
                 empaque: costConfig.empaque,
                 comision: costConfig.comision,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Edit2, Users, DollarSign, Database, Download, RefreshCcw, Shield, AlertCircle } from 'lucide-react';
+import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Edit2, Users, DollarSign, Database, Download, RefreshCcw, Shield, AlertCircle, Check } from 'lucide-react';
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
@@ -25,6 +25,7 @@ function Settings({ isSuperadmin }) {
     const [categories, setCategories] = useState([]);
     const [backups, setBackups] = useState([]);
     const [deleteOrderPassword, setDeleteOrderPassword] = useState("Secreto123*");
+    const [pricingStrategy, setPricingStrategy] = useState({ enabled: false, categories: [] });
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -40,7 +41,7 @@ function Settings({ isSuperadmin }) {
 
     const fetchConfigs = async () => {
         try {
-            const [uRes, cRes, pRes, fRes, ivaRes, intRes, fabRes, colRes, catRes] = await Promise.all([
+            const [uRes, cRes, pRes, fRes, ivaRes, intRes, fabRes, colRes, catRes, psRes] = await Promise.all([
                 axios.get(`${API_URL}/config/utility`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/costs`, { withCredentials: true }),
                 axios.get(`${API_URL}/promotions`, { withCredentials: true }),
@@ -49,7 +50,8 @@ function Settings({ isSuperadmin }) {
                 axios.get(`${API_URL}/config/interests`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/fabrics`, { withCredentials: true }),
                 axios.get(`${API_URL}/config/colors`, { withCredentials: true }),
-                axios.get(`${API_URL}/config/categories`, { withCredentials: true })
+                axios.get(`${API_URL}/config/categories`, { withCredentials: true }),
+                axios.get(`${API_URL}/config/pricing-strategy`, { withCredentials: true })
             ]);
             setUtilities(uRes.data);
             setCosts(cRes.data);
@@ -60,6 +62,7 @@ function Settings({ isSuperadmin }) {
             setFabrics(fabRes.data);
             setColors(colRes.data);
             setCategories(catRes.data);
+            setPricingStrategy(psRes.data);
 
             if (isSuperadmin) {
                 try {
@@ -259,6 +262,20 @@ function Settings({ isSuperadmin }) {
         } catch (err) { console.error(err); toast.error("Error al añadir categoría"); }
     };
 
+    const handleSavePricingStrategy = async () => {
+        setSaving(true);
+        try {
+            await axios.put(`${API_URL}/config/pricing-strategy`, pricingStrategy, { withCredentials: true });
+            toast.success("Estrategia de precios actualizada y precios recalculados");
+            fetchConfigs();
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al actualizar la estrategia");
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleDeleteCategory = async (id) => {
         if (!confirm("¿Eliminar categoría? Esto quitará la categoría a los productos asociados.")) return;
         try {
@@ -354,6 +371,13 @@ function Settings({ isSuperadmin }) {
                         }`}
                 >
                     Telas/Colores
+                </button>
+                <button
+                    onClick={() => setActiveTab('estrategia')}
+                    className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'estrategia' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-xl' : 'text-slate-500 hover:text-white'
+                        }`}
+                >
+                    Estrategia de Precios
                 </button>
                 <button
                     onClick={() => setActiveTab('categorias')}
@@ -584,6 +608,94 @@ function Settings({ isSuperadmin }) {
                             </div>
                         </div>
                     </section>
+                )}
+                {/* Pricing Strategy Section */}
+                {activeTab === 'estrategia' && (
+                    <div className="lg:col-span-2 space-y-8 animate-in fade-in duration-500">
+                        <section className="bg-premium-slate/50 border border-white/5 rounded-3xl p-8 backdrop-blur-sm shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none"></div>
+                            
+                            <div className="flex items-center justify-between mb-10 relative z-10">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                        <div className="p-2 bg-blue-500/20 rounded-xl">
+                                            <TrendingUp className="text-blue-400" size={24} />
+                                        </div>
+                                        Nueva Estrategia de Utilidad
+                                    </h2>
+                                    <p className="text-slate-400 text-sm mt-2 font-medium">Controla el método de cálculo de precios para familias específicas.</p>
+                                </div>
+                                <button 
+                                    onClick={() => setPricingStrategy({...pricingStrategy, enabled: !pricingStrategy.enabled})}
+                                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black ${pricingStrategy.enabled ? 'bg-blue-600 shadow-lg shadow-blue-600/20' : 'bg-slate-700'}`}
+                                >
+                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ease-in-out ${pricingStrategy.enabled ? 'translate-x-8' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6 mb-10 flex items-start gap-4 relative z-10">
+                                <div className="p-2 bg-blue-500/20 rounded-lg shrink-0">
+                                    <AlertCircle className="text-blue-400" size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-base text-blue-100 font-bold mb-2">¿Cómo funciona el cálculo por división?</p>
+                                    <p className="text-sm text-blue-200/70 leading-relaxed max-w-2xl">
+                                        Al habilitar esta opción, los productos de las familias seleccionadas cambiarán de la fórmula de multiplicación tradicional a una fórmula de <span className="text-blue-300 font-bold italic">markup por división</span>: <br/><br/>
+                                        <div className="bg-black/30 p-3 rounded-xl border border-blue-500/10 font-mono text-xs inline-block">
+                                            <span className="text-slate-400">(Costo + Flete) /</span> <span className="text-blue-400">(1 - Margen)</span> <span className="text-slate-400">+ Costos Fijos</span>
+                                        </div>
+                                        <br/><br/>
+                                        El margen se obtiene automáticamente restando 1 al multiplicador configurado (Ej: 1.30 multiplicador = 0.30 margen).
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6 relative z-10">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs text-slate-400 block font-black uppercase tracking-widest">Familias Seleccionadas para el Cambio</label>
+                                    <div className="text-[10px] bg-white/5 px-2 py-1 rounded-md text-slate-500 font-bold">
+                                        {pricingStrategy.categories.length} SELECCIONADAS
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {categories.map(cat => (
+                                        <label 
+                                            key={cat.id} 
+                                            className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group hover:scale-[1.02] active:scale-[0.98] ${pricingStrategy.categories.includes(cat.id) ? 'bg-blue-600/10 border-blue-600/50 text-white shadow-xl shadow-blue-600/5' : 'bg-black/20 border-white/5 text-slate-500 hover:border-white/10'}`}
+                                        >
+                                            <input 
+                                                type="checkbox"
+                                                className="hidden"
+                                                checked={pricingStrategy.categories.includes(cat.id)}
+                                                onChange={() => {
+                                                    const newCats = pricingStrategy.categories.includes(cat.id)
+                                                        ? pricingStrategy.categories.filter(id => id !== cat.id)
+                                                        : [...pricingStrategy.categories, cat.id];
+                                                    setPricingStrategy({...pricingStrategy, categories: newCats});
+                                                }}
+                                            />
+                                            <div className={`w-5 h-5 rounded-lg flex items-center justify-center border-2 transition-colors ${pricingStrategy.categories.includes(cat.id) ? 'bg-blue-500 border-blue-500' : 'border-slate-700 group-hover:border-slate-500'}`}>
+                                                {pricingStrategy.categories.includes(cat.id) && <Check size={14} strokeWidth={3} className="text-white" />}
+                                            </div>
+                                            <span className="text-xs font-black uppercase tracking-wider">{cat.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mt-12 flex justify-end relative z-10">
+                                <button
+                                    onClick={handleSavePricingStrategy}
+                                    disabled={saving}
+                                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center gap-3 hover:scale-105 transition-all active:scale-95 disabled:opacity-50 shadow-2xl shadow-blue-600/20"
+                                >
+                                    {saving ? <Loader2 className="animate-spin" size={20} /> : <RefreshCcw size={20} />}
+                                    {saving ? 'Procesando Precios...' : 'Sincronizar Estrategia'}
+                                </button>
+                            </div>
+                        </section>
+                    </div>
                 )}
 
                 {/* Fixed Costs Section */}

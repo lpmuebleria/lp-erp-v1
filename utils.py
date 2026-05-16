@@ -128,14 +128,27 @@ def get_cfg_for_tamano(cur, tamano: str):
         "garantias": float(row["garantias"] or 0)
     }
 
-def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilidad_nivel: str) -> float:
-    cur.execute("SELECT v FROM settings WHERE k='flete_unitario'")
-    row_flete = cur.fetchone()
-    flete = float(row_flete["v"]) if row_flete else 0.0
-
-    cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
-    row_iva = cur.fetchone()
-    iva_automatico = True if (row_iva and row_iva["v"] == '1') else False
+def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilidad_nivel: str, product_id: int = None) -> float:
+    # Get settings for new pricing formula
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'flete_unitario', 'iva_automatico')")
+    rows = cur.fetchall()
+    setts = {r['k']: r['v'] for r in rows}
+    
+    flete = float(setts.get("flete_unitario", 0.0))
+    iva_automatico = True if (setts.get("iva_automatico") == '1') else False
+    new_formula_enabled = setts.get("new_pricing_formula_enabled") == '1'
+    
+    use_new_formula = False
+    if new_formula_enabled and product_id:
+        import json
+        try:
+            target_cats = json.loads(setts.get("new_pricing_categories", "[]"))
+            cur.execute("SELECT categoria_id FROM products WHERE id=%s", (product_id,))
+            p_cat = cur.fetchone()
+            if p_cat and p_cat["categoria_id"] in target_cats:
+                use_new_formula = True
+        except:
+            pass
 
     nivel = (utilidad_nivel or "media").strip().lower()
     cur.execute("SELECT multiplicador FROM utilidad_config WHERE nivel=%s", (nivel,))
@@ -145,7 +158,21 @@ def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilida
     cfg = get_cfg_for_tamano(cur, tamano)
     
     costo_base = float(costo_fabricacion or 0) + flete
-    costo_con_utilidad = costo_base * multiplicador
+    
+    if use_new_formula:
+        # New formula: (Costo + Flete) / (1 - Margen)
+        # where Margen = Multiplicador - 1
+        margen = multiplicador - 1.0
+        # Safeguard against division by zero or negative denominator
+        divisor = 1.0 - margen
+        if divisor <= 0:
+            costo_con_utilidad = costo_base * multiplicador # Fallback
+        else:
+            costo_con_utilidad = costo_base / divisor
+    else:
+        # Old formula: (Costo + Flete) * Multiplicador
+        costo_con_utilidad = costo_base * multiplicador
+        
     precio_final = costo_con_utilidad + cfg["maniobras"] + cfg["empaque"] + cfg["comision"] + cfg["garantias"]
 
     if iva_automatico:

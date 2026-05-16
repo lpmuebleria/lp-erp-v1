@@ -131,6 +131,18 @@ def get_products(
         iva_row = cur.fetchone()
         iva_automatico = True if iva_row and iva_row['v'] == '1' else False
         
+        cur.execute("SELECT v FROM settings WHERE k='new_pricing_formula_enabled'")
+        npe_row = cur.fetchone()
+        new_pricing_enabled = True if npe_row and npe_row['v'] == '1' else False
+        
+        cur.execute("SELECT v FROM settings WHERE k='new_pricing_categories'")
+        npc_row = cur.fetchone()
+        import json
+        try:
+            new_pricing_cats = json.loads(npc_row['v']) if npc_row and npc_row['v'] else []
+        except:
+            new_pricing_cats = []
+
         def get_precio_ofertar(p, target_margin_nivel):
             if not target_margin_nivel or target_margin_nivel not in utilities:
                 return 0
@@ -145,7 +157,20 @@ def get_products(
             subtotal = costo_fabrica + flete
             sum_fixed = maniobras + empaque + comision + garantias
             
-            raw_price = (subtotal * multiplicador) + sum_fixed
+            use_new = False
+            if new_pricing_enabled and p.get("categoria_id") in new_pricing_cats:
+                use_new = True
+            
+            if use_new:
+                margen = multiplicador - 1.0
+                divisor = 1.0 - margen
+                if divisor <= 0:
+                    raw_price = (subtotal * multiplicador) + sum_fixed
+                else:
+                    raw_price = (subtotal / divisor) + sum_fixed
+            else:
+                raw_price = (subtotal * multiplicador) + sum_fixed
+
             if iva_automatico:
                 raw_price = raw_price * 1.16
             return raw_price
@@ -257,6 +282,18 @@ def get_product(product_id: int):
         cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
         iva_row = cur.fetchone()
         iva_automatico = True if iva_row and iva_row['v'] == '1' else False
+
+        cur.execute("SELECT v FROM settings WHERE k='new_pricing_formula_enabled'")
+        npe_row = cur.fetchone()
+        new_pricing_enabled = True if npe_row and npe_row['v'] == '1' else False
+
+        cur.execute("SELECT v FROM settings WHERE k='new_pricing_categories'")
+        npc_row = cur.fetchone()
+        import json
+        try:
+            new_pricing_cats = json.loads(npc_row['v']) if npc_row and npc_row['v'] else []
+        except:
+            new_pricing_cats = []
         
         def get_precio_ofertar_single(p, target_margin_nivel):
             if not target_margin_nivel or target_margin_nivel not in utilities:
@@ -272,7 +309,20 @@ def get_product(product_id: int):
             subtotal = costo_fabrica + flete
             sum_fixed = maniobras + empaque + comision + garantias
             
-            raw_price = (subtotal * multiplicador) + sum_fixed
+            use_new = False
+            if new_pricing_enabled and p.get("categoria_id") in new_pricing_cats:
+                use_new = True
+
+            if use_new:
+                margen = multiplicador - 1.0
+                divisor = 1.0 - margen
+                if divisor <= 0:
+                    raw_price = (subtotal * multiplicador) + sum_fixed
+                else:
+                    raw_price = (subtotal / divisor) + sum_fixed
+            else:
+                raw_price = (subtotal * multiplicador) + sum_fixed
+
             if iva_automatico:
                 raw_price = raw_price * 1.16
             return raw_price
