@@ -6,6 +6,14 @@ import { calculateRounding, getRoundingAdjustment } from '../utils/rounding';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
+const getOptimizedImageUrl = (url, width = 400) => {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && !url.includes("/upload/w_")) {
+      return url.replace("/upload/", `/upload/w_${width},q_auto,f_auto/`);
+  }
+  return url;
+};
+
 function Inventory({ role, isSuperadmin }) {
     const [products, setProducts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -381,7 +389,7 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
             <div className="bg-premium-slate/30 border border-white/5 rounded-2xl p-4 flex items-center gap-6 hover:border-premium-gold/30 transition-all group">
                 <div className="w-20 h-20 rounded-xl overflow-hidden bg-black/40 border border-white/5 shrink-0 relative">
                     {product.imagen_url ? (
-                        <img src={product.imagen_url} alt={product.modelo} className="w-full h-full object-cover" />
+                        <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-700">
                             <ImageIcon size={24} />
@@ -489,7 +497,7 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
                 className="relative aspect-square rounded-[2rem] overflow-hidden bg-black/40 mb-5 border border-white/5 group-hover:border-premium-gold/20 transition-all cursor-zoom-in"
             >
                 {product.imagen_url ? (
-                    <img src={product.imagen_url} alt={product.modelo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-800">
                         <PackageOpen size={48} className="mb-2 opacity-20" />
@@ -739,7 +747,7 @@ function ProductQuickView({ product, onClose, interestPct }) {
                             }}
                         >
                             <img
-                                src={product.imagen_url}
+                                src={getOptimizedImageUrl(product.imagen_url, 400)}
                                 alt={product.modelo}
                                 draggable="false"
                                 className="max-w-full max-h-full object-contain"

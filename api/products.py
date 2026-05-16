@@ -150,6 +150,21 @@ def get_products(
                 raw_price = raw_price * 1.16
             return raw_price
         
+        # PRE-FETCH PROMOTIONS (Elimina el problema N+1)
+        cur.execute("""
+            SELECT promotions.discount_pct, promotions.target_margin, pc.category_id
+            FROM promotions
+            JOIN promotion_categories pc ON promotions.id = pc.promo_id
+            WHERE promotions.type = 'automatic' AND promotions.is_active = 1
+        """)
+        all_promos = cur.fetchall()
+        promos_by_category = {}
+        for promo in all_promos:
+            cat_id = promo["category_id"]
+            if cat_id not in promos_by_category:
+                promos_by_category[cat_id] = []
+            promos_by_category[cat_id].append(promo)
+            
         # Calculate automatic discounts
         for p in products:
             p["descuento_automatico"] = 0
@@ -158,14 +173,9 @@ def get_products(
             if base_promo_price <= 0:
                 base_promo_price = float(p["precio_lista"])
 
-            if p["categoria_id"]:
-                cur.execute("""
-                    SELECT promotions.discount_pct, promotions.target_margin
-                    FROM promotions
-                    JOIN promotion_categories pc ON promotions.id = pc.promo_id
-                    WHERE pc.category_id = %s AND promotions.type = 'automatic' AND promotions.is_active = 1
-                """, (p["categoria_id"],))
-                promos = cur.fetchall()
+            cat_id = p.get("categoria_id")
+            if cat_id and cat_id in promos_by_category:
+                promos = promos_by_category[cat_id]
                 
                 best_discount_pct = 0
                 for promo in promos:
