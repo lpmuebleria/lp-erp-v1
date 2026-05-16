@@ -410,6 +410,20 @@ def init_db():
             conn.close()
 
 def _migrate(cur):
+    # Performance Indexes
+    indexes = [
+        "CREATE INDEX idx_prod_categoria ON products(categoria_id)",
+        "CREATE INDEX idx_prod_activo ON products(activo)",
+        "CREATE INDEX idx_prod_offer ON products(is_offer)",
+        "CREATE INDEX idx_prod_madre ON products(is_madre)",
+        "CREATE INDEX idx_prod_catalog ON products(in_catalog)"
+    ]
+    for idx_sql in indexes:
+        try:
+            cur.execute(idx_sql)
+        except Exception:
+            pass
+
     # products
     if not col_exists(cur, "products", "stock"):
         cur.execute("ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 0")

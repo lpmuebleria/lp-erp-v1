@@ -22,6 +22,14 @@ import { toast } from 'react-hot-toast';
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 const BACKEND_URL = API_URL.replace('/api', '');
 
+const getOptimizedImageUrl = (url, width = 400) => {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && !url.includes("/upload/w_")) {
+      return url.replace("/upload/", `/upload/w_${width},q_auto,f_auto/`);
+  }
+  return url;
+};
+
 function Catalog() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -396,7 +404,7 @@ function Catalog() {
                   </div>
                   {p.imagen_url ? (
                     <img
-                      src={p.imagen_url}
+                      src={getOptimizedImageUrl(p.imagen_url, 400)}
                       alt={p.modelo}
                       className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-1000"
                     />
@@ -506,7 +514,7 @@ function Catalog() {
                   )}
                   {p.imagen_url ? (
                     <img
-                      src={p.imagen_url}
+                      src={getOptimizedImageUrl(p.imagen_url, 400)}
                       alt={p.modelo}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                     />
@@ -706,7 +714,7 @@ function Catalog() {
             <div className="w-full md:w-1/2 bg-[#f5f5f4] overflow-hidden group">
               {selectedProduct.imagen_url ? (
                 <InteractiveProductImage 
-                  src={selectedProduct.imagen_url} 
+                  src={getOptimizedImageUrl(selectedProduct.imagen_url, 800)} 
                   alt={selectedProduct.modelo} 
                   discountPercentage={calculateDiscount(selectedProduct.precio_etiqueta, selectedProduct.precio_lista)}
                 />
