@@ -138,11 +138,68 @@ def update_iva_config(data: IvaConfig):
         cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
         products = cur.fetchall()
         for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"])
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
             cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
             
         conn.commit()
         return {"status": "success", "message": "Global IVA config updated and prices recalculated."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+class PricingStrategyConfig(BaseModel):
+    enabled: bool
+    categories: List[int]
+
+@router.get("/config/pricing-strategy", response_model=PricingStrategyConfig)
+def get_pricing_strategy():
+    import json
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories')")
+    rows = cur.fetchall()
+    conn.close()
+    
+    settings = {r['k']: r['v'] for r in rows}
+    enabled = settings.get('new_pricing_formula_enabled') == '1'
+    try:
+        categories = json.loads(settings.get('new_pricing_categories', '[]'))
+    except:
+        categories = []
+        
+    return {"enabled": enabled, "categories": categories}
+
+@router.put("/config/pricing-strategy")
+def update_pricing_strategy(data: PricingStrategyConfig):
+    import json
+    from utils import calcular_precio_producto
+    conn = db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        enabled_val = '1' if data.enabled else '0'
+        cats_json = json.dumps(data.categories)
+        
+        cur.execute("""
+            INSERT INTO settings (k, v) VALUES ('new_pricing_formula_enabled', %s)
+            ON DUPLICATE KEY UPDATE v=%s
+        """, (enabled_val, enabled_val))
+        
+        cur.execute("""
+            INSERT INTO settings (k, v) VALUES ('new_pricing_categories', %s)
+            ON DUPLICATE KEY UPDATE v=%s
+        """, (cats_json, cats_json))
+        
+        # Trigger massive price recalculation
+        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
+        products = cur.fetchall()
+        for p in products:
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
+            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
+            
+        conn.commit()
+        return {"status": "success"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

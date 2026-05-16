@@ -347,6 +347,8 @@ def init_db():
 
         # Seed global settings
         cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('global_flete_cost', '0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('new_pricing_formula_enabled', '0')")
+        cur.execute("INSERT IGNORE INTO settings(k,v) VALUES ('new_pricing_categories', '[]')")
 
         # Seed cost_config
         cur.execute("INSERT IGNORE INTO cost_config(tamano,maniobras,empaque,comision,garantias) VALUES ('Chico', 200, 50, 200, 150)")
