@@ -88,6 +88,7 @@ function Sales({ vendedor }) {
     const [interestMSI, setInterestMSI] = useState(15.0); // Default to 15%
     const [allFabrics, setAllFabrics] = useState([]);
     const [allColors, setAllColors] = useState([]);
+    const [utilities, setUtilities] = useState([]);
 
     // Fetch promos once
     useEffect(() => {
@@ -97,6 +98,10 @@ function Sales({ vendedor }) {
 
         axios.get(`${API_URL}/config/interests`)
             .then(res => setInterestMSI(res.data.interes_msi_pct || 15.0))
+            .catch(console.error);
+
+        axios.get(`${API_URL}/config/utility`)
+            .then(res => setUtilities(res.data))
             .catch(console.error);
 
         axios.get(`${API_URL}/promotions`)
@@ -183,6 +188,12 @@ function Sales({ vendedor }) {
         const precioUnitBase = docTipo === 'msi' 
             ? calculateRounding(rawMsiPrice)
             : product.precio_lista;
+            
+        const refEtiqueta = parseFloat(product.precio_etiqueta) > 0 ? parseFloat(product.precio_etiqueta) : parseFloat(product.precio_lista);
+        const rawMsiEtiqueta = refEtiqueta * (1 + (interestMSI / 100));
+        const precioPromoBase = docTipo === 'msi' 
+            ? calculateRounding(rawMsiEtiqueta)
+            : refEtiqueta;
         
         const cartId = Date.now();
         const existing = cart.find(item => item.product_id === product.id && item.tipo_precio === docTipo && !item.tela);
@@ -203,8 +214,15 @@ function Sales({ vendedor }) {
                 precio_unit: precioUnitBase, // We'll apply promos in the render/total calculation or here? 
                                             // Better to store base and calculate final in a helper.
                 precio_base: precioUnitBase,
+                precio_promo_base: precioPromoBase,
                 precio_original: product.precio_lista,
                 categoria_id: product.categoria_id,
+                costo_fabrica: product.costo_fabrica,
+                flete: product.flete,
+                maniobras: product.maniobras,
+                empaque: product.empaque,
+                comision: product.comision,
+                garantias: product.garantias,
                 auto_discount_pct: autoDescPct,
                 total_linea: precioUnitBase,
                 descuento_manual: 0,
@@ -230,6 +248,11 @@ function Sales({ vendedor }) {
         const finalPrice = calculateRounding(rawFinalPrice);
         const round_adjustment = finalPrice - rawFinalPrice;
         
+        const refEtiqueta = parseFloat(product.precio_etiqueta) > 0 ? parseFloat(product.precio_etiqueta) : parseFloat(product.precio_lista);
+        const rawPromoFinal = tipo_precio === 'msi' ? refEtiqueta * (1 + interestMSI / 100) : refEtiqueta;
+        const promoFinalPrice = calculateRounding(rawPromoFinal);
+
+        
         setCart([...cart, { 
             ...product, 
             product_id: product.id,
@@ -238,6 +261,7 @@ function Sales({ vendedor }) {
             descuento_pct: 0,
             precio_unit: finalPrice,
             precio_base: finalPrice,
+            precio_promo_base: promoFinalPrice,
             total_linea: finalPrice, 
             cartId, 
             tipo_precio,
@@ -346,14 +370,50 @@ function Sales({ vendedor }) {
             promo_name = 'Automática';
         }
 
+        // Helper to calculate effective percentage
+        const getEffectivePct = (promo) => {
+            const tm = promo.target_margin;
+            if (tm && utilities.length > 0) {
+                const utilConfig = utilities.find(u => u.nivel === tm);
+                if (utilConfig) {
+                    const multiplicador = utilConfig.multiplicador;
+                    
+                    const costoFabrica = parseFloat(item.costo_fabrica) || 0;
+                    const flete = parseFloat(item.flete) || 0;
+                    const maniobras = parseFloat(item.maniobras) || 0;
+                    const empaque = parseFloat(item.empaque) || 0;
+                    const comision = parseFloat(item.comision) || 0;
+                    const garantias = parseFloat(item.garantias) || 0;
+                    
+                    const subtotal = costoFabrica + flete;
+                    const sumFixed = maniobras + empaque + comision + garantias;
+                    
+                    let precioOfertar = (subtotal * multiplicador) + sumFixed;
+                    if (ivaAutomatico) {
+                        precioOfertar *= 1.16;
+                    }
+                    
+                    const basePromoPrice = item.precio_promo_base || item.precio_base;
+                    if (basePromoPrice > 0 && precioOfertar > 0 && precioOfertar < basePromoPrice) {
+                        return (1 - (precioOfertar / basePromoPrice)) * 100;
+                    }
+                }
+                return 0;
+            }
+            return promo.discount_pct || 0;
+        };
+
         // 2. Selected Promo (from dropdown)
         if (selectedPromo) {
             // Check if global or applies to this category
             const appliesGlobal = selectedPromo.type === 'global';
             const appliesCat = selectedPromo.category_ids?.includes(item.categoria_id);
-            if ((appliesGlobal || appliesCat) && selectedPromo.discount_pct > applied_pct) {
-                applied_pct = selectedPromo.discount_pct;
-                promo_name = selectedPromo.name;
+            if (appliesGlobal || appliesCat) {
+                const effPct = getEffectivePct(selectedPromo);
+                if (effPct > applied_pct) {
+                    applied_pct = effPct;
+                    promo_name = selectedPromo.name;
+                }
             }
         }
 
@@ -361,13 +421,17 @@ function Sales({ vendedor }) {
         if (appliedCoupon) {
             const appliesGlobal = appliedCoupon.type === 'global';
             const appliesCat = appliedCoupon.category_ids?.includes(item.categoria_id);
-            if ((appliesGlobal || appliesCat) && appliedCoupon.discount_pct > applied_pct) {
-                applied_pct = appliedCoupon.discount_pct;
-                promo_name = `Cupón: ${appliedCoupon.name}`;
+            if (appliesGlobal || appliesCat) {
+                const effPct = getEffectivePct(appliedCoupon);
+                if (effPct > applied_pct) {
+                    applied_pct = effPct;
+                    promo_name = `Cupón: ${appliedCoupon.name}`;
+                }
             }
         }
 
-        const precioConPromo = item.precio_base * (1 - applied_pct / 100);
+        const refPromoBase = item.precio_promo_base || item.precio_base;
+        const precioConPromo = applied_pct > 0 ? (refPromoBase * (1 - applied_pct / 100)) : item.precio_base;
         const manualDiscountVal = item.descuento_pct > 0 ? (item.precio_base * (item.descuento_pct / 100)) : 0;
         
         const finalUnitPriceRaw = precioConPromo - manualDiscountVal;
@@ -850,7 +914,7 @@ function Sales({ vendedor }) {
                                                         </span>
                                                         {item.applied_promo_pct > 0 && (
                                                             <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20" title={item.promo_name}>
-                                                                PROMO -{item.applied_promo_pct}%
+                                                                PROMO -{Math.round(item.applied_promo_pct)}%
                                                             </span>
                                                         )}
                                                     </div>

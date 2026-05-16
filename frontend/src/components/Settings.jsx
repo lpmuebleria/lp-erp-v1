@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Users, DollarSign, Database, Download, RefreshCcw, Shield, AlertCircle } from 'lucide-react';
+import { Save, Settings as SettingsIcon, TrendingUp, Truck, Package, Percent, Loader2, CheckCircle2, Tag, Plus, Trash2, Edit2, Users, DollarSign, Database, Download, RefreshCcw, Shield, AlertCircle } from 'lucide-react';
 import UsersAdmin from './UsersAdmin';
 import ShippingCostsAdmin from './ShippingCostsAdmin';
 
@@ -29,6 +29,9 @@ function Settings({ isSuperadmin }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+
+    const [editingPromo, setEditingPromo] = useState(null);
+    const [promoDiscountType, setPromoDiscountType] = useState('pct');
 
     useEffect(() => {
         fetchConfigs();
@@ -141,36 +144,69 @@ function Settings({ isSuperadmin }) {
         }
     };
 
-    const handlePromoAdd = async (e) => {
+    const handlePromoSave = async (e) => {
         e.preventDefault();
         const form = e.target;
         const name = form.name.value;
-        const discount_pct = parseFloat(form.discount_pct.value);
         const type = form.type.value;
         const code = form.code.value;
         const selectedCategories = Array.from(form.categories.selectedOptions).map(o => parseInt(o.value));
 
-        if (!name?.trim() || isNaN(discount_pct)) {
-            toast.error("Nombre y porcentaje son obligatorios");
+        let discount_pct = 0;
+        let target_margin = null;
+
+        if (promoDiscountType === 'margin') {
+            target_margin = form.target_margin.value;
+            if (!target_margin) {
+                toast.error("El nivel de utilidad es obligatorio");
+                return;
+            }
+        } else {
+            discount_pct = parseFloat(form.discount_pct.value);
+            if (isNaN(discount_pct)) {
+                toast.error("El porcentaje es obligatorio");
+                return;
+            }
+        }
+
+        if (!name?.trim()) {
+            toast.error("El nombre es obligatorio");
             return;
         }
 
+        const payload = {
+            name, discount_pct, type, code, category_ids: selectedCategories, target_margin, is_active: editingPromo ? editingPromo.is_active : 1
+        };
+
         try {
-            const res = await axios.post(`${API_URL}/promotions`, {
-                name,
-                discount_pct,
-                is_active: 1,
-                type,
-                code,
-                category_ids: selectedCategories
-            }, { withCredentials: true });
-            setPromotions([...promotions, res.data]);
-            form.reset();
-            toast.success("Promoción creada");
+            if (editingPromo) {
+                const res = await axios.put(`${API_URL}/promotions/${editingPromo.id}`, payload, { withCredentials: true });
+                setPromotions(promotions.map(p => p.id === editingPromo.id ? res.data : p));
+                toast.success("Promoción actualizada");
+            } else {
+                const res = await axios.post(`${API_URL}/promotions`, payload, { withCredentials: true });
+                setPromotions([...promotions, res.data]);
+                toast.success("Promoción creada");
+            }
+            handleCancelPromoEdit();
         } catch (err) {
             console.error(err);
-            toast.error("Error al crear promoción");
+            toast.error(editingPromo ? "Error al actualizar" : "Error al crear promoción");
         }
+    };
+
+    const handleEditPromoClick = (promo) => {
+        setEditingPromo(promo);
+        if (promo.target_margin && typeof promo.target_margin === 'string' && promo.target_margin.trim() !== '') {
+            setPromoDiscountType('margin');
+        } else {
+            setPromoDiscountType('pct');
+        }
+    };
+
+    const handleCancelPromoEdit = () => {
+        setEditingPromo(null);
+        setPromoDiscountType('pct');
     };
 
     const handleAddFabric = async (e) => {
@@ -593,17 +629,28 @@ function Settings({ isSuperadmin }) {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            {/* Add Promo Form */}
+                            {/* Add/Edit Promo Form */}
                             <div className="md:col-span-1 bg-black/20 p-6 rounded-2xl border border-white/5 h-fit">
-                                <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4">Nueva Promoción</h3>
-                                <form onSubmit={handlePromoAdd} className="space-y-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">{editingPromo ? "Editar Promoción" : "Nueva Promoción"}</h3>
+                                    {editingPromo && (
+                                        <button onClick={handleCancelPromoEdit} className="text-[10px] text-red-400 font-bold uppercase hover:text-red-300">Cancelar</button>
+                                    )}
+                                </div>
+                                <form onSubmit={handlePromoSave} className="space-y-4">
+                                    
+                                    <div className="flex gap-2 p-1 bg-black/40 rounded-xl border border-white/10 h-[46px]">
+                                        <button type="button" onClick={() => setPromoDiscountType('pct')} className={`flex-1 rounded-lg text-xs font-bold transition-all ${promoDiscountType === 'pct' ? 'bg-premium-gold/20 text-premium-gold' : 'text-slate-500 hover:text-white'}`}>Porcentaje</button>
+                                        <button type="button" onClick={() => setPromoDiscountType('margin')} className={`flex-1 rounded-lg text-xs font-bold transition-all ${promoDiscountType === 'margin' ? 'bg-premium-gold/20 text-premium-gold' : 'text-slate-500 hover:text-white'}`}>Por Margen</button>
+                                    </div>
+
                                     <div>
                                         <label className="text-xs text-slate-400 block mb-1">Nombre Descriptivo</label>
-                                        <input name="name" type="text" placeholder="Ej: Rebaja de Verano" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required />
+                                        <input name="name" type="text" defaultValue={editingPromo?.name || ""} placeholder="Ej: Rebaja de Verano" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required />
                                     </div>
                                     <div>
                                         <label className="text-xs text-slate-400 block mb-1">Tipo de Descuento</label>
-                                        <select name="type" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold">
+                                        <select name="type" defaultValue={editingPromo?.type || "global"} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold">
                                             <option value="global" className="bg-premium-slate">Global (Todo el carrito)</option>
                                             <option value="automatic" className="bg-premium-slate">Automático por Familia (Visible en Catálogo)</option>
                                             <option value="coupon" className="bg-premium-slate">Por Código/Cupón (Sabado Loco)</option>
@@ -611,15 +658,29 @@ function Settings({ isSuperadmin }) {
                                     </div>
                                     <div>
                                         <label className="text-xs text-slate-400 block mb-1">Código (Opcional - para cupones)</label>
-                                        <input name="code" type="text" placeholder="SABADOLOCO" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" />
+                                        <input name="code" type="text" defaultValue={editingPromo?.code || ""} placeholder="SABADOLOCO" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" />
                                     </div>
-                                    <div>
-                                        <label className="text-xs text-slate-400 block mb-1">Porcentaje (%)</label>
-                                        <input name="discount_pct" type="number" step="0.1" max="100" min="0" placeholder="15" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required />
-                                    </div>
+                                    
+                                    {promoDiscountType === 'pct' ? (
+                                        <div>
+                                            <label className="text-xs text-slate-400 block mb-1">Porcentaje Fijo (%)</label>
+                                            <input name="discount_pct" type="number" step="0.1" max="100" min="0" defaultValue={editingPromo?.discount_pct || ""} placeholder="15" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" />
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="text-xs text-slate-400 block mb-1">Nivel de Utilidad (Margen)</label>
+                                            <select name="target_margin" defaultValue={editingPromo?.target_margin || ""} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold" required={promoDiscountType === 'margin'}>
+                                                <option value="" disabled className="bg-premium-slate">Selecciona un nivel</option>
+                                                {utilities.map(u => (
+                                                    <option key={u.nivel} value={u.nivel} className="bg-premium-slate uppercase">{u.nivel}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[9px] text-slate-500 mt-1 leading-tight">El sistema calculará el precio basado en la misma fórmula de inventario para asegurar este margen, y mostrará el equivalente como porcentaje de descuento.</p>
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="text-xs text-slate-400 block mb-1">Aplicar a Familias (Multiselect)</label>
-                                        <select name="categories" multiple className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold h-32 custom-scrollbar">
+                                        <select name="categories" multiple defaultValue={editingPromo?.category_ids || []} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-premium-gold h-32 custom-scrollbar">
                                             {categories.map(c => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
                                             ))}
@@ -628,7 +689,7 @@ function Settings({ isSuperadmin }) {
                                     </div>
                                     
                                     <button type="submit" className="w-full py-3 bg-premium-gold/20 text-premium-gold font-black uppercase rounded-xl hover:bg-premium-gold hover:text-black transition-colors flex justify-center items-center gap-2">
-                                        <Plus size={16} /> Crear Promoción
+                                        {editingPromo ? <><Edit2 size={16} /> Actualizar Promoción</> : <><Plus size={16} /> Crear Promoción</>}
                                     </button>
                                 </form>
                             </div>
@@ -647,11 +708,25 @@ function Settings({ isSuperadmin }) {
                                                     {p.code && <span className="text-[10px] bg-premium-gold/20 text-premium-gold px-2 py-0.5 rounded font-mono font-bold tracking-wider underline">#{p.code}</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={() => handlePromoDelete(p.id)} className="text-slate-500 hover:text-red-400 transition-colors">
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleEditPromoClick(p)} className="text-slate-500 hover:text-premium-gold transition-colors">
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button onClick={() => handlePromoDelete(p.id)} className="text-slate-500 hover:text-red-400 transition-colors">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="text-2xl font-black text-premium-gold mb-2">{p.discount_pct}% OFF</div>
+                                        <div className="text-2xl font-black text-premium-gold mb-2">
+                                            {p.target_margin ? (
+                                                <div className="flex flex-col">
+                                                    <span className="uppercase">Utilidad: {p.target_margin}</span>
+                                                    <span className="text-xs text-slate-400 font-normal mt-0.5">Descuento dinámico por producto</span>
+                                                </div>
+                                            ) : (
+                                                `${p.discount_pct}% OFF`
+                                            )}
+                                        </div>
                                         
                                         {p.category_ids && p.category_ids.length > 0 && (
                                             <div className="mb-4">

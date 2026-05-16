@@ -640,9 +640,21 @@ def _migrate(cur):
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 discount_pct DECIMAL(5,2) NOT NULL,
-                is_active INT NOT NULL DEFAULT 1
+                is_active INT NOT NULL DEFAULT 1,
+                type VARCHAR(50) NOT NULL DEFAULT 'global',
+                code VARCHAR(255) NULL DEFAULT NULL,
+                target_margin VARCHAR(50) NULL DEFAULT NULL
             )
         """)
+
+    if not col_exists(cur, "promotions", "target_margin"):
+        cur.execute("ALTER TABLE promotions ADD COLUMN target_margin VARCHAR(50) NULL DEFAULT NULL")
+    else:
+        # Alter table to change type if it's decimal
+        try:
+            cur.execute("ALTER TABLE promotions MODIFY target_margin VARCHAR(50) NULL DEFAULT NULL")
+        except:
+            pass
 
     # HR Tables migration check
     cur.execute("SHOW TABLES LIKE 'hr_asistencia'")

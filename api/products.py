@@ -122,22 +122,71 @@ def get_products(
         
         cur.execute(query_base, tuple(params))
         products = cur.fetchall()
+
+        # Fetch config for accurate margin-based price calculation
+        cur.execute("SELECT nivel, multiplicador FROM utilidad_config")
+        utilities = {row['nivel']: float(row['multiplicador']) for row in cur.fetchall()}
+        
+        cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
+        iva_row = cur.fetchone()
+        iva_automatico = True if iva_row and iva_row['v'] == '1' else False
+        
+        def get_precio_ofertar(p, target_margin_nivel):
+            if not target_margin_nivel or target_margin_nivel not in utilities:
+                return 0
+            multiplicador = utilities[target_margin_nivel]
+            costo_fabrica = float(p.get("costo_fabrica") or 0)
+            flete = float(p.get("flete") or 0)
+            maniobras = float(p.get("maniobras") or 0)
+            empaque = float(p.get("empaque") or 0)
+            comision = float(p.get("comision") or 0)
+            garantias = float(p.get("garantias") or 0)
+            
+            subtotal = costo_fabrica + flete
+            sum_fixed = maniobras + empaque + comision + garantias
+            
+            raw_price = (subtotal * multiplicador) + sum_fixed
+            if iva_automatico:
+                raw_price = raw_price * 1.16
+            return raw_price
         
         # Calculate automatic discounts
         for p in products:
             p["descuento_automatico"] = 0
             p["precio_con_descuento"] = p["precio_lista"]
+            base_promo_price = float(p.get("precio_etiqueta") or p["precio_lista"])
+            if base_promo_price <= 0:
+                base_promo_price = float(p["precio_lista"])
+
             if p["categoria_id"]:
                 cur.execute("""
-                    SELECT MAX(promotions.discount_pct) as max_discount
+                    SELECT promotions.discount_pct, promotions.target_margin
                     FROM promotions
                     JOIN promotion_categories pc ON promotions.id = pc.promo_id
                     WHERE pc.category_id = %s AND promotions.type = 'automatic' AND promotions.is_active = 1
                 """, (p["categoria_id"],))
-                res = cur.fetchone()
-                if res and res["max_discount"]:
-                    p["descuento_automatico"] = float(res["max_discount"])
-                    p["precio_con_descuento"] = float(p["precio_lista"]) * (1 - p["descuento_automatico"] / 100)
+                promos = cur.fetchall()
+                
+                best_discount_pct = 0
+                for promo in promos:
+                    current_pct = float(promo["discount_pct"])
+                    target_margin = promo.get("target_margin")
+                    
+                    if target_margin and target_margin in utilities:
+                        precio_ofertar = get_precio_ofertar(p, target_margin)
+                        if base_promo_price > 0 and precio_ofertar > 0 and precio_ofertar < base_promo_price:
+                            calculated_pct = (1 - (precio_ofertar / base_promo_price)) * 100
+                            if calculated_pct > current_pct:
+                                current_pct = calculated_pct
+                    
+                    if current_pct > best_discount_pct:
+                        best_discount_pct = current_pct
+
+                if best_discount_pct > 0:
+                    p["descuento_automatico"] = round(best_discount_pct, 2)
+                    # Apply discount over the reference price (etiqueta)
+                    precio_desc = base_promo_price * (1 - p["descuento_automatico"] / 100)
+                    p["precio_con_descuento"] = precio_desc
         
         return products
     finally:
@@ -192,19 +241,67 @@ def get_product(product_id: int):
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
         # Calculate automatic discounts
+        cur.execute("SELECT nivel, multiplicador FROM utilidad_config")
+        utilities = {row['nivel']: float(row['multiplicador']) for row in cur.fetchall()}
+        
+        cur.execute("SELECT v FROM settings WHERE k='iva_automatico'")
+        iva_row = cur.fetchone()
+        iva_automatico = True if iva_row and iva_row['v'] == '1' else False
+        
+        def get_precio_ofertar_single(p, target_margin_nivel):
+            if not target_margin_nivel or target_margin_nivel not in utilities:
+                return 0
+            multiplicador = utilities[target_margin_nivel]
+            costo_fabrica = float(p.get("costo_fabrica") or 0)
+            flete = float(p.get("flete") or 0)
+            maniobras = float(p.get("maniobras") or 0)
+            empaque = float(p.get("empaque") or 0)
+            comision = float(p.get("comision") or 0)
+            garantias = float(p.get("garantias") or 0)
+            
+            subtotal = costo_fabrica + flete
+            sum_fixed = maniobras + empaque + comision + garantias
+            
+            raw_price = (subtotal * multiplicador) + sum_fixed
+            if iva_automatico:
+                raw_price = raw_price * 1.16
+            return raw_price
+
         p["descuento_automatico"] = 0
         p["precio_con_descuento"] = p["precio_lista"]
+        base_promo_price = float(p.get("precio_etiqueta") or p["precio_lista"])
+        if base_promo_price <= 0:
+            base_promo_price = float(p["precio_lista"])
+
         if p["categoria_id"]:
             cur.execute("""
-                SELECT MAX(promotions.discount_pct) as max_discount
+                SELECT promotions.discount_pct, promotions.target_margin
                 FROM promotions
                 JOIN promotion_categories pc ON promotions.id = pc.promo_id
                 WHERE pc.category_id = %s AND promotions.type = 'automatic' AND promotions.is_active = 1
             """, (p["categoria_id"],))
-            res = cur.fetchone()
-            if res and res["max_discount"]:
-                p["descuento_automatico"] = float(res["max_discount"])
-                p["precio_con_descuento"] = float(p["precio_lista"]) * (1 - p["descuento_automatico"] / 100)
+            promos = cur.fetchall()
+            
+            best_discount_pct = 0
+            for promo in promos:
+                current_pct = float(promo["discount_pct"])
+                target_margin = promo.get("target_margin")
+                
+                if target_margin and target_margin in utilities:
+                    precio_ofertar = get_precio_ofertar_single(p, target_margin)
+                    if base_promo_price > 0 and precio_ofertar > 0 and precio_ofertar < base_promo_price:
+                        calculated_pct = (1 - (precio_ofertar / base_promo_price)) * 100
+                        if calculated_pct > current_pct:
+                            current_pct = calculated_pct
+                
+                if current_pct > best_discount_pct:
+                    best_discount_pct = current_pct
+
+            if best_discount_pct > 0:
+                p["descuento_automatico"] = round(best_discount_pct, 2)
+                # Apply discount over the reference price (etiqueta)
+                precio_desc = base_promo_price * (1 - p["descuento_automatico"] / 100)
+                p["precio_con_descuento"] = precio_desc
         
         # Load fabrics/colors names for ProductDetail compatibility if needed
         # (Assuming frontend needs names too)
