@@ -14,7 +14,8 @@ import {
   Bell,
   Check,
   Wallet,
-  Users
+  Users,
+  Target
 } from 'lucide-react';
 import axios from 'axios';
 import { Toaster } from 'react-hot-toast';
@@ -37,6 +38,7 @@ import Layaways from './components/Layaways';
 import Payments from './components/Payments';
 import ConceptDetails from './components/ConceptDetails';
 import HRModule from './components/HR/HRModule';
+import CRM from './components/CRM';
 
 function ERPContainer() {
   const [auth, setAuth] = useState(() => {
@@ -123,6 +125,7 @@ function ERPContainer() {
     { id: 'payments', label: 'Caja y Pagos', icon: Wallet, show: canAccess('payments') },
     { id: 'agenda', label: 'Agenda', icon: Calendar, show: canAccess('agenda') },
     { id: 'hr', label: 'Recursos Humanos', icon: Users, show: canAccess('hr') },
+    { id: 'crm', label: 'CRM Ventas', icon: Target, show: canAccess('crm') },
     { id: 'settings', label: 'Configuración', icon: SettingsIcon, show: canAccess('settings') },
   ];
 
@@ -293,6 +296,7 @@ function ERPContainer() {
           )}
           { activeTab === 'payments' && canAccess('payments') && <Payments /> }
           { activeTab === 'hr' && canAccess('hr') && <HRModule /> }
+          { activeTab === 'crm' && canAccess('crm') && <CRM /> }
           { activeTab === 'settings' && canAccess('settings') && <Settings isSuperadmin={auth.is_superadmin} /> }
         </div>
       </main>

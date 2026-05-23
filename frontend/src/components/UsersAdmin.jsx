@@ -55,6 +55,7 @@ function UsersAdmin() {
         { id: 'payments', label: 'Caja y Pagos' },
         { id: 'agenda', label: 'Agenda y Logística' },
         { id: 'hr', label: 'Recursos Humanos' },
+        { id: 'crm', label: 'CRM Ventas' },
         { id: 'settings', label: 'Configuración Avanzada' }
     ];
 
