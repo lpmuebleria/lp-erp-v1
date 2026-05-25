@@ -141,7 +141,11 @@ export default function CRM() {
             const payload = {
                 ...prospectForm,
                 campana_id: prospectForm.campana_id ? parseInt(prospectForm.campana_id) : null,
-                monto_venta: prospectForm.monto_venta !== '' ? parseFloat(prospectForm.monto_venta) : null,
+                origen_otro: prospectForm.origen === 'Otro' ? (prospectForm.origen_otro || null) : null,
+                producto_interes_otro: prospectForm.producto_interes === 'Otro' ? (prospectForm.producto_interes_otro || null) : null,
+                objecion_principal: prospectForm.estatus === 'Cerrado - Perdido' ? (prospectForm.objecion_principal || null) : null,
+                objecion_otro: (prospectForm.estatus === 'Cerrado - Perdido' && prospectForm.objecion_principal === 'Otro') ? (prospectForm.objecion_otro || null) : null,
+                monto_venta: prospectForm.estatus === 'Cerrado - Vendido' && prospectForm.monto_venta !== '' ? parseFloat(prospectForm.monto_venta) : null,
                 telefono: prospectForm.telefono.trim() || 'Anónimo'
             };
 
@@ -181,6 +185,8 @@ export default function CRM() {
         try {
             const payload = {
                 ...campaignForm,
+                tipo_campana_otro: campaignForm.tipo_campana === 'Otro' ? (campaignForm.tipo_campana_otro || null) : null,
+                enfoque_otro: campaignForm.enfoque === 'Otro' ? (campaignForm.enfoque_otro || null) : null,
                 monto_invertido: parseFloat(campaignForm.monto_invertido) || 0,
                 interacciones_obtenidas: parseInt(campaignForm.interacciones_obtenidas) || 0
             };
@@ -709,18 +715,18 @@ export default function CRM() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] text-slate-500 font-black uppercase tracking-wider block mb-1">Teléfono</label>
-                                    <div className="flex gap-2">
+                                    <div className="relative flex items-center">
                                         <input 
                                             value={prospectForm.telefono} 
                                             onChange={e => setProspectForm({ ...prospectForm, telefono: e.target.value })} 
                                             type="text" 
                                             placeholder="10 dígitos" 
-                                            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-premium-gold font-mono"
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pr-20 text-white text-sm outline-none focus:border-premium-gold font-mono"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setProspectForm({ ...prospectForm, telefono: 'Anónimo' })}
-                                            className="px-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white"
+                                            className="absolute right-2 px-2.5 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white"
                                         >
                                             No dio
                                         </button>
