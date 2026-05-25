@@ -331,6 +331,38 @@ def init_db():
                 fecha_pago DATE NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS crm_campanas(
+                id_campana INT AUTO_INCREMENT PRIMARY KEY,
+                nombre_campana VARCHAR(255) NOT NULL,
+                responsable VARCHAR(255) NOT NULL,
+                tipo_campana ENUM('Facebook', 'Instagram', 'Tik Tok', 'WhatsApp', 'Google', 'Exhibición', 'Escuela', 'Empresas', 'Exhibición otra ciudad', 'Otro') NOT NULL,
+                tipo_campana_otro VARCHAR(255) NULL,
+                enfoque ENUM('Salas 3,2,1', 'Salas esquineras', 'Sofas', 'Comedores', 'Otro') NOT NULL,
+                enfoque_otro VARCHAR(255) NULL,
+                monto_invertido DECIMAL(15,2) NOT NULL DEFAULT 0.0,
+                interacciones_obtenidas INT NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                activo TINYINT(1) DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS crm_prospectos(
+                id_prospecto INT AUTO_INCREMENT PRIMARY KEY,
+                nombre_cliente VARCHAR(255) NOT NULL,
+                telefono VARCHAR(50) NOT NULL DEFAULT 'Anónimo',
+                origen ENUM('Facebook', 'Tiktok', 'Instagram', 'WhatsApp', 'Grupos de WhatsApp', 'Otro') NOT NULL,
+                origen_otro VARCHAR(255) NULL,
+                producto_interes ENUM('Salas 3,2,1', 'Salas esquineras', 'Sofas', 'Comedores', 'Otro') NOT NULL,
+                producto_interes_otro VARCHAR(255) NULL,
+                estatus ENUM('Primer Contacto', 'Cotizado', 'Quedó de regresar', 'Seguimiento Activo', 'Cerrado - Vendido', 'Cerrado - Perdido') NOT NULL DEFAULT 'Primer Contacto',
+                objecion_principal ENUM('Precio', 'Medidas/Espacio', 'Color/Tela', 'Lo va a pensar/Consultar con pareja', 'Tiempo de entrega', 'Otro') NULL,
+                objecion_otro VARCHAR(255) NULL,
+                notas_vendedora TEXT NULL,
+                vendedor VARCHAR(255) NOT NULL,
+                campana_id INT NULL,
+                monto_venta DECIMAL(15,2) NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (campana_id) REFERENCES crm_campanas(id_campana) ON DELETE SET NULL
             )"""
         ]
         for sql in tables:
@@ -380,13 +412,13 @@ def init_db():
                 (admin_c1_id, False), # Gerente
                 (vendedor_id, False) # Vendedor
             ]
-            modulos_base = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda", "settings"]
+            modulos_base = ["dashboard", "inventory", "sales", "orders", "quotes", "apartados", "payments", "agenda", "settings", "crm"]
             for r_id, is_super in roles_to_seed:
                 for mod in modulos_base:
                     # Superadmins get '1' (True), others '1' by default for now or '0' depending on preference.
                     # Based on screenshots, it seems Gerente had everything green and Vendedor some.
                     # Let's give Gerente and Admin everything, and Vendedor almost everything as a safe start.
-                    can_v = 1 if (is_super or r_id == admin_c1_id) else (1 if mod in ["inventory", "sales", "quotes", "apartados"] else 0)
+                    can_v = 1 if (is_super or r_id == admin_c1_id) else (1 if mod in ["inventory", "sales", "quotes", "apartados", "crm"] else 0)
                     cur.execute("INSERT IGNORE INTO role_permissions (role_id, modulo, can_view) VALUES (%s, %s, %s)", (r_id, mod, can_v))
 
         # --- HEALING / MIGRATION (Runs every startup for existing data) ---
@@ -801,3 +833,14 @@ def _migrate(cur):
     # Migrate old statuses
     cur.execute("UPDATE orders SET estatus='EN FABRICACIÓN' WHERE estatus='PROCESO'")
     cur.execute("UPDATE orders SET estatus='LISTO ENTREGA' WHERE estatus='LISTO'")
+
+    # Seed permission for crm for existing roles
+    try:
+        cur.execute("SELECT id, nombre, is_superadmin FROM roles")
+        existing_roles = cur.fetchall()
+        for role in existing_roles:
+            role_id = role['id']
+            # All roles get access to crm (can_view = 1) by default
+            cur.execute("INSERT IGNORE INTO role_permissions (role_id, modulo, can_view) VALUES (%s, 'crm', 1)", (role_id,))
+    except Exception as e:
+        logger.error(f"Error migrating CRM permissions: {e}")

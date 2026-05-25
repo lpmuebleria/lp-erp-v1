@@ -289,3 +289,55 @@ class HRComisionCreate(BaseModel):
     monto_bono: float = 0.0
     monto_comision: float = 0.0
     fecha_pago: str
+
+# --- CRM Schemas ---
+class CRMCampagnaBase(BaseModel):
+    nombre_campana: str
+    responsable: str
+    tipo_campana: str
+    tipo_campana_otro: Optional[str] = None
+    enfoque: str
+    enfoque_otro: Optional[str] = None
+    monto_invertido: float = 0.0
+    interacciones_obtenidas: int = 0
+
+class CRMCampagnaCreate(CRMCampagnaBase):
+    pass
+
+class CRMCampagna(CRMCampagnaBase):
+    id_campana: int
+    created_at: Any
+    activo: int
+
+    class Config:
+        from_attributes = True
+
+class CRMProspectoBase(BaseModel):
+    nombre_cliente: str
+    telefono: str = "Anónimo"
+    origen: str
+    origen_otro: Optional[str] = None
+    producto_interes: str
+    producto_interes_otro: Optional[str] = None
+    estatus: str = "Primer Contacto"
+    objecion_principal: Optional[str] = None
+    objecion_otro: Optional[str] = None
+    notas_vendedora: Optional[str] = None
+    campana_id: Optional[int] = None
+    monto_venta: Optional[float] = None
+
+class CRMProspectoCreate(CRMProspectoBase):
+    pass
+
+class CRMProspectoUpdate(CRMProspectoBase):
+    pass
+
+class CRMProspecto(CRMProspectoBase):
+    id_prospecto: int
+    vendedor: str
+    created_at: Any
+    updated_at: Any
+
+    class Config:
+        from_attributes = True
+
