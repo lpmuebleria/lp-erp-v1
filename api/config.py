@@ -61,9 +61,68 @@ def get_utility_config():
     conn.close()
     return rows
 
+def trigger_bulk_recalculation(cur, updated_flete=None, updated_costs=None):
+    from utils import calcular_precio_producto
+    
+    # 1. Preload settings
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'global_flete_cost', 'iva_automatico')")
+    settings_cache = {r['k']: r['v'] for r in cur.fetchall()}
+    
+    if updated_flete is not None:
+        settings_cache['global_flete_cost'] = str(updated_flete)
+        
+    flete_global = float(settings_cache.get("global_flete_cost", 0.0))
+    
+    # 2. Preload utility configuration
+    cur.execute("SELECT nivel, multiplicador FROM utilidad_config")
+    utility_cache = {r['nivel'].strip().lower(): float(r['multiplicador']) for r in cur.fetchall()}
+    
+    # 3. Preload cost configuration
+    if updated_costs is not None:
+        cost_cache = updated_costs
+    else:
+        cur.execute("SELECT tamano, maniobras, empaque, comision, garantias FROM cost_config")
+        cost_cache = {r['tamano']: {
+            "maniobras": float(r["maniobras"] or 0),
+            "empaque": float(r["empaque"] or 0),
+            "comision": float(r["comision"] or 0),
+            "garantias": float(r["garantias"] or 0)
+        } for r in cur.fetchall()}
+        
+    # 4. Load all products
+    cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel, categoria_id FROM products")
+    products = cur.fetchall()
+    
+    # 5. Bulk calculate and update
+    for p in products:
+        new_price = calcular_precio_producto(
+            cur, 
+            p["costo_fabrica"], 
+            p["tamano"], 
+            p["utilidad_nivel"], 
+            p["id"], 
+            settings_cache=settings_cache, 
+            utility_cache=utility_cache, 
+            cost_cache=cost_cache, 
+            product_cat_id=p["categoria_id"]
+        )
+        
+        c_cfg = cost_cache.get(p["tamano"], {"maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0})
+        maniobras = c_cfg["maniobras"]
+        empaque = c_cfg["empaque"]
+        comision = c_cfg["comision"]
+        garantias = c_cfg["garantias"]
+        
+        new_cost_total = float(p["costo_fabrica"] or 0) + flete_global + maniobras + empaque + comision + garantias
+        
+        cur.execute("""
+            UPDATE products 
+            SET precio_lista=%s, flete=%s, costo_total=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s
+            WHERE id=%s
+        """, (new_price, flete_global, new_cost_total, maniobras, empaque, comision, garantias, p["id"]))
+
 @router.put("/config/utility")
 def update_utility_config(data: List[UtilityConfig]):
-    from utils import calcular_precio_producto
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -72,13 +131,7 @@ def update_utility_config(data: List[UtilityConfig]):
                 UPDATE utilidad_config SET multiplicador=%s WHERE nivel=%s
             """, (item.multiplicador, item.nivel))
             
-        # Trigger massive price recalculation
-        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
-        products = cur.fetchall()
-        for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
-            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
-            
+        trigger_bulk_recalculation(cur)
         conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -98,7 +151,6 @@ def get_cost_config():
 
 @router.put("/config/costs")
 def update_cost_config(data: List[CostConfig]):
-    from utils import calcular_precio_producto
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -109,36 +161,17 @@ def update_cost_config(data: List[CostConfig]):
                 WHERE tamano=%s
             """, (item.maniobras, item.empaque, item.comision, item.garantias, item.tamano))
             
-        # Trigger massive price and cost_total recalculation (cost_config changed)
-        cur.execute("SELECT v FROM settings WHERE k='global_flete_cost'")
-        f_row = cur.fetchone()
-        flete_global = float(f_row["v"]) if f_row and f_row["v"] else 0.0
+        updated_costs = {item.tamano: {
+            "maniobras": item.maniobras,
+            "empaque": item.empaque,
+            "comision": item.comision,
+            "garantias": item.garantias
+        } for item in data}
         
-        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
-        products = cur.fetchall()
-        for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
-            
-            c_cfg = next((c for c in data if c.tamano == p["tamano"]), None)
-            if c_cfg:
-                maniobras = c_cfg.maniobras
-                empaque = c_cfg.empaque
-                comision = c_cfg.comision
-                garantias = c_cfg.garantias
-            else:
-                maniobras, empaque, comision, garantias = 0.0, 0.0, 0.0, 0.0
-                
-            new_cost_total = float(p["costo_fabrica"] or 0) + flete_global + maniobras + empaque + comision + garantias
-            cur.execute("""
-                UPDATE products 
-                SET precio_lista=%s, costo_total=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s
-                WHERE id=%s
-            """, (new_price, new_cost_total, maniobras, empaque, comision, garantias, p["id"]))
-            
+        trigger_bulk_recalculation(cur, updated_costs=updated_costs)
         conn.commit()
         return {"status": "success"}
     except Exception as e:
-        conn.rollback()
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -161,7 +194,6 @@ def get_iva_config():
 
 @router.put("/config/iva")
 def update_iva_config(data: IvaConfig):
-    from utils import calcular_precio_producto
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -171,13 +203,7 @@ def update_iva_config(data: IvaConfig):
             ON DUPLICATE KEY UPDATE v=%s
         """, (val, val))
         
-        # Trigger massive price recalculation
-        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
-        products = cur.fetchall()
-        for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
-            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
-            
+        trigger_bulk_recalculation(cur)
         conn.commit()
         return {"status": "success", "message": "Global IVA config updated and prices recalculated."}
     except Exception as e:
@@ -211,7 +237,6 @@ def get_pricing_strategy():
 @router.put("/config/pricing-strategy")
 def update_pricing_strategy(data: PricingStrategyConfig):
     import json
-    from utils import calcular_precio_producto
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -228,13 +253,7 @@ def update_pricing_strategy(data: PricingStrategyConfig):
             ON DUPLICATE KEY UPDATE v=%s
         """, (cats_json, cats_json))
         
-        # Trigger massive price recalculation
-        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
-        products = cur.fetchall()
-        for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
-            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
-            
+        trigger_bulk_recalculation(cur)
         conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -265,7 +284,6 @@ def get_global_flete():
 
 @router.put("/config/flete")
 def update_global_flete(data: GlobalFleteConfig):
-    from utils import calcular_precio_producto
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -274,18 +292,7 @@ def update_global_flete(data: GlobalFleteConfig):
             ON DUPLICATE KEY UPDATE v=%s
         """, (str(data.costo), str(data.costo)))
         
-        # Trigger massive price, flete, and cost_total recalculation
-        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel, maniobras, empaque, comision, garantias FROM products")
-        products = cur.fetchall()
-        for p in products:
-            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
-            new_cost_total = float(p["costo_fabrica"] or 0) + data.costo + float(p["maniobras"] or 0) + float(p["empaque"] or 0) + float(p["comision"] or 0) + float(p["garantias"] or 0)
-            cur.execute("""
-                UPDATE products 
-                SET precio_lista=%s, flete=%s, costo_total=%s 
-                WHERE id=%s
-            """, (new_price, data.costo, new_cost_total, p["id"]))
-            
+        trigger_bulk_recalculation(cur, updated_flete=data.costo)
         conn.commit()
         return {"status": "success"}
     except Exception as e:

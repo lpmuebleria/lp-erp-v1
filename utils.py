@@ -128,11 +128,14 @@ def get_cfg_for_tamano(cur, tamano: str):
         "garantias": float(row["garantias"] or 0)
     }
 
-def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilidad_nivel: str, product_id: int = None) -> float:
+def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilidad_nivel: str, product_id: int = None, settings_cache=None, utility_cache=None, cost_cache=None, product_cat_id=None) -> float:
     # Get settings for new pricing formula
-    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'global_flete_cost', 'iva_automatico')")
-    rows = cur.fetchall()
-    setts = {r['k']: r['v'] for r in rows}
+    if settings_cache is not None:
+        setts = settings_cache
+    else:
+        cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'global_flete_cost', 'iva_automatico')")
+        rows = cur.fetchall()
+        setts = {r['k']: r['v'] for r in rows}
     
     flete = float(setts.get("global_flete_cost", 0.0))
     iva_automatico = True if (setts.get("iva_automatico") == '1') else False
@@ -143,19 +146,30 @@ def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilida
         import json
         try:
             target_cats = json.loads(setts.get("new_pricing_categories", "[]"))
-            cur.execute("SELECT categoria_id FROM products WHERE id=%s", (product_id,))
-            p_cat = cur.fetchone()
-            if p_cat and p_cat["categoria_id"] in target_cats:
+            if product_cat_id is not None:
+                p_cat_id = product_cat_id
+            else:
+                cur.execute("SELECT categoria_id FROM products WHERE id=%s", (product_id,))
+                p_cat = cur.fetchone()
+                p_cat_id = p_cat["categoria_id"] if p_cat else None
+                
+            if p_cat_id in target_cats:
                 use_new_formula = True
         except:
             pass
 
     nivel = (utilidad_nivel or "media").strip().lower()
-    cur.execute("SELECT multiplicador FROM utilidad_config WHERE nivel=%s", (nivel,))
-    row_mul = cur.fetchone()
-    multiplicador = float(row_mul["multiplicador"]) if row_mul else 1.45
+    if utility_cache is not None:
+        multiplicador = utility_cache.get(nivel, 1.45)
+    else:
+        cur.execute("SELECT multiplicador FROM utilidad_config WHERE nivel=%s", (nivel,))
+        row_mul = cur.fetchone()
+        multiplicador = float(row_mul["multiplicador"]) if row_mul else 1.45
 
-    cfg = get_cfg_for_tamano(cur, tamano)
+    if cost_cache is not None:
+        cfg = cost_cache.get(tamano, {"maniobras": 0.0, "empaque": 0.0, "comision": 0.0, "garantias": 0.0})
+    else:
+        cfg = get_cfg_for_tamano(cur, tamano)
     
     costo_base = float(costo_fabricacion or 0) + flete
     
