@@ -107,12 +107,10 @@ function Settings({ isSuperadmin }) {
         setSaving(true);
         try {
             if (activeTab === 'utilidades') {
-                await Promise.all([
-                    axios.put(`${API_URL}/config/utility`, utilities, { withCredentials: true }),
-                    axios.put(`${API_URL}/config/flete`, { costo: globalFlete }, { withCredentials: true }),
-                    axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico }, { withCredentials: true }),
-                    axios.put(`${API_URL}/config/interests`, interests, { withCredentials: true })
-                ]);
+                await axios.put(`${API_URL}/config/utility`, utilities, { withCredentials: true });
+                await axios.put(`${API_URL}/config/flete`, { costo: globalFlete }, { withCredentials: true });
+                await axios.put(`${API_URL}/config/iva`, { iva_automatico: ivaAutomatico }, { withCredentials: true });
+                await axios.put(`${API_URL}/config/interests`, interests, { withCredentials: true });
             } else if (activeTab === 'costos') {
                 await axios.put(`${API_URL}/config/costs`, costs, { withCredentials: true });
             } else if (activeTab === 'personal' && isSuperadmin) {
@@ -1000,6 +998,18 @@ function Settings({ isSuperadmin }) {
                     </section>
                 )}
             </div>
+
+            {saving && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-in fade-in duration-200">
+                    <div className="bg-premium-slate border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center gap-4">
+                        <Loader2 className="animate-spin text-premium-gold" size={48} />
+                        <h3 className="text-lg font-bold text-white uppercase tracking-wider">Guardando Configuración</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed">
+                            Recalculando precios de venta y actualizando catálogo de productos...
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

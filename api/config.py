@@ -63,13 +63,22 @@ def get_utility_config():
 
 @router.put("/config/utility")
 def update_utility_config(data: List[UtilityConfig]):
+    from utils import calcular_precio_producto
     conn = db()
-    cur = conn.cursor()
+    cur = conn.cursor(dictionary=True)
     try:
         for item in data:
             cur.execute("""
                 UPDATE utilidad_config SET multiplicador=%s WHERE nivel=%s
             """, (item.multiplicador, item.nivel))
+            
+        # Trigger massive price recalculation
+        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
+        products = cur.fetchall()
+        for p in products:
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
+            cur.execute("UPDATE products SET precio_lista=%s WHERE id=%s", (new_price, p["id"]))
+            
         conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -89,8 +98,9 @@ def get_cost_config():
 
 @router.put("/config/costs")
 def update_cost_config(data: List[CostConfig]):
+    from utils import calcular_precio_producto
     conn = db()
-    cur = conn.cursor()
+    cur = conn.cursor(dictionary=True)
     try:
         for item in data:
             cur.execute("""
@@ -98,6 +108,33 @@ def update_cost_config(data: List[CostConfig]):
                 SET maniobras=%s, empaque=%s, comision=%s, garantias=%s 
                 WHERE tamano=%s
             """, (item.maniobras, item.empaque, item.comision, item.garantias, item.tamano))
+            
+        # Trigger massive price and cost_total recalculation (cost_config changed)
+        cur.execute("SELECT v FROM settings WHERE k='global_flete_cost'")
+        f_row = cur.fetchone()
+        flete_global = float(f_row["v"]) if f_row and f_row["v"] else 0.0
+        
+        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel FROM products")
+        products = cur.fetchall()
+        for p in products:
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
+            
+            c_cfg = next((c for c in data if c.tamano == p["tamano"]), None)
+            if c_cfg:
+                maniobras = c_cfg.maniobras
+                empaque = c_cfg.empaque
+                comision = c_cfg.comision
+                garantias = c_cfg.garantias
+            else:
+                maniobras, empaque, comision, garantias = 0.0, 0.0, 0.0, 0.0
+                
+            new_cost_total = float(p["costo_fabrica"] or 0) + flete_global + maniobras + empaque + comision + garantias
+            cur.execute("""
+                UPDATE products 
+                SET precio_lista=%s, costo_total=%s, maniobras=%s, empaque=%s, comision=%s, garantias=%s
+                WHERE id=%s
+            """, (new_price, new_cost_total, maniobras, empaque, comision, garantias, p["id"]))
+            
         conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -228,13 +265,27 @@ def get_global_flete():
 
 @router.put("/config/flete")
 def update_global_flete(data: GlobalFleteConfig):
+    from utils import calcular_precio_producto
     conn = db()
-    cur = conn.cursor()
+    cur = conn.cursor(dictionary=True)
     try:
         cur.execute("""
             INSERT INTO settings (k, v) VALUES ('global_flete_cost', %s)
             ON DUPLICATE KEY UPDATE v=%s
         """, (str(data.costo), str(data.costo)))
+        
+        # Trigger massive price, flete, and cost_total recalculation
+        cur.execute("SELECT id, costo_fabrica, tamano, utilidad_nivel, maniobras, empaque, comision, garantias FROM products")
+        products = cur.fetchall()
+        for p in products:
+            new_price = calcular_precio_producto(cur, p["costo_fabrica"], p["tamano"], p["utilidad_nivel"], p["id"])
+            new_cost_total = float(p["costo_fabrica"] or 0) + data.costo + float(p["maniobras"] or 0) + float(p["empaque"] or 0) + float(p["comision"] or 0) + float(p["garantias"] or 0)
+            cur.execute("""
+                UPDATE products 
+                SET precio_lista=%s, flete=%s, costo_total=%s 
+                WHERE id=%s
+            """, (new_price, data.costo, new_cost_total, p["id"]))
+            
         conn.commit()
         return {"status": "success"}
     except Exception as e:

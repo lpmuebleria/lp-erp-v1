@@ -119,9 +119,9 @@ def generate_team_activity_report(request: ReportRequest):
             all_lines = cur.fetchall()
 
             # Pre-fetch configs and settings
-            cur.execute("SELECT k, v FROM settings WHERE k IN ('flete_unitario', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
+            cur.execute("SELECT k, v FROM settings WHERE k IN ('global_flete_cost', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
             setts = {r["k"]: r["v"] for r in cur.fetchall()}
-            flete_unitario = float(setts.get("flete_unitario", 0.0))
+            flete_unitario = float(setts.get("global_flete_cost", 0.0))
             iva_auto = int(setts.get("iva_automatico", 1))
 
             cur.execute("SELECT tamano, maniobras, empaque, comision, garantias FROM cost_config")
