@@ -30,6 +30,7 @@ function Inventory({ role, isSuperadmin }) {
 
     // Filtros y Vista
     const [viewMode, setViewMode] = useState('grid'); // 'grid' o 'list'
+    const [showImages, setShowImages] = useState(() => localStorage.getItem('lp_erp_inventory_show_images') !== 'false');
     const [categories, setCategories] = useState([]);
     const [filters, setFilters] = useState({
         category_id: '',
@@ -138,6 +139,21 @@ function Inventory({ role, isSuperadmin }) {
                                 <List size={18} />
                             </button>
                         </div>
+
+                        <div className="h-10 w-px bg-white/10 mx-2 hidden md:block" />
+
+                        <button
+                            onClick={() => {
+                                const newVal = !showImages;
+                                setShowImages(newVal);
+                                localStorage.setItem('lp_erp_inventory_show_images', newVal);
+                            }}
+                            className={`p-2.5 rounded-2xl border transition-all flex items-center gap-2 text-xs font-bold ${showImages ? 'bg-premium-gold/10 border-premium-gold/30 text-premium-gold' : 'bg-black/40 border-white/10 text-slate-500 hover:text-white'}`}
+                            title={showImages ? "Ocultar imágenes para ahorrar datos" : "Mostrar imágenes"}
+                        >
+                            {showImages ? <Eye size={18} /> : <EyeOff size={18} />}
+                            <span className="hidden sm:inline">{showImages ? "Ver Imágenes" : "Sin Imágenes"}</span>
+                        </button>
                     </div>
                 </div>
 
@@ -344,6 +360,7 @@ function Inventory({ role, isSuperadmin }) {
                             interestPct={interestPct}
                             hasEditAccess={hasEditAccess}
                             viewMode={viewMode}
+                            showImages={showImages}
                             onToggleCatalog={async () => {
                                 try {
                                     await axios.put(`${API_URL}/products/${product.id}`, {
@@ -377,7 +394,7 @@ function Inventory({ role, isSuperadmin }) {
     );
 }
 
-function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintTag, interestPct, viewMode }) {
+function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintTag, interestPct, viewMode, showImages }) {
     const auth = JSON.parse(localStorage.getItem('lp_erp_auth'));
     const isSuperadmin = auth?.is_superadmin === true;
     const isLowStock = product.stock <= 2 && product.stock > 0;
@@ -388,11 +405,11 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
         return (
             <div className="bg-premium-slate/30 border border-white/5 rounded-2xl p-4 flex items-center gap-6 hover:border-premium-gold/30 transition-all group">
                 <div className="w-20 h-20 rounded-xl overflow-hidden bg-black/40 border border-white/5 shrink-0 relative">
-                    {product.imagen_url ? (
-                        <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover" />
+                    {product.imagen_url && showImages ? (
+                        <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-700">
-                            <ImageIcon size={24} />
+                        <div className="w-full h-full flex items-center justify-center text-slate-700 bg-black/20">
+                            {product.imagen_url ? <ImageIcon size={24} className="opacity-40" /> : <PackageOpen size={24} className="opacity-20" />}
                         </div>
                     )}
                     {product.is_offer === 1 && (
@@ -496,12 +513,21 @@ function ProductCard({ product, hasEditAccess, onEdit, onToggleCatalog, onPrintT
                 onClick={() => product.imagen_url && setShowQuickView(true)}
                 className="relative aspect-square rounded-[2rem] overflow-hidden bg-black/40 mb-5 border border-white/5 group-hover:border-premium-gold/20 transition-all cursor-zoom-in"
             >
-                {product.imagen_url ? (
-                    <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                {product.imagen_url && showImages ? (
+                    <img src={getOptimizedImageUrl(product.imagen_url, 400)} alt={product.modelo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-800">
-                        <PackageOpen size={48} className="mb-2 opacity-20" />
-                        <span className="text-[10px] font-black uppercase tracking-tighter opacity-20">Sin Imagen</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-700/40 bg-black/20">
+                        {product.imagen_url ? (
+                            <>
+                                <ImageIcon size={48} className="mb-2 opacity-40" />
+                                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Ver Imagen</span>
+                            </>
+                        ) : (
+                            <>
+                                <PackageOpen size={48} className="mb-2 opacity-20" />
+                                <span className="text-[10px] font-black uppercase tracking-widest opacity-20">Sin Imagen</span>
+                            </>
+                        )}
                     </div>
                 )}
 
