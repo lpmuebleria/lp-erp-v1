@@ -130,11 +130,11 @@ def get_cfg_for_tamano(cur, tamano: str):
 
 def calcular_precio_producto(cur, costo_fabricacion: float, tamano: str, utilidad_nivel: str, product_id: int = None) -> float:
     # Get settings for new pricing formula
-    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'flete_unitario', 'iva_automatico')")
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('new_pricing_formula_enabled', 'new_pricing_categories', 'global_flete_cost', 'iva_automatico')")
     rows = cur.fetchall()
     setts = {r['k']: r['v'] for r in rows}
     
-    flete = float(setts.get("flete_unitario", 0.0))
+    flete = float(setts.get("global_flete_cost", 0.0))
     iva_automatico = True if (setts.get("iva_automatico") == '1') else False
     new_formula_enabled = setts.get("new_pricing_formula_enabled") == '1'
     
@@ -191,9 +191,9 @@ def compute_line_total(precio_unit: float, cantidad: int, desc_tipo: str|None, d
     return subtotal
 
 def compute_bolsas(cur, quote_id: int):
-    cur.execute("SELECT k, v FROM settings WHERE k IN ('flete_unitario', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
+    cur.execute("SELECT k, v FROM settings WHERE k IN ('global_flete_cost', 'comision_debito_pct', 'comision_msi_banco_pct', 'iva_automatico')")
     setts = {r["k"]: r["v"] for r in cur.fetchall()}
-    flete_unitario = float(setts.get("flete_unitario", 0.0))
+    flete_unitario = float(setts.get("global_flete_cost", 0.0))
     comm_debito_pct = float(setts.get("comision_debito_pct", 0.0))
     comm_msi_pct = float(setts.get("comision_msi_banco_pct", 0.0))
     iva_auto = int(setts.get("iva_automatico", 1))
