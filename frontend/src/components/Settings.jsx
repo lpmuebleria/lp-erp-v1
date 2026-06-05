@@ -301,24 +301,18 @@ function Settings({ isSuperadmin }) {
 
     return (
         <div className="p-8 max-w-6xl mx-auto animate-in fade-in duration-500">
-            <header className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                        <SettingsIcon className="text-premium-gold" size={32} />
-                        CONFIGURACIÓN
-                    </h1>
-                    <p className="text-slate-400 mt-1">Control de utilidades y gastos fijos de operación</p>
-                </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-4 border-b border-white/5">
+                <p className="text-slate-400 text-sm">Control de utilidades y gastos fijos de operación</p>
 
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-premium-gold text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
+                    className="bg-premium-gold text-black px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:scale-105 transition-all active:scale-95 disabled:opacity-50 w-full md:w-auto"
                 >
                     {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                     {saving ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
-            </header>
+            </div>
 
             {showSuccess && (
                 <div className="mb-6 bg-green-500/20 border border-green-500/50 text-green-400 p-4 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-4">
@@ -327,7 +321,7 @@ function Settings({ isSuperadmin }) {
                 </div>
             )}
 
-            <div className="flex space-x-4 mb-8">
+            <div className="flex flex-wrap gap-3 mb-8">
                 <button
                     onClick={() => setActiveTab('utilidades')}
                     className={`px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${activeTab === 'utilidades' ? 'bg-white/10 text-white shadow-xl' : 'text-slate-500 hover:text-white'

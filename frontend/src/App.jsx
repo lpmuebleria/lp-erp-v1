@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BarChart3,
   Package,
@@ -55,6 +55,13 @@ function ERPContainer() {
 
   // Concept Drill-Down State (Fullscreen isolated view)
   const [activeConcept, setActiveConcept] = useState(null);
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
 
@@ -190,7 +197,7 @@ function ERPContainer() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-12 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/[0.02] via-transparent to-transparent">
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-12 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/[0.02] via-transparent to-transparent">
         <header className="flex justify-between items-center mb-12">
           <div>
             <h2 className="text-4xl font-black text-white tracking-tight uppercase">
