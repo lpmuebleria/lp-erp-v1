@@ -233,79 +233,81 @@ function Orders({ role, onSelectOrder }) {
             {viewMode === 'table' ? (
                 <>
                     <div className="bg-premium-slate/40 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    <th className="px-8 py-5">Folio / Fecha</th>
-                                    <th className="px-8 py-5">Cliente</th>
-                                    <th className="px-8 py-5 text-center">Estatus</th>
-                                    <th className="px-8 py-5 text-right">Saldo</th>
-                                    <th className="px-8 py-5 text-right">Total</th>
-                                    <th className="px-8 py-5">Nota</th>
-                                    <th className="px-8 py-5 w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {orders.map((o) => (
-                                    <tr
-                                        key={o.id}
-                                        onClick={() => onSelectOrder(o.id)}
-                                        className="hover:bg-white/[0.03] cursor-pointer transition-all group"
-                                    >
-                                        <td className="px-8 py-6">
-                                            <div className="font-black text-white group-hover:text-premium-gold transition-colors text-base tracking-tighter">{o.folio}</div>
-                                            <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">{new Date(o.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="text-sm font-bold text-slate-300 uppercase">{o.cliente_nombre || '---'}</div>
-                                            <div className="text-[10px] text-slate-600 font-mono mt-1">{o.vendedor}</div>
-                                        </td>
-                                        <td className="px-8 py-6 text-center">
-                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(o.estatus)}`}>
-                                                {o.estatus}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right font-mono font-bold">
-                                            <span className={o.saldo > 0 ? 'text-red-400 bg-red-400/5 px-2 py-1 rounded-lg' : 'text-slate-500'}>
-                                                ${o.saldo.toLocaleString()}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right font-black text-white text-lg tracking-tighter">
-                                            ${o.total.toLocaleString()}
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="relative group/note max-w-[120px]">
-                                                <div className="text-[10px] text-slate-500 font-medium truncate italic">
-                                                    {o.ultima_nota || 'Sin notas'}
-                                                </div>
-                                                {o.ultima_nota && (
-                                                    <div className="absolute bottom-full left-0 mb-3 w-72 p-4 bg-premium-slate border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 group-hover/note:opacity-100 transition-all duration-300 z-50 pointer-events-none translate-y-2 group-hover/note:translate-y-0 translate-x-[-20%]">
-                                                        <div className="flex items-center space-x-2 mb-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-premium-gold animate-pulse" />
-                                                            <p className="text-[10px] text-premium-gold font-black uppercase tracking-[0.2em]">Última Actualización</p>
-                                                        </div>
-                                                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{o.ultima_nota}</p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left min-w-[900px]">
+                                <thead>
+                                    <tr className="bg-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                        <th className="px-8 py-5">Folio / Fecha</th>
+                                        <th className="px-8 py-5">Cliente</th>
+                                        <th className="px-8 py-5 text-center">Estatus</th>
+                                        <th className="px-8 py-5 text-right">Saldo</th>
+                                        <th className="px-8 py-5 text-right">Total</th>
+                                        <th className="px-8 py-5">Nota</th>
+                                        <th className="px-8 py-5 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {orders.map((o) => (
+                                        <tr
+                                            key={o.id}
+                                            onClick={() => onSelectOrder(o.id)}
+                                            className="hover:bg-white/[0.03] cursor-pointer transition-all group"
+                                        >
+                                            <td className="px-8 py-6">
+                                                <div className="font-black text-white group-hover:text-premium-gold transition-colors text-base tracking-tighter">{o.folio}</div>
+                                                <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">{new Date(o.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="text-sm font-bold text-slate-300 uppercase">{o.cliente_nombre || '---'}</div>
+                                                <div className="text-[10px] text-slate-600 font-mono mt-1">{o.vendedor}</div>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(o.estatus)}`}>
+                                                    {o.estatus}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right font-mono font-bold">
+                                                <span className={o.saldo > 0 ? 'text-red-400 bg-red-400/5 px-2 py-1 rounded-lg' : 'text-slate-500'}>
+                                                    ${o.saldo.toLocaleString()}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right font-black text-white text-lg tracking-tighter">
+                                                ${o.total.toLocaleString()}
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="relative group/note max-w-[120px]">
+                                                    <div className="text-[10px] text-slate-500 font-medium truncate italic">
+                                                        {o.ultima_nota || 'Sin notas'}
                                                     </div>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:bg-premium-gold group-hover:text-black transition-all">
-                                                <ChevronRight size={16} />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {orders.length === 0 && !loading && (
-                                    <tr>
-                                        <td colSpan="6" className="px-8 py-32 text-center text-slate-600 italic">
-                                            <Box size={48} className="mx-auto mb-4 opacity-10" />
-                                            No se encontraron pedidos con estos filtros
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                                    {o.ultima_nota && (
+                                                        <div className="absolute bottom-full left-0 mb-3 w-72 p-4 bg-premium-slate border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 group-hover/note:opacity-100 transition-all duration-300 z-50 pointer-events-none translate-y-2 group-hover/note:translate-y-0 translate-x-[-20%]">
+                                                            <div className="flex items-center space-x-2 mb-2">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-premium-gold animate-pulse" />
+                                                                <p className="text-[10px] text-premium-gold font-black uppercase tracking-[0.2em]">Última Actualización</p>
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{o.ultima_nota}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:bg-premium-gold group-hover:text-black transition-all">
+                                                    <ChevronRight size={16} />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {orders.length === 0 && !loading && (
+                                        <tr>
+                                            <td colSpan="6" className="px-8 py-32 text-center text-slate-600 italic">
+                                                <Box size={48} className="mx-auto mb-4 opacity-10" />
+                                                No se encontraron pedidos con estos filtros
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Pagination Controls */}
