@@ -9,16 +9,36 @@ function Payments() {
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalPayments, setTotalPayments] = useState(0);
+    const limit = 30;
 
     useEffect(() => {
-        fetchPayments();
-    }, []);
+        if (page !== 1) {
+            setPage(1);
+        } else {
+            fetchPayments(search, 1);
+        }
+    }, [search]);
 
-    const fetchPayments = async () => {
+    useEffect(() => {
+        fetchPayments(search, page);
+    }, [page]);
+
+    const fetchPayments = async (query = search, targetPage = page) => {
         setLoading(true);
         try {
-            const res = await axios.get(`${API_URL}/payments`);
-            setPayments(res.data);
+            const res = await axios.get(`${API_URL}/payments`, {
+                params: {
+                    q: query || undefined,
+                    page: targetPage,
+                    limit
+                }
+            });
+            setPayments(res.data.payments);
+            setTotalPages(res.data.total_pages);
+            setTotalPayments(res.data.total);
         } catch (err) {
             console.error("Error fetching payments:", err);
             toast.error("No se pudo cargar el historial de pagos");
@@ -27,11 +47,7 @@ function Payments() {
         }
     };
 
-    const filteredPayments = payments.filter(p =>
-        (p.folio || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.cliente_nombre || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.vendedor || '').toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredPayments = payments;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-10 duration-700">
@@ -140,6 +156,47 @@ function Payments() {
                         </table>
                     )}
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-premium-slate/30 p-6 rounded-[2rem] border border-white/5 backdrop-blur-sm mt-6 m-4">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                            Mostrando pagos {(page - 1) * limit + 1} - {Math.min(page * limit, totalPayments)} de {totalPayments}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                disabled={page === 1}
+                                onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                Anterior
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                                .map((p, idx, arr) => {
+                                    const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                                    return (
+                                        <React.Fragment key={p}>
+                                            {showEllipsis && <span className="text-slate-600 px-1">...</span>}
+                                            <button
+                                                onClick={() => setPage(p)}
+                                                className={`w-9 h-9 rounded-xl text-xs font-black transition-all cursor-pointer ${page === p ? 'bg-premium-gold text-black shadow-lg shadow-premium-gold/20' : 'bg-white/5 text-slate-400 border border-white/10 hover:text-white hover:bg-white/10'}`}
+                                            >
+                                                {p}
+                                            </button>
+                                        </React.Fragment>
+                                    );
+                                })}
+                            <button
+                                disabled={page === totalPages}
+                                onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

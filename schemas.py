@@ -341,3 +341,11 @@ class CRMProspecto(CRMProspectoBase):
     class Config:
         from_attributes = True
 
+class PaginatedProducts(BaseModel):
+    products: List[Product]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+

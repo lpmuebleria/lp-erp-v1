@@ -10,30 +10,54 @@ from services.pdf_service import generate_receipt_pdf
 router = APIRouter()
 
 @router.get("/quotes")
-def get_quotes(q: Optional[str] = None):
+def get_quotes(
+    q: Optional[str] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = 20
+):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
         q_clean = (q or "").strip()
         
+        where_sql = ""
+        params = []
         if q_clean:
+            where_sql = " WHERE (cliente_nombre LIKE %s OR folio LIKE %s)"
             like = f"%{q_clean}%"
-            cur.execute("""
-                SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
-                FROM quotes
-                WHERE (cliente_nombre LIKE %s OR folio LIKE %s)
-                ORDER BY created_at DESC
-                LIMIT 20
-            """, (like, like))
-        else:
-            cur.execute("""
-                SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
-                FROM quotes
-                ORDER BY created_at DESC
-                LIMIT 20
-            """)
+            params.extend([like, like])
+            
+        total = 0
+        if page is not None:
+            cur.execute(f"SELECT COUNT(*) as total FROM quotes {where_sql}", tuple(params))
+            total = cur.fetchone()["total"]
+            
+        query = f"""
+            SELECT id, folio, created_at, vendedor, total, status, customer_id, cliente_nombre
+            FROM quotes
+            {where_sql}
+            ORDER BY created_at DESC
+        """
         
+        if page is not None:
+            offset = (page - 1) * limit
+            query += " LIMIT %s OFFSET %s"
+            cur.execute(query, tuple(params + [limit, offset]))
+        else:
+            query += " LIMIT 20"
+            cur.execute(query, tuple(params))
+            
         rows = cur.fetchall()
+        
+        import math
+        if page is not None:
+            return {
+                "quotes": rows,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": math.ceil(total / limit) if limit > 0 else 0
+            }
         return rows
     finally:
         conn.close()

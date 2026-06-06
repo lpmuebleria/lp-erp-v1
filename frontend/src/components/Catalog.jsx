@@ -33,8 +33,13 @@ const getOptimizedImageUrl = (url, width = 400) => {
 function Catalog() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [offerProducts, setOfferProducts] = useState([]);
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const limit = 12;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('descripcion');
@@ -197,10 +202,21 @@ function Catalog() {
     );
   };
 
-  const offerProducts = products.filter(p => p.is_offer === 1);
-
+  // Fetch categories and offers once on mount
   useEffect(() => {
-    fetchData();
+    const fetchInitialData = async () => {
+      try {
+        const [cRes, oRes] = await Promise.all([
+          axios.get(`${API_URL}/catalog/categories`),
+          axios.get(`${API_URL}/catalog/products`, { params: { is_offer: 1 } })
+        ]);
+        setCategories(['Todos', ...cRes.data]);
+        setOfferProducts(oRes.data);
+      } catch (err) {
+        console.error("Error fetching initial catalog data:", err);
+      }
+    };
+    fetchInitialData();
   }, []);
 
   useEffect(() => {
@@ -212,28 +228,40 @@ function Catalog() {
     };
   }, []);
 
-  const fetchData = async () => {
+  const fetchProducts = async () => {
+    setLoading(true);
     try {
-      const [pRes, cRes] = await Promise.all([
-        axios.get(`${API_URL}/catalog/products`),
-        axios.get(`${API_URL}/catalog/categories`)
-      ]);
-      setProducts(pRes.data);
-      setCategories(['Todos', ...cRes.data]);
+      const params = {
+        q: searchQuery || undefined,
+        category: activeCategory || undefined,
+        is_offer: showOffersOnly ? 1 : undefined,
+        page,
+        limit
+      };
+      const res = await axios.get(`${API_URL}/catalog/products`, { params });
+      setProducts(res.data.products);
+      setTotalPages(res.data.total_pages);
+      setTotalProducts(res.data.total);
     } catch (err) {
-      console.error("Error fetching catalog data:", err);
+      console.error("Error fetching paginated products:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredProducts = products.filter(p => {
-    const matchesCategory = activeCategory === 'Todos' || p.tamano === activeCategory;
-    const matchesSearch = p.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesOffer = !showOffersOnly || p.is_offer === 1;
-    return matchesCategory && matchesSearch && matchesOffer;
-  });
+  useEffect(() => {
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      fetchProducts();
+    }
+  }, [searchQuery, activeCategory, showOffersOnly]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [page]);
+
+  const filteredProducts = products;
 
   useEffect(() => {
     if (selectedProduct) {
@@ -442,7 +470,7 @@ function Catalog() {
           <div>
             <h2 className="text-3xl font-black tracking-tighter mb-2 uppercase">Catálogo de Productos</h2>
             <div className="flex items-center space-x-3">
-              <p className="text-[#57534e] font-medium">Mostrando {filteredProducts.length} piezas exclusivas</p>
+              <p className="text-[#57534e] font-medium">Mostrando {totalProducts} piezas exclusivas</p>
               {showOffersOnly && (
                 <button
                   onClick={() => setShowOffersOnly(false)}
@@ -585,6 +613,51 @@ function Catalog() {
             <h3 className="text-2xl font-black uppercase mb-2 leading-none">Sin Resultados</h3>
             <p className="text-[#a8a29e] font-medium">No encontramos ningún mueble que coincida con tu búsqueda.</p>
             <button onClick={() => { setSearchQuery(''); setActiveCategory('Todos') }} className="mt-8 text-[#eab308] font-black uppercase text-sm border-b-2 border-[#eab308] pb-1 hover:text-black hover:border-black transition-all">Limpiar Filtros</button>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-black/5 pt-12 mt-16 animate-in fade-in duration-500">
+            <p className="text-sm font-bold text-[#78716c] uppercase tracking-wide">
+              Mostrando {products.length} de {totalProducts} piezas exclusivas
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={page === 1}
+                onClick={() => { setPage(prev => Math.max(prev - 1, 1)); document.getElementById('catalogo').scrollIntoView({ behavior: 'smooth' }); }}
+                className="px-6 py-4.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white border border-[#e7e5e4] text-[#1c1917] hover:border-[#eab308] hover:text-[#eab308] disabled:opacity-30 disabled:hover:border-[#e7e5e4] disabled:hover:text-[#1c1917] transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, arr) => {
+                  const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {showEllipsis && <span className="text-[#a8a29e] px-1 font-bold">...</span>}
+                      <button
+                        onClick={() => { setPage(p); document.getElementById('catalogo').scrollIntoView({ behavior: 'smooth' }); }}
+                        className={`w-12 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                          page === p
+                            ? 'bg-[#eab308] text-black border border-[#eab308] shadow-xl shadow-[#eab308]/10'
+                            : 'bg-white text-[#78716c] border border-[#e7e5e4] hover:border-[#eab308] hover:text-[#eab308]'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              <button
+                disabled={page === totalPages}
+                onClick={() => { setPage(prev => Math.min(prev + 1, totalPages)); document.getElementById('catalogo').scrollIntoView({ behavior: 'smooth' }); }}
+                className="px-6 py-4.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white border border-[#e7e5e4] text-[#1c1917] hover:border-[#eab308] hover:text-[#eab308] disabled:opacity-30 disabled:hover:border-[#e7e5e4] disabled:hover:text-[#1c1917] transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         )}
       </main>

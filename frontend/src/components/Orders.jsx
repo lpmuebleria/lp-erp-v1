@@ -29,6 +29,10 @@ function Orders({ role, onSelectOrder }) {
     const [orders, setOrders] = useState([]);
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'kanban'
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const limit = 20;
 
     // Filters
     const [filters, setFilters] = useState({
@@ -40,16 +44,37 @@ function Orders({ role, onSelectOrder }) {
     });
 
     useEffect(() => {
-        fetchOrders();
+        if (page !== 1) {
+            setPage(1);
+        } else {
+            fetchOrders();
+        }
     }, [filters]);
+
+    useEffect(() => {
+        fetchOrders();
+    }, [page, viewMode]);
 
     const fetchOrders = async () => {
         setLoading(true);
         try {
+            const params = {
+                ...filters,
+                page: viewMode === 'table' ? page : undefined,
+                limit: viewMode === 'table' ? limit : 1000
+            };
             const response = await axios.get(`${API_URL}/orders`, {
-                params: filters
+                params
             });
-            setOrders(response.data);
+            if (viewMode === 'table') {
+                setOrders(response.data.orders);
+                setTotalPages(response.data.total_pages);
+                setTotalOrders(response.data.total);
+            } else {
+                setOrders(response.data);
+                setTotalPages(1);
+                setTotalOrders(response.data.length);
+            }
         } catch (error) {
             console.error("Error fetching orders:", error);
         } finally {
@@ -206,81 +231,124 @@ function Orders({ role, onSelectOrder }) {
 
             {/* Content Area */}
             {viewMode === 'table' ? (
-                <div className="bg-premium-slate/40 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                <th className="px-8 py-5">Folio / Fecha</th>
-                                <th className="px-8 py-5">Cliente</th>
-                                <th className="px-8 py-5 text-center">Estatus</th>
-                                <th className="px-8 py-5 text-right">Saldo</th>
-                                <th className="px-8 py-5 text-right">Total</th>
-                                <th className="px-8 py-5">Nota</th>
-                                <th className="px-8 py-5 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {orders.map((o) => (
-                                <tr
-                                    key={o.id}
-                                    onClick={() => onSelectOrder(o.id)}
-                                    className="hover:bg-white/[0.03] cursor-pointer transition-all group"
-                                >
-                                    <td className="px-8 py-6">
-                                        <div className="font-black text-white group-hover:text-premium-gold transition-colors text-base tracking-tighter">{o.folio}</div>
-                                        <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">{new Date(o.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="text-sm font-bold text-slate-300 uppercase">{o.cliente_nombre || '---'}</div>
-                                        <div className="text-[10px] text-slate-600 font-mono mt-1">{o.vendedor}</div>
-                                    </td>
-                                    <td className="px-8 py-6 text-center">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(o.estatus)}`}>
-                                            {o.estatus}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right font-mono font-bold">
-                                        <span className={o.saldo > 0 ? 'text-red-400 bg-red-400/5 px-2 py-1 rounded-lg' : 'text-slate-500'}>
-                                            ${o.saldo.toLocaleString()}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right font-black text-white text-lg tracking-tighter">
-                                        ${o.total.toLocaleString()}
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="relative group/note max-w-[120px]">
-                                            <div className="text-[10px] text-slate-500 font-medium truncate italic">
-                                                {o.ultima_nota || 'Sin notas'}
-                                            </div>
-                                            {o.ultima_nota && (
-                                                <div className="absolute bottom-full left-0 mb-3 w-72 p-4 bg-premium-slate border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 group-hover/note:opacity-100 transition-all duration-300 z-50 pointer-events-none translate-y-2 group-hover/note:translate-y-0 translate-x-[-20%]">
-                                                    <div className="flex items-center space-x-2 mb-2">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-premium-gold animate-pulse" />
-                                                        <p className="text-[10px] text-premium-gold font-black uppercase tracking-[0.2em]">Última Actualización</p>
-                                                    </div>
-                                                    <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{o.ultima_nota}</p>
+                <>
+                    <div className="bg-premium-slate/40 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    <th className="px-8 py-5">Folio / Fecha</th>
+                                    <th className="px-8 py-5">Cliente</th>
+                                    <th className="px-8 py-5 text-center">Estatus</th>
+                                    <th className="px-8 py-5 text-right">Saldo</th>
+                                    <th className="px-8 py-5 text-right">Total</th>
+                                    <th className="px-8 py-5">Nota</th>
+                                    <th className="px-8 py-5 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {orders.map((o) => (
+                                    <tr
+                                        key={o.id}
+                                        onClick={() => onSelectOrder(o.id)}
+                                        className="hover:bg-white/[0.03] cursor-pointer transition-all group"
+                                    >
+                                        <td className="px-8 py-6">
+                                            <div className="font-black text-white group-hover:text-premium-gold transition-colors text-base tracking-tighter">{o.folio}</div>
+                                            <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">{new Date(o.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="text-sm font-bold text-slate-300 uppercase">{o.cliente_nombre || '---'}</div>
+                                            <div className="text-[10px] text-slate-600 font-mono mt-1">{o.vendedor}</div>
+                                        </td>
+                                        <td className="px-8 py-6 text-center">
+                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(o.estatus)}`}>
+                                                {o.estatus}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6 text-right font-mono font-bold">
+                                            <span className={o.saldo > 0 ? 'text-red-400 bg-red-400/5 px-2 py-1 rounded-lg' : 'text-slate-500'}>
+                                                ${o.saldo.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6 text-right font-black text-white text-lg tracking-tighter">
+                                            ${o.total.toLocaleString()}
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="relative group/note max-w-[120px]">
+                                                <div className="text-[10px] text-slate-500 font-medium truncate italic">
+                                                    {o.ultima_nota || 'Sin notas'}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:bg-premium-gold group-hover:text-black transition-all">
-                                            <ChevronRight size={16} />
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {orders.length === 0 && !loading && (
-                                <tr>
-                                    <td colSpan="6" className="px-8 py-32 text-center text-slate-600 italic">
-                                        <Box size={48} className="mx-auto mb-4 opacity-10" />
-                                        No se encontraron pedidos con estos filtros
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                                {o.ultima_nota && (
+                                                    <div className="absolute bottom-full left-0 mb-3 w-72 p-4 bg-premium-slate border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 group-hover/note:opacity-100 transition-all duration-300 z-50 pointer-events-none translate-y-2 group-hover/note:translate-y-0 translate-x-[-20%]">
+                                                        <div className="flex items-center space-x-2 mb-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-premium-gold animate-pulse" />
+                                                            <p className="text-[10px] text-premium-gold font-black uppercase tracking-[0.2em]">Última Actualización</p>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{o.ultima_nota}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:bg-premium-gold group-hover:text-black transition-all">
+                                                <ChevronRight size={16} />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {orders.length === 0 && !loading && (
+                                    <tr>
+                                        <td colSpan="6" className="px-8 py-32 text-center text-slate-600 italic">
+                                            <Box size={48} className="mx-auto mb-4 opacity-10" />
+                                            No se encontraron pedidos con estos filtros
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-premium-slate/30 p-6 rounded-[2rem] border border-white/5 backdrop-blur-sm mt-6">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                Mostrando pedidos {(page - 1) * limit + 1} - {Math.min(page * limit, totalOrders)} de {totalOrders}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                    Anterior
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                                    .map((p, idx, arr) => {
+                                        const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                                        return (
+                                            <React.Fragment key={p}>
+                                                {showEllipsis && <span className="text-slate-600 px-1">...</span>}
+                                                <button
+                                                    onClick={() => setPage(p)}
+                                                    className={`w-9 h-9 rounded-xl text-xs font-black transition-all cursor-pointer ${page === p ? 'bg-premium-gold text-black shadow-lg shadow-premium-gold/20' : 'bg-white/5 text-slate-400 border border-white/10 hover:text-white hover:bg-white/10'}`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                <button
+                                    disabled={page === totalPages}
+                                    onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
             ) : (
                 /* Kanban View */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 overflow-x-auto pb-6">
