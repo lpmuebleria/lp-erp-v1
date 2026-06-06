@@ -4,7 +4,7 @@ from schemas import PaymentCreate, PaymentCancel
 from utils import today_iso
 from api.notifications import trigger_notification
 import datetime
-import os
+from typing import Optional
 
 router = APIRouter()
 
@@ -85,20 +85,68 @@ def create_payment(data: PaymentCreate):
         conn.close()
 
 @router.get("/payments")
-def get_all_payments():
+def get_all_payments(
+    q: Optional[str] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = 30
+):
     # Retorna el historial global de pagos para la vista de Administrador
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("""
+        where_clauses = []
+        params = []
+        if q:
+            q_clean = q.strip()
+            if q_clean:
+                like = f"%{q_clean}%"
+                where_clauses.append("(o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s OR o.vendedor LIKE %s)")
+                params.extend([like, like, like])
+                
+        where_sql = ""
+        if where_clauses:
+            where_sql = " AND " + " AND ".join(where_clauses)
+            
+        total = 0
+        if page is not None:
+            count_sql = f"""
+                SELECT COUNT(*) as total
+                FROM payments p
+                JOIN orders o ON p.order_id = o.id
+                LEFT JOIN quotes q ON o.quote_id = q.id
+                WHERE 1=1 {where_sql}
+            """
+            cur.execute(count_sql, tuple(params))
+            total = cur.fetchone()["total"]
+
+        query = f"""
             SELECT p.*, o.folio, o.vendedor, q.cliente_nombre 
             FROM payments p
             JOIN orders o ON p.order_id = o.id
             LEFT JOIN quotes q ON o.quote_id = q.id
+            WHERE 1=1 {where_sql}
             ORDER BY p.created_at DESC, p.id DESC
-            LIMIT 500
-        """)
+        """
+        
+        if page is not None:
+            offset = (page - 1) * limit
+            query += " LIMIT %s OFFSET %s"
+            cur.execute(query, tuple(params + [limit, offset]))
+        else:
+            query += " LIMIT 500"
+            cur.execute(query, tuple(params))
+            
         rows = cur.fetchall()
+        
+        import math
+        if page is not None:
+            return {
+                "payments": rows,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": math.ceil(total / limit) if limit > 0 else 0
+            }
         return rows
     finally:
         conn.close()

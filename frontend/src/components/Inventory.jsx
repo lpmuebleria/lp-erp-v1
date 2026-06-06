@@ -18,6 +18,10 @@ function Inventory({ role, isSuperadmin }) {
     const [products, setProducts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalProducts, setTotalProducts] = useState(0);
+    const limit = 24;
     const [showModal, setShowModal] = useState(false);
     const [showCatalogModal, setShowCatalogModal] = useState(false);
     const [generatingCatalog, setGeneratingCatalog] = useState(false);
@@ -55,8 +59,16 @@ function Inventory({ role, isSuperadmin }) {
     const hasEditAccess = checkEditAccess();
 
     useEffect(() => {
-        fetchProducts();
+        if (page !== 1) {
+            setPage(1);
+        } else {
+            fetchProducts();
+        }
     }, [searchTerm, filters]);
+
+    useEffect(() => {
+        fetchProducts();
+    }, [page]);
 
     useEffect(() => {
         const fetchCategories = async () => {
@@ -78,13 +90,17 @@ function Inventory({ role, isSuperadmin }) {
                 category_id: filters.category_id || undefined,
                 stock_status: filters.stock_status || undefined,
                 is_offer: filters.is_offer === '1' ? 1 : (filters.is_offer === '0' ? 0 : undefined),
-                active: filters.active || undefined
+                active: filters.active || undefined,
+                page,
+                limit
             };
             const [pRes, iRes] = await Promise.all([
                 axios.get(`${API_URL}/products`, { params }),
                 axios.get(`${API_URL}/config/interests`)
             ]);
-            setProducts(pRes.data);
+            setProducts(pRes.data.products);
+            setTotalPages(pRes.data.total_pages);
+            setTotalProducts(pRes.data.total);
             setInterestPct(iRes.data.interes_msi_pct);
         } catch (error) {
             console.error("Error fetching products/interests:", error);
@@ -388,6 +404,47 @@ function Inventory({ role, isSuperadmin }) {
                 <div className="h-64 flex flex-col items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 text-slate-500">
                     <PackageOpen size={48} className="mb-2 opacity-20" />
                     <p>No se encontraron productos</p>
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-premium-slate/30 p-6 rounded-[2rem] border border-white/5 backdrop-blur-sm mt-8">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        Mostrando productos {(page - 1) * limit + 1} - {Math.min(page * limit, totalProducts)} de {totalProducts}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            disabled={page === 1}
+                            onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                            className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                            Anterior
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                            .map((p, idx, arr) => {
+                                const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
+                                return (
+                                    <React.Fragment key={p}>
+                                        {showEllipsis && <span className="text-slate-600 px-1">...</span>}
+                                        <button
+                                            onClick={() => setPage(p)}
+                                            className={`w-9 h-9 rounded-xl text-xs font-black transition-all cursor-pointer ${page === p ? 'bg-premium-gold text-black shadow-lg shadow-premium-gold/20' : 'bg-white/5 text-slate-400 border border-white/10 hover:text-white hover:bg-white/10'}`}
+                                        >
+                                            {p}
+                                        </button>
+                                    </React.Fragment>
+                                );
+                            })}
+                        <button
+                            disabled={page === totalPages}
+                            onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                            className="px-4 py-2.5 rounded-xl text-xs font-black uppercase bg-white/5 text-white border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-all cursor-pointer disabled:cursor-not-allowed"
+                        >
+                            Siguiente
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

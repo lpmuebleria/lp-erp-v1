@@ -10,7 +10,16 @@ from utils import get_image_path
 router = APIRouter()
 
 @router.get("/orders")
-def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde: str = "", hasta: str = "", mueble: str = ""):
+def get_orders(
+    q: Optional[str] = None, 
+    estatus: str = "", 
+    tipo: str = "", 
+    desde: str = "", 
+    hasta: str = "", 
+    mueble: str = "",
+    page: Optional[int] = None,
+    limit: Optional[int] = 20
+):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -18,7 +27,48 @@ def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde
         estatus_clean = (estatus or "").strip()
         tipo_clean = (tipo or "").strip()
 
-        sql = """
+        where_sql = ""
+        params = []
+
+        if q_clean:
+            where_sql += """ AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s 
+                       OR o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s))"""
+            like = f"%{q_clean}%"
+            params.extend([like, like, like, like])
+        
+        if estatus_clean:
+            where_sql += " AND o.estatus = %s"
+            params.append(estatus_clean)
+            
+        if tipo_clean:
+            where_sql += " AND o.tipo = %s"
+            params.append(tipo_clean)
+
+        if desde:
+            where_sql += " AND date(o.created_at) >= %s"
+            params.append(desde)
+        
+        if hasta:
+            where_sql += " AND date(o.created_at) <= %s"
+            params.append(hasta)
+            
+        if mueble:
+            where_sql += " AND o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s)"
+            like_m = f"%{mueble}%"
+            params.extend([like_m, like_m])
+
+        total = 0
+        if page is not None:
+            count_sql = f"""
+                SELECT COUNT(*) as total
+                FROM orders o
+                LEFT JOIN quotes q ON q.id = o.quote_id
+                WHERE 1=1 {where_sql}
+            """
+            cur.execute(count_sql, tuple(params))
+            total = cur.fetchone()["total"]
+
+        sql = f"""
             SELECT
                 o.id, o.folio, o.created_at, o.vendedor,
                 o.total, o.anticipo_pagado, o.saldo,
@@ -28,41 +78,29 @@ def get_orders(q: Optional[str] = None, estatus: str = "", tipo: str = "", desde
                 (SELECT content FROM order_notes WHERE order_id = o.id ORDER BY id DESC LIMIT 1) as ultima_nota
             FROM orders o
             LEFT JOIN quotes q ON q.id = o.quote_id
-            WHERE 1=1
+            WHERE 1=1 {where_sql}
+            ORDER BY o.created_at DESC
         """
-        params = []
 
-        if q_clean:
-            sql += """ AND (o.folio LIKE %s OR IFNULL(q.cliente_nombre,'') LIKE %s 
-                       OR o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s))"""
-            like = f"%{q_clean}%"
-            params.extend([like, like, like, like])
+        if page is not None:
+            offset = (page - 1) * limit
+            sql += " LIMIT %s OFFSET %s"
+            cur.execute(sql, tuple(params + [limit, offset]))
+        else:
+            sql += " LIMIT 200"
+            cur.execute(sql, tuple(params))
         
-        if estatus_clean:
-            sql += " AND o.estatus = %s"
-            params.append(estatus_clean)
-            
-        if tipo_clean:
-            sql += " AND o.tipo = %s"
-            params.append(tipo_clean)
-
-        if desde:
-            sql += " AND date(o.created_at) >= %s"
-            params.append(desde)
-        
-        if hasta:
-            sql += " AND date(o.created_at) <= %s"
-            params.append(hasta)
-            
-        if mueble:
-            sql += " AND o.quote_id IN (SELECT quote_id FROM quote_lines ql JOIN products p ON p.id=ql.product_id WHERE p.modelo LIKE %s OR p.codigo LIKE %s)"
-            like_m = f"%{mueble}%"
-            params.extend([like_m, like_m])
-
-        sql += " ORDER BY o.created_at DESC LIMIT 200"
-        
-        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
+        
+        import math
+        if page is not None:
+            return {
+                "orders": rows,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": math.ceil(total / limit) if limit > 0 else 0
+            }
         return rows
     finally:
         conn.close()

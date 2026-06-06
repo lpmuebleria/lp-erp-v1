@@ -15,7 +15,9 @@ import {
   Check,
   Wallet,
   Users,
-  Target
+  Target,
+  Menu,
+  X
 } from 'lucide-react';
 import axios from 'axios';
 import { Toaster } from 'react-hot-toast';
@@ -49,6 +51,9 @@ function ERPContainer() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedOrderId, setSelectedOrderId] = useState(null);
 
+  // Sidebar mobile drawer state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // Notifications State
   const [notifications, setNotifications] = useState([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -61,6 +66,7 @@ function ERPContainer() {
     if (mainRef.current) {
       mainRef.current.scrollTop = 0;
     }
+    setSidebarOpen(false); // Auto-close sidebar on mobile when tab changes
   }, [activeTab]);
 
   const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8000/api` : 'https://lp-erp-v1.onrender.com/api');
@@ -143,18 +149,37 @@ function ERPContainer() {
   }
 
   return (
-    <div className="flex h-screen bg-premium-bg text-white overflow-hidden font-sans selection:bg-premium-gold/30">
+    <div className="flex h-screen bg-premium-bg text-white overflow-hidden font-sans selection:bg-premium-gold/30 relative">
+      {/* Sidebar Overlay (Backdrop) */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden transition-all duration-300"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-72 bg-premium-slate border-r border-white/5 flex flex-col shadow-2xl relative z-20">
-        <div className="p-8">
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-72 bg-premium-slate border-r border-white/5 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-8 flex items-center justify-between">
           <h1 className="text-2xl font-black text-white tracking-tighter flex items-center space-x-2">
             <div className="w-8 h-8 bg-premium-gold rounded-lg flex items-center justify-center">
               <span className="text-black text-lg">LP</span>
             </div>
             <span>ERP <span className="text-premium-gold italic text-sm">v2</span></span>
           </h1>
-          <p className="text-[10px] text-slate-500 uppercase tracking-[4px] mt-1 ml-1 text-center font-black">MUEBLERÍA TORREÓN</p>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-colors"
+            title="Cerrar menú"
+          >
+            <X size={16} />
+          </button>
         </div>
+        <p className="text-[10px] text-slate-500 uppercase tracking-[4px] px-8 -mt-4 mb-4 font-black">MUEBLERÍA TORREÓN</p>
 
         <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto custom-scrollbar">
           {visibleMenuItems.map((item) => (
@@ -197,18 +222,28 @@ function ERPContainer() {
       </aside>
 
       {/* Main Content */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto p-12 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/[0.02] via-transparent to-transparent">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h2 className="text-4xl font-black text-white tracking-tight uppercase">
-              {menuItems.find(i => i.id === activeTab)?.label}
-            </h2>
-            <p className="text-slate-500 font-medium italic mt-1">
-              Bienvenido de nuevo, {auth.user}
-            </p>
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-12 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/[0.02] via-transparent to-transparent">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-12">
+          <div className="flex items-center space-x-4">
+            {/* Hamburger Toggle Button */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:border-premium-gold/50 transition-all duration-300"
+              title="Abrir menú"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight uppercase">
+                {menuItems.find(i => i.id === activeTab)?.label}
+              </h2>
+              <p className="text-slate-500 font-medium italic text-xs sm:text-sm mt-0.5">
+                Bienvenido de nuevo, {auth.user}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-6 relative">
+          <div className="flex items-center justify-end space-x-4 sm:space-x-6 relative">
             {/* Header Notification Bell */}
             <div className="relative">
               <button
@@ -225,7 +260,7 @@ function ERPContainer() {
 
               {/* Dropdown Menu */}
               {showNotifMenu && (
-                <div className="absolute top-14 right-0 w-80 bg-premium-slate border border-premium-gold/20 rounded-3xl shadow-2xl z-50 overflow-hidden transform origin-top-right animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-14 right-0 w-72 sm:w-80 bg-premium-slate border border-premium-gold/20 rounded-3xl shadow-2xl z-50 overflow-hidden transform origin-top-right animate-in fade-in zoom-in-95 duration-200">
                   <div className="p-4 border-b border-white/10 bg-black/20 flex justify-between items-center">
                     <h3 className="font-black text-sm uppercase tracking-widest text-premium-gold">Notificaciones</h3>
                     <span className="text-[10px] bg-white/10 text-white px-2 py-1 rounded-full font-bold">{notifications.length}</span>
@@ -276,7 +311,7 @@ function ERPContainer() {
             {activeTab !== 'sales' && !selectedOrderId && (
               <button
                 onClick={() => setActiveTab('sales')}
-                className="bg-premium-gold hover:bg-yellow-400 text-black px-6 py-3 rounded-2xl font-black text-sm flex items-center space-x-2 transition-all shadow-xl shadow-premium-gold/10 hover:shadow-premium-gold/20 active:scale-95"
+                className="bg-premium-gold hover:bg-yellow-400 text-black px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-2 transition-all shadow-xl shadow-premium-gold/10 hover:shadow-premium-gold/20 active:scale-95 whitespace-nowrap"
               >
                 <PlusCircle size={18} />
                 <span>NUEVA VENTA</span>
@@ -301,10 +336,10 @@ function ERPContainer() {
               ? <OrderDetails orderId={selectedOrderId} role={auth.role} isSuperadmin={auth.is_superadmin} permissions={auth.permissions} onBack={() => setSelectedOrderId(null)} />
               : <Layaways onSelectOrder={(id) => setSelectedOrderId(id)} />
           )}
-          { activeTab === 'payments' && canAccess('payments') && <Payments /> }
-          { activeTab === 'hr' && canAccess('hr') && <HRModule /> }
-          { activeTab === 'crm' && canAccess('crm') && <CRM /> }
-          { activeTab === 'settings' && canAccess('settings') && <Settings isSuperadmin={auth.is_superadmin} /> }
+          {activeTab === 'payments' && canAccess('payments') && <Payments />}
+          {activeTab === 'hr' && canAccess('hr') && <HRModule />}
+          {activeTab === 'crm' && canAccess('crm') && <CRM />}
+          {activeTab === 'settings' && canAccess('settings') && <Settings isSuperadmin={auth.is_superadmin} />}
         </div>
       </main>
     </div>

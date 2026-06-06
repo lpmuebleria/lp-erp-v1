@@ -9,7 +9,7 @@ import datetime
 import base64
 
 from utils import get_image_b64, calculate_rounding
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -29,8 +29,21 @@ class PublicProduct(BaseModel):
     dimensiones: Optional[str] = None
     caracteristicas: Optional[str] = None
 
-@router.get("/catalog/products", response_model=List[PublicProduct])
-def get_public_catalog():
+class PaginatedPublicProducts(BaseModel):
+    products: List[PublicProduct]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+@router.get("/catalog/products", response_model=Union[List[PublicProduct], PaginatedPublicProducts])
+def get_public_catalog(
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    is_offer: Optional[int] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = 12
+):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
@@ -42,12 +55,46 @@ def get_public_catalog():
         except:
             interes_msi_pct = 15.0
 
-        cur.execute("""
+        # Build dynamic queries
+        where_clauses = ["in_catalog = 1 AND activo = 1"]
+        params = []
+
+        if q:
+            q_clean = q.strip()
+            if q_clean:
+                like = f"%{q_clean}%"
+                where_clauses.append("(codigo LIKE %s OR modelo LIKE %s)")
+                params.extend([like, like])
+
+        if category and category.strip() and category.lower() != 'todos':
+            where_clauses.append("tamano = %s")
+            params.append(category.strip())
+
+        if is_offer is not None:
+            where_clauses.append("is_offer = %s")
+            params.append(is_offer)
+
+        where_sql = " AND ".join(where_clauses)
+
+        total = 0
+        if page is not None:
+            cur.execute(f"SELECT COUNT(*) as total FROM products WHERE {where_sql}", tuple(params))
+            total = cur.fetchone()["total"]
+
+        query = f"""
             SELECT id, codigo, modelo, tamano, precio_lista, stock, imagen_url, is_offer, precio_etiqueta, descripcion, dimensiones, caracteristicas
             FROM products 
-            WHERE in_catalog = 1 AND activo = 1
+            WHERE {where_sql}
             ORDER BY modelo ASC
-        """)
+        """
+
+        if page is not None:
+            offset = (page - 1) * limit
+            query += " LIMIT %s OFFSET %s"
+            cur.execute(query, tuple(params + [limit, offset]))
+        else:
+            cur.execute(query, tuple(params))
+
         products = cur.fetchall()
         for p in products:
             p['precio_lista'] = float(p['precio_lista'] or 0)
@@ -55,6 +102,15 @@ def get_public_catalog():
             raw_msi = p['precio_lista'] * (1 + interes_msi_pct / 100)
             p['precio_msi'] = calculate_rounding(raw_msi)
         
+        import math
+        if page is not None:
+            return {
+                "products": products,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": math.ceil(total / limit) if limit > 0 else 0
+            }
         return products
     finally:
         conn.close()

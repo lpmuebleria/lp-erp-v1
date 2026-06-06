@@ -9,9 +9,9 @@ import uuid
 import cloudinary
 import cloudinary.uploader
 import re
-from typing import List, Optional
+from typing import List, Optional, Union
 from database import db
-from schemas import Product, ProductCreate, ProductDetail
+from schemas import Product, ProductCreate, ProductDetail, PaginatedProducts
 from utils import money, get_image_b64, calculate_rounding
 from api.notifications import trigger_notification
 from jinja2 import Environment, FileSystemLoader
@@ -71,56 +71,75 @@ def download_template():
         raise HTTPException(status_code=500, detail="Error al generar la plantilla")
 
 
-@router.get("/products", response_model=List[Product])
+@router.get("/products", response_model=Union[List[Product], PaginatedProducts])
 def get_products(
     q: Optional[str] = None, 
     category_id: Optional[int] = None, 
     stock_status: Optional[str] = None, 
     is_offer: Optional[int] = None,
-    active: Optional[int] = None
+    active: Optional[int] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = 20
 ):
     conn = db()
     cur = conn.cursor(dictionary=True)
     try:
         q_clean = (q or "").strip()
-        query_base = """
+        where_clauses = []
+        params = []
+        
+        if q_clean:
+            like = f"%{q_clean}%"
+            where_clauses.append("(p.codigo LIKE %s OR p.modelo LIKE %s)")
+            params.extend([like, like])
+            
+        if category_id:
+            where_clauses.append("p.categoria_id = %s")
+            params.append(category_id)
+            
+        if is_offer is not None:
+            where_clauses.append("p.is_offer = %s")
+            params.append(is_offer)
+            
+        if active is not None:
+            where_clauses.append("p.activo = %s")
+            params.append(active)
+            
+        if stock_status:
+            if stock_status == 'in_stock':
+                where_clauses.append("p.stock > 0")
+            elif stock_status == 'low_stock':
+                where_clauses.append("p.stock > 0 AND p.stock <= 2")
+            elif stock_status == 'out_of_stock':
+                where_clauses.append("p.stock = 0")
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = " AND " + " AND ".join(where_clauses)
+
+        total = 0
+        if page is not None:
+            cur.execute(f"SELECT COUNT(*) as total FROM products p WHERE 1=1 {where_sql}", tuple(params))
+            total = cur.fetchone()["total"]
+
+        query_base = f"""
             SELECT p.*, c.name as categoria_name,
             (SELECT GROUP_CONCAT(f.name SEPARATOR ', ') FROM fabrics f JOIN product_fabrics pf ON f.id = pf.fabric_id WHERE pf.product_id = p.id) as fabric_names,
             (SELECT GROUP_CONCAT(cl.name SEPARATOR ', ') FROM colors cl JOIN product_colors pc ON cl.id = pc.color_id WHERE pc.product_id = p.id) as color_names
             FROM products p
             LEFT JOIN categories c ON p.categoria_id = c.id
-            WHERE 1=1
+            WHERE 1=1 {where_sql}
+            ORDER BY p.activo DESC, p.codigo
         """
-        params = []
         
-        if q_clean:
-            like = f"%{q_clean}%"
-            query_base += " AND (p.codigo LIKE %s OR p.modelo LIKE %s)"
-            params.extend([like, like])
+        if page is not None:
+            offset = (page - 1) * limit
+            query_base += " LIMIT %s OFFSET %s"
+            cur.execute(query_base, tuple(params + [limit, offset]))
+        else:
+            query_base += " LIMIT 200"
+            cur.execute(query_base, tuple(params))
             
-        if category_id:
-            query_base += " AND p.categoria_id = %s"
-            params.append(category_id)
-            
-        if is_offer is not None:
-            query_base += " AND p.is_offer = %s"
-            params.append(is_offer)
-            
-        if active is not None:
-            query_base += " AND p.activo = %s"
-            params.append(active)
-            
-        if stock_status:
-            if stock_status == 'in_stock':
-                query_base += " AND p.stock > 0"
-            elif stock_status == 'low_stock':
-                query_base += " AND p.stock > 0 AND p.stock <= 2"
-            elif stock_status == 'out_of_stock':
-                query_base += " AND p.stock = 0"
-
-        query_base += " ORDER BY p.activo DESC, p.codigo LIMIT 200"
-        
-        cur.execute(query_base, tuple(params))
         products = cur.fetchall()
 
         # Fetch config for accurate margin-based price calculation
@@ -223,6 +242,15 @@ def get_products(
                     precio_desc = base_promo_price * (1 - p["descuento_automatico"] / 100)
                     p["precio_con_descuento"] = precio_desc
         
+        import math
+        if page is not None:
+            return {
+                "products": products,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": math.ceil(total / limit) if limit > 0 else 0
+            }
         return products
     finally:
         conn.close()
